@@ -70,7 +70,7 @@ function Login() {
               className="max-w-md mx-auto space-y-3"
             >
               <h3 className="text-lg font-semibold mb-4">
-                &#128540; Welcome GALMAT
+                &#128540; Welcome GALAMAT
               </h3>
               <div>
                 <Input
