@@ -226,3 +226,6 @@ fabric.properties
 
 
 /generated/prisma
+backup-galamat-server.tar.gz
+phpmyadmin/
+
