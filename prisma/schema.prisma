@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model languages {
+  id        Int     @id @default(autoincrement())
+  name      String  @db.Text
+  key       String? @db.VarChar(250)
+  parent_id String? @db.VarChar(10)
+}
+
+model users {
+  id       Int    @id @default(autoincrement())
+  name     String @db.VarChar(255)
+  login    String @db.VarChar(250)
+  password String @db.VarChar(255)
+  status   String @db.VarChar(255)
+}
+
+model sliders_tb {
+  id            Int    @id @default(autoincrement())
+  slider_name   String @db.VarChar(250)
+  image_path    String @db.VarChar(1000)
+  url           String @db.VarChar(300)
+  parent_id     String @db.VarChar(255)
+  sub_parent_id Int?
+  lang_key      String @db.VarChar(250)
+  sort_index    Int
+}
+
+model projects {
+  id              Int     @id @default(autoincrement())
+  project_id      Int
+  hide            Boolean
+  position        String  @db.VarChar(255)
+  page_url        String  @db.VarChar(250)
+  address         String  @db.VarChar(250)
+  min_price       Int
+  file_url        String  @db.Text
+  completion_date String  @db.VarChar(250)
+}
+
+model objects {
+  id               Int     @id @default(autoincrement())
+  project_house_id Int
+  parent_id        Int?
+  coordinates      String? @db.Text
+  image_path       String? @db.VarChar(1000)
+  api_url          String  @db.VarChar(255)
+  color            String? @db.VarChar(250)
+}
+
+model lottery {
+  id                Int    @id @default(autoincrement())
+  phone             String @db.VarChar(255)
+  name              String @db.VarChar(250)
+  status            String @db.VarChar(255)
+  verification_code Int
+  timeout           String @db.VarChar(250)
+  winner            Int
+  promocode         String @db.VarChar(250)
+}
+
+model probabilities {
+  id          Int @id @default(autoincrement())
+  price       Int
+  probability Int
+  rotate      Int
+}
+
+model property {
+  id          Int  @id @default(autoincrement())
+  property_id Int  @unique(map: "property_id")
+  data        Json
+}
+
+model pages_sections {
+  id        Int    @id @default(autoincrement())
+  key       String @db.VarChar(255)
+  body_json Json?
+}

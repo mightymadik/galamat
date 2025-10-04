@@ -1,0 +1,105 @@
+.leave-request{
+  .leave-request-info{
+    @include flex;
+    @media(max-width: 767px) {
+      @include dir-col;
+    }
+    .info{
+      border-radius: 16px;
+      overflow: hidden;
+      background: #132C5E;
+      width: 100%;
+      padding: 80px 50px;
+      @include flex;
+      @include align-center;
+      position: relative;
+      @media(max-width: 1024px) {
+        padding: 58px 20px;
+      }
+      @media(max-width: 767px) {
+        width: 100%;
+        margin-bottom: 20px;
+      }
+      h2{
+        max-width: 230px;
+        font-size: 44px;
+        color: white;
+        margin-bottom: 15px;
+        font-weight: 500;
+        line-height: 108%;
+        @media(max-width: 1024px) {
+          font-size: 34px;
+        }
+        @media(max-width: 767px) {
+          font-size: 30px;
+        }
+      }
+      span{
+        font-size: 24px;
+        color: white;
+        @media(max-width: 1024px) {
+          font-size: 20px;
+        }
+        @media(max-width: 767px) {
+          font-size: 18px;
+        }
+      }
+      .img-wrap{
+        @include flex;
+        margin: auto;
+        img{
+          position: absolute;
+          right: 0;
+          bottom: 0;
+          width: 350px;
+
+
+          @media (max-width: 767px) {
+            width: 250px;
+          }
+          @media (max-width: 430px) {
+            width: 180px;
+            right: -50px;
+          }
+        }
+      }
+    }
+    .leave-request-form{
+      min-height: 100%;
+      border-radius: 16px;
+      background: white;
+      width: 100%;
+      padding: 50px 40px;
+      @include flex;
+      @include dir-col;
+      @media(max-width: 1024px) {
+        padding: 30px;
+        min-height: 252px;
+      }
+      @media(max-width: 767px) {
+        width: 100%;
+        padding: 24px;
+      }
+      button{
+        margin-top: 10px;
+        @media(max-width: 1024px) {
+          margin-top: 0;
+        }
+      }
+      //input{
+      //  width: 100%;
+      //  height: 52px;
+      //  margin-bottom: 20px;
+      //  border: 1px solid #ADADAD;
+      //  padding: 0 15px;
+      //  font-size: 15px;
+      //  color: #353535;
+      //  border-radius: 6px;
+      //  @include placeholder{
+      //    font-size: 15px;
+      //    color: #353535;
+      //  }
+      //}
+    }
+  }
+}

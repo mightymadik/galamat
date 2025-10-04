@@ -1,0 +1,83 @@
+.gala-banner{
+    margin-bottom: 20px;
+    .banner-info{
+        padding: 40px;
+        border-radius: 20px;
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center center;
+        @media(max-width: 767px){
+            padding: 40px 20px;
+            background-position: left;
+        }
+        .gala-logo{
+            margin-bottom: 80px;
+        }
+        h1{
+            font-size: 64px;
+            font-style: normal;
+            font-weight: 700;
+            line-height: 100%;
+            margin-bottom: 30px;
+            color: white;
+            @media(max-width: 767px){
+                font-size: 40px;
+                margin-bottom: 10px;
+            }
+        }
+        p{
+            max-width: 310px;
+            margin-bottom: 20px;
+            color: #FFF;
+            font-size: 18px;
+            font-style: normal;
+            font-weight: 500;
+            @media(max-width: 767px){
+                font-size: 14px;
+            }
+        }
+        .buttons{
+            @include flex;
+            margin-bottom: 70px;
+            @media(max-width: 767px){
+               margin-bottom: 20px;
+            }
+            button{
+                margin-right: 10px;
+                padding: 6px 24px 8px;
+                border-radius: 50px;
+                font-size: 18px;
+                font-weight: 500;
+                color: white;
+                @media(max-width: 767px){
+                    font-size: 12px;
+                    padding-left: 16px;
+                    padding-right: 16px;
+                }
+                &:hover{
+                    &.red-btn{
+                        background: white;
+                        color: #FF002B;
+                    }
+                    &.blue-btn{
+                        background: white;
+                        color: #043BA8;
+                    }
+                }
+            }
+        }
+        .address{
+            span{
+                @include flex;
+                @include align-center;
+                margin-top: 15px;
+                font-weight: 500;
+                color: white;
+                font-size: 13px;
+                img{
+                    margin-right: 6px;
+                }
+            }
+        }
+    }
+}

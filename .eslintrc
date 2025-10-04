@@ -1,0 +1,48 @@
+{
+  "root": true,
+  "extends": [
+    "eslint:recommended",
+    "plugin:react/recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:prettier/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "plugins": [
+    "react",
+    "@typescript-eslint",
+    "prettier"
+  ],
+  "rules": {
+    "react/react-in-jsx-scope": "off",
+    "semi": ["error", "always"],
+    "indent": ["error", 2],
+    "no-console": "warn",
+    "arrow-body-style": "off",
+    "prefer-arrow-callback": "off",
+    "curly": ["warn", "all"],
+    "no-confusing-arrow": ["warn", { "allowParens": false }],
+    "operator-linebreak": "off",
+    "no-prototype-builtins": "warn",
+    "no-extra-boolean-cast": "warn",
+    "no-useless-escape": "warn",
+    "no-useless-catch": "warn",
+    "object-shorthand": "warn",
+    "prefer-const": "warn",
+    "prefer-template": "warn",
+    "react/prop-types": "off",
+    "import/prefer-default-export": "off",
+    "react/display-name": "off",
+    "import/no-cycle": "off",
+    "react/no-find-dom-node": "warn",
+
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off"
+  }
+}

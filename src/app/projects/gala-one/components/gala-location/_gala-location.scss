@@ -1,0 +1,187 @@
+.gala-location{
+  .wrapper{
+    @media(max-width: 1024px){
+      padding-right: 0;
+    }
+  }
+  .info{
+    border-radius: 36px;
+    background: #7F0217;
+    overflow: hidden;
+    @media(max-width: 1024px){
+      background: none;
+      overflow: visible;
+    }
+    .top{
+      @include flex;
+      @include align-center;
+      padding: 34px;
+      @media(max-width: 1024px){
+        padding: 0;
+        margin-bottom: 20px;
+      }
+      @media(max-width: 767px){
+        @include dir-col;
+        align-items: flex-start;
+      }
+      h2{
+        font-size: 40px;
+        font-weight: bold;
+        color: white;
+        line-height: 100%;
+        max-width: 570px;
+        @media(max-width: 1024px){
+          color: #1b1b1b;
+          font-size: 32px;
+          max-width: 700px;
+        }
+        @media(max-width: 767px){
+          font-size: 30px;
+          padding-right: 15px;
+          margin-bottom: 20px;
+        }
+
+      }
+      p{
+        max-width: 500px;
+        width: 100%;
+        color: white;
+        font-weight: 500;
+        font-size: 18px;
+        margin-left: 30px;
+        @media(max-width: 1024px){
+          color: #1b1b1b;
+          font-size: 16px;
+        }
+        @media(max-width: 767px){
+          font-size: 14px;
+          margin-left: 0;
+          padding-right: 15px;
+        }
+      }
+    }
+    .img-wrap{
+      @include flex;
+      margin-top: -100px;
+      @media(max-width: 1024px){
+        display: none;
+      }
+      img{
+        width: 100%;
+      }
+    }
+  }
+}
+
+.locationSwiper{
+  padding: 30px;
+  padding-top: 10px;
+  max-width: 1160px;
+  margin: 0;
+  @media(max-width: 1024px){
+    padding: 15px 0;
+  }
+  .swiper-slide{
+    @media(max-width: 1024px){
+      padding: 20px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #7F0217;
+      min-height: 180px;
+    }
+    @media(max-width: 767px){
+      width: 170px;
+      padding: 10px;
+      min-height: 130px;
+    }
+
+    .top-line{
+      @include flex;
+      @include align-center;
+      margin-bottom: 24px;
+      @media(max-width: 767px){
+        margin-bottom: 14px;
+      }
+      .icon{
+        margin-right: 12px;
+        @include flex;
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        border-radius: 8px;
+        background: white;
+        @media(max-width: 767px){
+          width: 24px;
+          height: 24px;
+          min-width: 24px;
+          margin-right: 8px;
+        }
+        img{
+          margin: auto;
+        }
+      }
+      span{
+        max-width: 130px;
+        width: 100%;
+        display: inline-block;
+        color: white;
+        font-size: 18px;
+        font-weight: 500;
+        @media(max-width: 1024px){
+          font-size: 14px;
+        }
+        @media(max-width: 767px){
+          font-size: 12px;
+          max-width: 90px;
+        }
+      }
+    }
+    ul{
+      li{
+        @include flex;
+        @include align-center;
+        margin-bottom: 20px;
+        @media(max-width: 1024px){
+          margin-bottom: 10px;
+        }
+        &:last-child{
+          margin-bottom: 0;
+        }
+        .circle{
+          width: 10px;
+          height: 10px;
+          background: white;
+          border-radius: 50%;
+          margin-right: 12px;
+          @media(max-width: 767px){
+            width: 6px;
+            height: 6px;
+            margin-right: 8px;
+          }
+        }
+        .text{
+          font-size: 18px;
+          font-weight: 500;
+          opacity: 0.7;
+          color: white;
+          @media(max-width: 1024px){
+            font-size: 14px;
+          }
+          @media(max-width: 767px){
+            font-size: 10px;
+          }
+        }
+      }
+    }
+  }
+  .swiper-pagination{
+    @media(max-width: 1024px){
+      margin: 20px 0;
+      position: static;
+      padding: 0;
+      span{
+        background: #7F0217;
+      }
+    }
+  }
+}

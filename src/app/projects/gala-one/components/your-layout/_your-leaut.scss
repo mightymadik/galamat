@@ -1,0 +1,120 @@
+.your-layout {
+  margin: 20px 0;
+
+  h2 {
+    font-size: 40px;
+    font-weight: bold;
+    margin-bottom: 30px;
+    color: #1B1B1B;
+    @media(max-width: 1024px) {
+      font-size: 30px;
+      margin-bottom: 20px;
+    }
+
+    @media(max-width: 767px) {
+      font-size: 20px;
+    }
+  }
+
+  .info {
+    @include flex;
+    align-items: stretch;
+    overflow-x: auto;
+    @media(max-width: 1024px) {
+      flex-direction: column-reverse;
+    }
+
+    .images {
+      width: 290px;
+      margin-right: 20px;
+      min-width: 290px;
+      padding: 20px;
+      border-radius: 24px;
+      background: white;
+      padding-right: 10px;
+      @media(max-width: 1024px) {
+        margin-top: 20px;
+        margin-right: 0;
+        width: 100%;
+      }
+
+      &::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+        border-radius: 24px;
+        overflow: hidden;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background-color: #7F0217;
+        border-radius: 24px;
+        overflow: hidden;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: rgba(#7F0217, .3);
+        border-radius: 24px;
+        overflow: hidden;
+      }
+
+      .scroll {
+        overflow-y: auto;
+        border-radius: 16px;
+        @media(max-width: 1024px) {
+          height: auto;
+          overflow: inherit;
+          overflow-x: auto;
+          @include flex;
+          max-width: 100%;
+          padding-bottom: 15px;
+          img{
+            min-width: 150px;
+          }
+        }
+
+        &::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+          border-radius: 24px;
+          overflow: hidden;
+        }
+
+        &::-webkit-scrollbar-thumb {
+          background-color: #7F0217;
+          border-radius: 24px;
+          overflow: hidden;
+        }
+
+        &::-webkit-scrollbar-track {
+          background: rgba(#7F0217, .3);
+          border-radius: 24px;
+          overflow: hidden;
+        }
+
+        .img {
+          @include flex;
+          height: 230px;
+          margin-bottom: 20px;
+          @media(max-width: 1024px) {
+            width: 160px;
+            height: 160px;
+            margin-right: 10px;
+            margin-bottom: 0;
+          }
+        }
+      }
+    }
+
+    .planing-info {
+      flex-grow: 1;
+      background: white;
+      @include flex;
+      align-self: flex-start;
+      border-radius: 24px;
+
+      #img-mapper{
+        min-width: 970px;
+      }
+    }
+  }
+}

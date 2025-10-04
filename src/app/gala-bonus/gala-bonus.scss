@@ -1,0 +1,170 @@
+.shadow-bonus{
+  box-shadow:  0px 0.959px 109.737px 0px rgba(0, 0, 0, 0.65) inset;
+}
+
+.play-btn{
+  width: 90.168px;
+  height: 90.168px;
+  flex-shrink: 0;
+  background: radial-gradient(54.26% 54.26% at 50% 45.74%, #3579E0 0%, #21468B 100%), #D9D9D9;
+  filter: drop-shadow(0px 3.837px 20.144px rgba(0, 0, 0, 0.50));
+  border-radius: 50%;
+}
+
+
+.playgon-top-right{
+  clip-path: polygon(100% 0, 0% 100%, 0 0);
+}
+
+.playgon-bottom-right{
+  clip-path: polygon(100% 0, 0 0, 100% 100%);
+}
+
+.playgon-bottom-left{
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
+}
+
+.playgon-top-left{
+  clip-path: polygon(0 100%, 0 0, 100% 100%);
+}
+
+.shadow-yellow{
+  box-shadow: 0px 0px 15px #f0ae45;
+}
+
+
+.bonus-wrap{
+  background: #132C5E;
+  padding: 20px 0;
+  @media(max-width: 767px){
+    padding: 40px 0;
+  }
+  .bonus-info{
+    @include flex;
+    @include align-center;
+    @include justify-between;
+    @media(max-width: 767px){
+      @include dir-col;
+    }
+    .texts{
+      width: 44%;
+      @media(max-width: 767px){
+        width: 100%;
+      }
+      margin-bottom: 30px;
+      h1{
+        font-size: 110px;
+        font-weight: 500;
+        margin-bottom: 30px;
+        line-height: 100%;
+        color: white;
+        @media(max-width: 1200px){
+          font-size: 60px;
+          margin-bottom: 20px;
+        }
+        @media(max-width: 767px){
+          font-size: 50px;
+        }
+        @media(max-width: 576px){
+          font-size: 30px;
+        }
+      }
+      p{
+        font-size: 20px;
+        color: white;
+        margin-bottom: 30px;
+        @media(max-width: 1200px){
+          font-size: 18px;
+        }
+        @media(max-width: 767px){
+          font-size: 16px;
+          margin-bottom: 20px;
+        }
+      }
+      .red-btn{
+        padding: 10px 28px;
+        color: white;
+        background: #DB1D31;
+        border: 1px solid #DB1D31;
+        border-radius: 40px;
+        margin-bottom: 70px;
+        @media(max-width: 1024px){
+          margin-bottom: 50px;
+        }
+        @media(max-width: 767px){
+          margin-bottom: 10px;
+        }
+        &:hover{
+          background: white;
+          color: #DB1D31;
+        }
+      }
+    }
+    .bonus{
+      width: 54%;
+      @media(max-width: 767px){
+        width: 100%;
+      }
+      img{
+        max-width: 100%;
+        max-height: 100%;
+      }
+    }
+  }
+}
+
+
+.modal-find-bonus{
+  margin-top: 10px;
+  margin-bottom: 10px;
+  color: #fff;
+  a{
+    text-decoration: underline;
+    font-weight: bold;
+  }
+}
+
+.gala-bonus-fortuna{
+    @media (max-width: 690px){
+      transform: scale(0.8);
+      margin-left: -20px;
+      margin-top: -50px;
+    }
+    @media (max-width: 600px){
+      transform: scale(0.7);
+      margin-left: -40px;
+      margin-top: -90px;
+    }
+    @media (max-width: 545px){
+      transform: scale(0.7);
+      margin-left: -70px;
+    }
+    @media (max-width: 508px){
+      transform: scale(0.7);
+      margin-left: -90px;
+      margin-top: -140px;
+    }
+    @media (max-width: 492px){
+      transform: scale(0.6);
+      margin-left: -90px;
+    }
+    @media (max-width: 449px){
+      transform: scale(0.6);
+      margin-left: -120px;
+      margin-top: -160px;
+    }
+    @media (max-width: 423px){
+      transform: scale(0.5);
+      margin-left: -150px;
+    }
+    @media (max-width: 375px){
+      transform: scale(0.5);
+      margin-left: -170px;
+    }
+    @media (max-width: 358px){
+      transform: scale(0.4);
+      margin-left: -170px;
+      margin-top: -190px;
+      margin-bottom: -160px;
+    }
+}

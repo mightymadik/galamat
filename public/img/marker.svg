@@ -1,0 +1,18 @@
+<svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <g id="animated-group">
+        <path d="M25 40C33.2843 40 40 33.2843 40 25C40 16.7157 33.2843 10 25 10C16.7157 10 10 16.7157 10 25C10 33.2843 16.7157 40 25 40Z" fill="#7F0217"/>
+        <path d="M25 46C36.598 46 46 36.598 46 25C46 13.402 36.598 4 25 4C13.402 4 4 13.402 4 25C4 36.598 13.402 46 25 46Z" stroke="#7F0217" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <animateTransform
+            attributeName="transform"
+            attributeType="XML"
+            type="scale"
+            from="1"
+            to="1.1"
+            dur="1.5s"
+            repeatCount="indefinite"
+            additive="sum"
+            target="#animated-group"
+    />
+</svg>
