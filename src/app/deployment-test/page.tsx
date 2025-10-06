@@ -30,7 +30,7 @@ export default function DeploymentTest() {
             </svg>
           </div>
           <p className="text-gray-600 mb-6">
-            Congratulations! Your Next.js application is deployed and working
+            Congratulations! Madiyar Your Next.js application is deployed and working
             correctly.
           </p>
         </div>
