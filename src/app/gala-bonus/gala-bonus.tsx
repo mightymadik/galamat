@@ -173,10 +173,18 @@ function GalaBonus() {
 
       console.log("hasav");
       ActionSendNumberBitrix(sendData.data.id).then((res) => {
+        // Check if this is a duplicate request
+        if (res.status === "duplicate") {
+          console.log("Duplicate request detected, skipping processing");
+          return;
+        }
+
         console.log("mtav");
-        ActionUpdatePromocode(sendData.data.id, res.promocode).then(() => {
-          console.log("promocode updates");
-        });
+        if (res.promocode) {
+          ActionUpdatePromocode(sendData.data.id, res.promocode).then(() => {
+            console.log("promocode updates");
+          });
+        }
 
         ActionSendNumberGoogle(sendData.data.id)
           .then((res) => {
@@ -184,16 +192,18 @@ function GalaBonus() {
 
             console.log(res);
 
-            if (platform === "android") {
-              setUserBonusLink(res.card_gpay_url);
-            } else if (platform === "ios") {
-              setUserBonusLink(res.card_url);
-            } else if (platform === "windows") {
-              setUserBonusLink(res.card_gpay_url);
-            } else if (platform === "mac") {
-              setUserBonusLink(res.card_url);
-            } else {
-              setUserBonusLink(res.card_gpay_url);
+            if (res.card_gpay_url || res.card_url) {
+              if (platform === "android") {
+                setUserBonusLink(res.card_gpay_url);
+              } else if (platform === "ios") {
+                setUserBonusLink(res.card_url);
+              } else if (platform === "windows") {
+                setUserBonusLink(res.card_gpay_url);
+              } else if (platform === "mac") {
+                setUserBonusLink(res.card_url);
+              } else {
+                setUserBonusLink(res.card_gpay_url);
+              }
             }
           })
           .catch((err) => {

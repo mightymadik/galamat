@@ -101,23 +101,33 @@ function BonusBlock({ data }: IThisProps) {
       setModalFindLink(true);
 
       ActionSendNumberBitrix(data.data.id).then((res) => {
-        ActionUpdatePromocode(data.data.id, res.promocode).then(() => {
-          console.log("promocode updates");
-        });
+        // Check if this is a duplicate request
+        if (res.status === "duplicate") {
+          console.log("Duplicate request detected, skipping processing");
+          return;
+        }
+
+        if (res.promocode) {
+          ActionUpdatePromocode(data.data.id, res.promocode).then(() => {
+            console.log("promocode updates");
+          });
+        }
 
         ActionSendNumberGoogle(data.data.id).then((res) => {
           const platform = getDevicePlatform();
 
-          if (platform === "android") {
-            setUserBonusLink(res.card_gpay_url);
-          } else if (platform === "ios") {
-            setUserBonusLink(res.card_url);
-          } else if (platform === "windows") {
-            setUserBonusLink(res.card_gpay_url);
-          } else if (platform === "mac") {
-            setUserBonusLink(res.card_url);
-          } else {
-            setUserBonusLink(res.card_gpay_url);
+          if (res.card_gpay_url || res.card_url) {
+            if (platform === "android") {
+              setUserBonusLink(res.card_gpay_url);
+            } else if (platform === "ios") {
+              setUserBonusLink(res.card_url);
+            } else if (platform === "windows") {
+              setUserBonusLink(res.card_gpay_url);
+            } else if (platform === "mac") {
+              setUserBonusLink(res.card_url);
+            } else {
+              setUserBonusLink(res.card_gpay_url);
+            }
           }
         });
       });
