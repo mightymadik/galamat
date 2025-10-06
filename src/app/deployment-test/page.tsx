@@ -11,7 +11,7 @@ export default function DeploymentTest() {
       <div className="max-w-2xl w-full bg-white rounded-xl shadow-lg p-8 space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Madiyar Deployment Test Successful!
+            Madiyar1 Deployment Test Successful!
           </h1>
           <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
             <svg
