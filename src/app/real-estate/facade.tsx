@@ -9,8 +9,6 @@ interface IThisProps {
 }
 
 function Facade({ projects, fakeItem = 0 }: IThisProps) {
-  // Removed Redux dispatch since we don't need to set projectId when navigating to project page
-
   return (
     <div className="w-full">
       <div className="w-full h-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -29,9 +27,12 @@ function Facade({ projects, fakeItem = 0 }: IThisProps) {
               <h3 className="text-[18px] md:text-[23px] text-[#353535]">
                 {project?.address}
               </h3>
-              <h3 className="text-[18px] md:text-[23px] text-[#353535] opacity-40">
-                от {formatPrice(project?.min_price || 0)}
-              </h3>
+              {/* Only show price if it's greater than 0 */}
+              {project?.min_price > 0 ? (
+                <h3 className="text-[18px] md:text-[23px] text-[#353535] opacity-40">
+                  от {formatPrice(project?.min_price || 0)}
+                </h3>
+              ) : null}
             </div>
             <div className="w-full h-[250px] md:h-[383px] bg-[#E0E0E0] rounded-[7px] overflow-hidden flex-jc-c relative">
               <Image

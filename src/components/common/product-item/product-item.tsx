@@ -36,9 +36,11 @@ function ProductItem({ project }: IThisProps) {
         <h3 className="text-[18px] md:text-[23px] text-[#353535]">
           {project?.address}
         </h3>
-        <h3 className="text-[18px] md:text-[23px] text-[#353535] opacity-40">
-          от {formatPrice(project?.min_price || 0)}
-        </h3>
+        {project?.min_price > 0 ? (
+          <h3 className="text-[18px] md:text-[23px] text-[#353535] opacity-40">
+            от {formatPrice(project?.min_price || 0)}
+          </h3>
+        ) : null}
       </div>
       <div className="w-full h-[250px] md:h-[383px] bg-[#E0E0E0] rounded-[7px] overflow-hidden flex-jc-c relative">
         <Image
