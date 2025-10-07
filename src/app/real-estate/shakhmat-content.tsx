@@ -161,7 +161,7 @@ function ShakhmatContent() {
       ) : (
         <div className="w-full h-[400px] flex items-center justify-center">
           <h3 className="text-center text-black/60 md:text-[25px]">
-            Данная страница в разработке
+            Данная страница в разработке.
           </h3>
         </div>
       )}

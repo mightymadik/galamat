@@ -5,18 +5,16 @@ import "./real-estate.scss";
 import MainTemplate from "@/components/common/main-template/main-template";
 import HorizontalFilter from "@/components/common/horizontal-filter/horizontal-filter";
 import React, { useEffect, useState } from "react";
-import clsx from "clsx";
-import TableEstate from "@/app/real-estate/table-estate";
 import "react-photo-view/dist/react-photo-view.css";
 import CanvasViewHouse from "@/app/real-estate/canvas-view-house";
 import { useDispatch, useSelector } from "react-redux";
 import { setHouse, setObjectInfo } from "@/redux/modals";
 import IconShakhmat from "@/components/common/icons/icon-shakhmat";
 import ShakhmatContent from "@/app/real-estate/shakhmat-content";
-import { BreadcrumbItem, Breadcrumbs, Button } from "@heroui/react";
+import { BreadcrumbItem, Breadcrumbs } from "@heroui/react";
 import { useTranslate } from "@/hooks/useTranslate";
 import { SITE_URL } from "@/utils/consts";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { setProjects } from "@/redux/projects";
 
 interface IThisProps {
@@ -26,7 +24,8 @@ interface IThisProps {
 function RealEstateContent({ projects }: IThisProps) {
   const dispatch = useDispatch();
   const $t = useTranslate();
-  const router = useRouter();
+  // Remove unused router import
+  // const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -43,31 +42,7 @@ function RealEstateContent({ projects }: IThisProps) {
       : tabIndex;
   };
 
-  const projectIds = projects.map((project) => project.project_id);
-
   const tabItems = [
-    // {
-    //   name: $t("facades"),
-    //   icon: <i className="fa-regular fa-map mr-2 text-[18px] sm:text-[23px]" />,
-    //   content: <Facade projects={projects} />,
-    // },
-    // {
-    //   name: $t("objects_"),
-    //   icon: <IconFosad />,
-    //   content: <Houses projectsIds={projectIds} />,
-    // },
-    // {
-    //   name: $t("layout"),
-    //   icon: <IconPlans />,
-    //   content: <RealEstatePlans projectsIds={projectIds} />,
-    // },
-    //{
-    //  name: $t("premises"),
-    //  icon: (
-    //    <i className="fa-regular fa-list mr-2 text-[20px] sm:text-[23px]" />
-    //  ),
-    // content: <TableEstate projectsIds={projectIds} />,
-    //},
     {
       name: $t("checkerboard"),
       icon: <IconShakhmat />,
@@ -75,18 +50,9 @@ function RealEstateContent({ projects }: IThisProps) {
     },
   ];
 
-  const [activeTab, setActiveTab] = useState(
+  const [activeTab] = useState(
     getValidTab(searchParams.get("tab"), tabItems.length),
   );
-
-  const handleTabChange = (index: number) => {
-    setActiveTab(index);
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", index.toString());
-
-    router.replace(`?${params.toString()}`, { scroll: false });
-  };
 
   const objectInfo = useSelector(
     (state: IModalState) => state.modals.objectInfo,
@@ -130,14 +96,8 @@ function RealEstateContent({ projects }: IThisProps) {
           <div className="tab2-wrap relative hidden sm:block">
             <div className="tab2 overflow-x-scroll bottom-scroll-hidden">
               <div className="tabs2">
-                {tabItems.map((item, i) => (
-                  <button
-                    key={item.name}
-                    className={clsx("tab-button border-none", {
-                      active: activeTab === i,
-                    })}
-                    onClick={() => handleTabChange(i)}
-                  >
+                {tabItems.map((item) => (
+                  <button key={item.name} className="tab-button border-none">
                     {item.icon}
                     {item.name}
                   </button>
@@ -146,14 +106,15 @@ function RealEstateContent({ projects }: IThisProps) {
             </div>
           </div>
 
+          {/* Hidden mobile tab navigation */}
+          {/* 
           <div className="mb-4 w-[calc(100%-50px)] ml-[50px] mt-[-65px] block sm:hidden">
-            <div className="w-full overflow-x-auto bottom-scroll-hidden hidden">
+            <div className="w-full overflow-x-auto bottom-scroll-hidden">
               <div className="flex-js-c gap-2 w-[750px]">
                 {tabItems.map((item, i) => (
                   <Button
                     key={item.name}
                     className="rounded-[4px] bg-white text-[12px]"
-                    onPress={() => handleTabChange(i)}
                   >
                     {item.icon}
                     {item.name}
@@ -162,6 +123,7 @@ function RealEstateContent({ projects }: IThisProps) {
               </div>
             </div>
           </div>
+          */}
 
           {tabItems[activeTab].content}
         </div>
