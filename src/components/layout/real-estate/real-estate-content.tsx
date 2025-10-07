@@ -6,6 +6,7 @@ import MainTemplate from "@/components/common/main-template/main-template";
 import HorizontalFilter from "@/components/common/horizontal-filter/horizontal-filter";
 import React, { useEffect, useState } from "react";
 import clsx from "clsx";
+import TableEstate from "@/app/real-estate/table-estate";
 import "react-photo-view/dist/react-photo-view.css";
 import CanvasViewHouse from "@/app/real-estate/canvas-view-house";
 import { useDispatch, useSelector } from "react-redux";
@@ -42,7 +43,31 @@ function RealEstateContent({ projects }: IThisProps) {
       : tabIndex;
   };
 
+  const projectIds = projects.map((project) => project.project_id);
+
   const tabItems = [
+    // {
+    //   name: $t("facades"),
+    //   icon: <i className="fa-regular fa-map mr-2 text-[18px] sm:text-[23px]" />,
+    //   content: <Facade projects={projects} />,
+    // },
+    // {
+    //   name: $t("objects_"),
+    //   icon: <IconFosad />,
+    //   content: <Houses projectsIds={projectIds} />,
+    // },
+    // {
+    //   name: $t("layout"),
+    //   icon: <IconPlans />,
+    //   content: <RealEstatePlans projectsIds={projectIds} />,
+    // },
+    //{
+     //  name: $t("premises"),
+     //  icon: (
+     //    <i className="fa-regular fa-list mr-2 text-[20px] sm:text-[23px]" />
+     //  ),
+      // content: <TableEstate projectsIds={projectIds} />,
+     //},
     {
       name: $t("checkerboard"),
       icon: <IconShakhmat />,
@@ -122,7 +147,7 @@ function RealEstateContent({ projects }: IThisProps) {
           </div>
 
           <div className="mb-4 w-[calc(100%-50px)] ml-[50px] mt-[-65px] block sm:hidden">
-            <div className="w-full overflow-x-auto bottom-scroll-hidden">
+            <div className="w-full overflow-x-auto bottom-scroll-hidden hidden">
               <div className="flex-js-c gap-2 w-[750px]">
                 {tabItems.map((item, i) => (
                   <Button
