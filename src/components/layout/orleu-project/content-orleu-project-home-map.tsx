@@ -58,7 +58,7 @@ function ContentOrleuProjectHomeMap({ sendRequest }: IThisProps) {
   const galleryRefMap = useRef<any>(null);
 
   return (
-    <div className="section section8 !h-auto !min-h-auto relative z-[1000]">
+    <div className="section section8 !h-auto !min-h-auto relative z-[50]">
       <div className="planning-wrap">
         <div className="title-wrap">
           <h2>Планировочные решения</h2>

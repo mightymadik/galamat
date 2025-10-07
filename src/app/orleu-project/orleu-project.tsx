@@ -81,7 +81,7 @@ function OrleuProject() {
 
         <ContentOrleuProjectAlPanorama />
 
-        <section className="section section8 relative">
+        <section className="section section8 relative hidden">
           <div className="planning-wrap relative !z-[10]">
             <div className="title-wrap max-[500px]:!mb-4">
               <h2>Шахматка</h2>

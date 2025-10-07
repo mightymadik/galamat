@@ -1,11 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Image from "next/image";
-import { ActionGetObjectInfo } from "@/app/actions/admin/objects/get-object-info";
-import CanvasView from "@/app/real-estate/canvas-view";
-import { addToast } from "@heroui/react";
 import { formatPrice } from "@/utils/consts";
 import PrintStatus from "@/components/common/product-item/print-status";
-import { useSelector } from "react-redux";
 
 interface IThisProps {
   projects: IProjectMerged[];
@@ -13,58 +9,17 @@ interface IThisProps {
 }
 
 function Facade({ projects, fakeItem = 0 }: IThisProps) {
-  const filterParams = useSelector(
-    (state: IFilterParamsState) => state.filterParams.params,
-  );
-
-  const [project, setProject] = useState<IProjectMerged | null>(null);
-  const [objectInfo, setObjectInfo] = useState<IObjectData | null>(null);
-
-  useEffect(() => {
-    if (project) {
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-      document.documentElement.style.overflow = "unset";
-    }
-  }, [project]);
-
-  function StartViewObject(project: IProjectMerged) {
-    addToast({
-      title: "Подождите пожалуйста",
-      color: "warning",
-    });
-
-    ActionGetObjectInfo(project.project_id, "/projects").then((res) => {
-      if (res.status) {
-        setObjectInfo(res.data as IObjectData);
-        setProject(project);
-
-        addToast({
-          title: "Спасибо, можете смотреть ",
-          color: "success",
-        });
-      }
-    });
-  }
-
-  function LoseFosadView() {
-    setObjectInfo(null);
-    setProject(null);
-  }
-
-  const FilteredProjects = filterParams.projectId
-    ? projects.filter((proj) => proj.project_id === filterParams.projectId)
-    : projects;
+  // Removed Redux dispatch since we don't need to set projectId when navigating to project page
 
   return (
     <div className="w-full">
       <div className="w-full h-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {FilteredProjects.map((project: IProjectMerged) => (
-          <div
+        {projects.map((project: IProjectMerged) => (
+          // Changed from onClick to href navigation, similar to projects page
+          // Removed Redux dispatch since we're navigating to the project page
+          <a
             key={`project-itm-${project.id}`}
-            onClick={() => StartViewObject(project)}
+            href={project.page_url}
             className="w-full bg-white rounded-[16px] p-[15px] cursor-pointer group flex-jsb-c flex-col"
           >
             <div className="w-full p-[15px]">
@@ -93,7 +48,7 @@ function Facade({ projects, fakeItem = 0 }: IThisProps) {
                 />
               ) : null}
             </div>
-          </div>
+          </a>
         ))}
 
         {Array.from({ length: fakeItem }).map((_, i) => (
@@ -109,14 +64,6 @@ function Facade({ projects, fakeItem = 0 }: IThisProps) {
           </div>
         ))}
       </div>
-
-      {objectInfo && project ? (
-        <CanvasView
-          project={project}
-          objectInfo={objectInfo}
-          onClose={LoseFosadView}
-        />
-      ) : null}
     </div>
   );
 }

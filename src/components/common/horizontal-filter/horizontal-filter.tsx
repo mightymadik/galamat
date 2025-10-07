@@ -155,7 +155,7 @@ function HorizontalFilter({
 
   return (
     <>
-      <div className={clsx("filters mb-8", className)}>
+      <div className={clsx("filters mb-8 hidden", className)}>
         {filterParams ? (
           <>
             <div className="w-[calc(100%+40px)] ml-[-20px] h-12 flex-jsb-c text-blue font-medium border-b mb-4 mt-[-10px] px-5 flex md:hidden">
