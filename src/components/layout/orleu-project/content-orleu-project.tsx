@@ -109,7 +109,7 @@ function ContentOrleuProject({ sendRequest }: IThisProps) {
 
       <motion.div
         style={{ x: leaveApartment, opacity: apartmentOpacity }}
-        className="section section2 !fixed top-[0] min-h-[900px]:top-[200px] left-[100px] z-[1000]"
+        className="section section2 !fixed top-[0] min-h-[900px]:top-[200px] left-[100px] z-[50]"
       >
         <div className="info transform scale-80 min-h-[900px]:scale-100">
           <div className="texts">

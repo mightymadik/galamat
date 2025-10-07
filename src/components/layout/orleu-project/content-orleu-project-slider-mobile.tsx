@@ -26,7 +26,7 @@ function ContentOrleuProjectSliderMobile() {
   const galleryRef = useRef<any>(null);
 
   return (
-    <div className="relative !z-[100]">
+    <div className="relative !z-[50]">
       <LightGallery
         galleryId="product-gallery"
         plugins={[lgZoom, lgThumbnail]}

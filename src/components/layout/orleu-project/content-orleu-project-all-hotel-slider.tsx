@@ -22,7 +22,7 @@ function ContentOrleuProjectAllHotelSlider() {
   }, []);
 
   return (
-    <div className="section section9 !px-0 !h-auto mb-10 relative z-[10000]">
+    <div className="section section9 !px-0 !h-auto mb-10 relative z-[50]">
       <div className="info">
         <Swiper
           modules={[Pagination, Autoplay]}

@@ -26,7 +26,7 @@ function ContentOrleuProjectAlPanorama() {
   }, []);
 
   return (
-    <div className="w-full relative z-[10000]">
+    <div className="w-full relative z-[50]">
       <h3 className="px-4 block lg:hidden text-[30px] text-blue mb-4 text-end font-bold">
         360°
       </h3>

@@ -35,7 +35,7 @@ function OreluMobileHeader({ sendRequest }: IThisProps) {
         <img
           src="/img/sect2-bg.png"
           alt=""
-          className="absolute bottom-[-30px] right-0 w-full max-w-[500px] pointer-events-none z-[1000]"
+          className="absolute bottom-[-30px] right-0 w-full max-w-[500px] pointer-events-none z-[50]"
         />
       </div>
 
