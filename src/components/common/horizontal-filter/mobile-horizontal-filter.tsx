@@ -120,7 +120,7 @@ function MobileHorizontalFilter({
 
   return (
     <>
-      <div className="w-full mb-6 flex gap-2 md:hidden">
+      <div className="w-full mb-6 flex gap-2 hidden">
         <Button
           className="rounded-[4px] bg-white text-[12px] min-w-[40px] px-0"
           onPress={() => setModalOpenAllFilter(true)}

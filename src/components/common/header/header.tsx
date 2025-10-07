@@ -37,10 +37,10 @@ function Header({ info = true }: IThisProps) {
   }
 
   const menuItems = [
-    {
-      name: $t("real_estate"),
-      url: SITE_URL.REAL_ESTATE,
-    },
+    // {
+    //   name: $t("real_estate"),
+    //   url: SITE_URL.REAL_ESTATE,
+    // },
     {
       name: $t("projects"),
       url: SITE_URL.PROJECTS,
