@@ -61,13 +61,13 @@ function RealEstateContent({ projects }: IThisProps) {
     //   icon: <IconPlans />,
     //   content: <RealEstatePlans projectsIds={projectIds} />,
     // },
-    {
-      name: $t("premises"),
-      icon: (
-        <i className="fa-regular fa-list mr-2 text-[20px] sm:text-[23px]" />
-      ),
-      content: <TableEstate projectsIds={projectIds} />,
-    },
+    //{
+     //  name: $t("premises"),
+     //  icon: (
+     //    <i className="fa-regular fa-list mr-2 text-[20px] sm:text-[23px]" />
+     //  ),
+      // content: <TableEstate projectsIds={projectIds} />,
+     //},
     {
       name: $t("checkerboard"),
       icon: <IconShakhmat />,
