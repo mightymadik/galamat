@@ -116,114 +116,120 @@ function YourLayout() {
     {
       id: "1",
       title: "Секция 1",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [350, 360, 425, 490],
+      coords: [
+        364, 352, 432, 351, 433, 460, 426, 461, 427, 471, 363, 471, 358, 457,
+        356, 368, 365, 368,
+      ],
     },
     {
       id: "2",
       title: "Секция 2",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [360, 490, 425, 615],
+      coords: [
+        362, 474, 427, 477, 427, 492, 432, 492, 433, 577, 427, 577, 426, 593,
+        363, 594,
+      ],
     },
     {
       id: "3",
       title: "Секция 3",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [260, 611, 385, 685],
+      coords: [
+        391, 597, 391, 656, 370, 656, 369, 661, 280, 661, 280, 654, 266, 656,
+        263, 592, 344, 590, 346, 597,
+      ],
     },
     {
       id: "4",
       title: "Секция 4",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [130, 611, 255, 685],
+      coords: [
+        262, 591, 262, 654, 249, 655, 249, 662, 157, 661, 157, 655, 134, 655,
+        134, 594, 182, 595, 181, 591,
+      ],
     },
     {
       id: "5",
       title: "Секция 5",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [95, 490, 165, 615],
+      coords: [
+        163, 592, 103, 592, 101, 494, 101, 477, 163, 478, 163, 492, 169, 492,
+        169, 575, 163, 576,
+      ],
     },
     {
       id: "6",
       title: "Секция 6",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [90, 360, 165, 490],
+      coords: [
+        166, 475, 101, 474, 101, 461, 95, 459, 94, 370, 101, 370, 100, 357, 166,
+        357, 166, 368, 172, 370, 174, 460, 166, 459,
+      ],
     },
     {
       id: "7",
       title: "Секция 7",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [70, 235, 145, 360],
+      coords: [
+        143, 352, 82, 352, 81, 341, 75, 338, 75, 250, 82, 250, 81, 237, 141,
+        235, 143, 250, 149, 248, 149, 340, 143, 339,
+      ],
     },
     {
       id: "8",
       title: "Секция 8",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [75, 110, 145, 235],
+      coords: [
+        79, 115, 143, 115, 145, 132, 156, 134, 150, 139, 150, 214, 143, 218,
+        143, 233, 80, 233,
+      ],
     },
     {
       id: "9",
       title: "Секция 9",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [105, 40, 230, 110],
+      coords: [
+        108, 113, 108, 47, 222, 46, 223, 53, 238, 51, 238, 113, 206, 112, 205,
+        118, 170, 118, 170, 113,
+      ],
     },
     {
       id: "10",
       title: "Секция 10",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [235, 70, 360, 140],
+      coords: [
+        240, 84, 239, 140, 255, 140, 255, 147, 351, 148, 351, 141, 364, 140,
+        366, 83, 353, 82, 352, 75, 253, 75, 253, 83,
+      ],
     },
     {
       id: "11",
       title: "Секция 11",
-      shape: "rect",
+      shape: "poly",
       fillColor: "rgba(127,2,23,0.44)",
       strokeColor: "black",
-      coords: [360, 105, 430, 230],
-    },
-    {
-      id: "12",
-      title: "Секция 12",
-      shape: "rect",
-      fillColor: "rgba(127,2,23,0.44)",
-      strokeColor: "black",
-      coords: [555, 110, 685, 180],
-    },
-    {
-      id: "13",
-      title: "Секция 13",
-      shape: "rect",
-      fillColor: "rgba(127,2,23,0.44)",
-      strokeColor: "black",
-      coords: [685, 145, 810, 215],
-    },
-    {
-      id: "14",
-      title: "Секция 14",
-      shape: "rect",
-      fillColor: "rgba(127,2,23,0.44)",
-      strokeColor: "black",
-      coords: [810, 180, 885, 310],
+      coords: [367, 109, 435, 109, 435, 227, 366, 227],
     },
   ];
 
@@ -254,7 +260,7 @@ function YourLayout() {
             <div className="planing-info !h-[730px] w-full relative min-w-[970px] overflow-hidden">
               <ImageMapper
                 ref={myRef}
-                src="/img/gala-one/top-view-max.webp"
+                src="/img/gala-one/top-view-max-2.webp"
                 name={name}
                 areas={areas}
                 width={1000}
