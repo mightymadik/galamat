@@ -43,9 +43,8 @@ function ContentOrleuProjectAlPanorama() {
             allow="xr-spatial-tracking; gyroscope; accelerometer"
             allowFullScreen
             scrolling="no"
-            className="rounded-[8px]"
-            src="https://kuula.co/share/hCJx3?logo=1&info=0&logosize=110&fs=1&vr=0&thumbs=3&inst=0"
-          />
+            src="https://kuula.co/share/h3ZYj?logo=1&info=0&logosize=110&fs=1&vr=0&thumbs=3&inst=0"
+          ></iframe>
         </div>
       </div>
     </div>
