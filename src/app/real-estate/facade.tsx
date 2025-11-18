@@ -52,10 +52,10 @@ function Facade({ projects, fakeItem = 0 }: IThisProps) {
           </a>
         ))}
 
-        {/* {Array.from({ length: fakeItem }).map((_, i) => (
+        {Array.from({ length: fakeItem }).map((_, i) => (
           <div
             key={`project-fake-${i}`}
-            className="w-full bg-white p-4 rounded-[12px] cursor-pointer group hidden sm:!block"
+            className="hidden w-full bg-white p-4 rounded-[12px] cursor-pointer group"
           >
             <img
               src="/img/new-project.svg"
@@ -63,7 +63,7 @@ function Facade({ projects, fakeItem = 0 }: IThisProps) {
               className="w-full h-full object-cover transition group-hover:scale-[1.02]"
             />
           </div>
-        ))} */}
+        ))}
       </div>
     </div>
   );
