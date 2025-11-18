@@ -1,0 +1,12 @@
+{
+  "folders": [
+    {
+      "name": "galamat-main",
+      "path": ".",
+    },
+    {
+      "path": "../galamat",
+    },
+  ],
+  "settings": {},
+}

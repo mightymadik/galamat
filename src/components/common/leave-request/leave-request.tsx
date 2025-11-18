@@ -1,3 +1,5 @@
+"use client";
+
 import "./leave-request.scss";
 import { Input } from "@heroui/react";
 import { addToast, Button } from "@heroui/react";
@@ -13,9 +15,10 @@ import IMask from "imask";
 interface IThisProps {
   background?: string;
   bgColorBtn?: "red" | "blue";
+  project?: string;
 }
 
-function LeaveRequest({ background, bgColorBtn }: IThisProps) {
+function LeaveRequest({ background, bgColorBtn, project }: IThisProps) {
   const $t = useTranslate();
   const [loading, setLoading] = useState(false);
   const [sendStatus, setSendStatus] = useState(false);
@@ -35,7 +38,7 @@ function LeaveRequest({ background, bgColorBtn }: IThisProps) {
       }
 
       setLoading(true);
-      SendCallBack(phone, name, "").then(() => {
+      SendCallBack(phone, name, project || "").then(() => {
         setLoading(false);
         setSendStatus(true);
       });

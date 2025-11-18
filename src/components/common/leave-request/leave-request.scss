@@ -1,58 +1,57 @@
-.leave-request{
-  .leave-request-info{
+.leave-request {
+  .leave-request-info {
     @include flex;
-    @media(max-width: 767px) {
+    @media (max-width: 767px) {
       @include dir-col;
     }
-    .info{
+    .info {
       border-radius: 16px;
       overflow: hidden;
-      background: #132C5E;
+      background: #132c5e;
       width: 100%;
       padding: 80px 50px;
       @include flex;
       @include align-center;
       position: relative;
-      @media(max-width: 1024px) {
+      @media (max-width: 1024px) {
         padding: 58px 20px;
       }
-      @media(max-width: 767px) {
+      @media (max-width: 767px) {
         width: 100%;
         margin-bottom: 20px;
       }
-      h2{
+      h2 {
         max-width: 230px;
         font-size: 44px;
         color: white;
         margin-bottom: 15px;
         font-weight: 500;
         line-height: 108%;
-        @media(max-width: 1024px) {
+        @media (max-width: 1024px) {
           font-size: 34px;
         }
-        @media(max-width: 767px) {
+        @media (max-width: 767px) {
           font-size: 30px;
         }
       }
-      span{
+      span {
         font-size: 24px;
         color: white;
-        @media(max-width: 1024px) {
+        @media (max-width: 1024px) {
           font-size: 20px;
         }
-        @media(max-width: 767px) {
+        @media (max-width: 767px) {
           font-size: 18px;
         }
       }
-      .img-wrap{
+      .img-wrap {
         @include flex;
         margin: auto;
-        img{
+        img {
           position: absolute;
           right: 0;
           bottom: 0;
           width: 350px;
-
 
           @media (max-width: 767px) {
             width: 250px;
@@ -64,7 +63,7 @@
         }
       }
     }
-    .leave-request-form{
+    .leave-request-form {
       min-height: 100%;
       border-radius: 16px;
       background: white;
@@ -72,17 +71,17 @@
       padding: 50px 40px;
       @include flex;
       @include dir-col;
-      @media(max-width: 1024px) {
+      @media (max-width: 1024px) {
         padding: 30px;
         min-height: 252px;
       }
-      @media(max-width: 767px) {
+      @media (max-width: 767px) {
         width: 100%;
         padding: 24px;
       }
-      button{
+      button {
         margin-top: 10px;
-        @media(max-width: 1024px) {
+        @media (max-width: 1024px) {
           margin-top: 0;
         }
       }

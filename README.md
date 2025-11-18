@@ -1,3 +1,3 @@
 # galamat
 
-```start-parsing/137486```
+`start-parsing/137486`
