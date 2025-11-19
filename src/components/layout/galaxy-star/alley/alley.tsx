@@ -252,11 +252,11 @@ export default function Alley() {
           </div>
         </div>
       </div>
-      <div className="!py-[40px] lg:py-[64px] wrapper flex flex-col items-start gap-[32px]">
+      <div className="!pt-[40px] lg:pt-[64px] wrapper flex flex-col items-start gap-[32px]">
         <h1 className="text-[36px] font-medium text-[#202028] leading-[41.76px]">
           {texts.salesOffices}
         </h1>
-        <div className="w-full h-[630px] rounded-xl overflow-hidden">
+        <div className="w-full h-full rounded-xl overflow-hidden">
           <Map />
         </div>
       </div>
