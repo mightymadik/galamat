@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useSelector } from "react-redux";
+import Map from "../map/map";
 
 export default function Alley() {
   const selectedLang = useSelector(
@@ -29,7 +30,7 @@ export default function Alley() {
     charging: "Зарядные станции",
     chargingDesc:
       "На аллее установлены зарядные станции Edrive для электромобилей — доступны всем жителям",
-    salesOffices: "Офисы продаж",
+    salesOffices: "Расположение ЖК",
   };
 
   // Kazakh texts
@@ -54,7 +55,7 @@ export default function Alley() {
     charging: "Зарядтық станциялар",
     chargingDesc:
       "Аллеяда электромобильдерге арналған Edrive зарядтық станциялары орнатылған - барлық тұрғындарға қолжетімді",
-    salesOffices: "Сатылым кеңселері",
+    salesOffices: "ТҮК орналысуы",
   };
 
   // Function to get texts based on language with if-else logic
@@ -256,12 +257,7 @@ export default function Alley() {
           {texts.salesOffices}
         </h1>
         <div className="w-full h-[630px] rounded-xl overflow-hidden">
-          <iframe
-            src="https://yandex.ru/map-widget/v1/?um=constructor%3Ae616530560919548ba59d253d1995027d5b77c7dc34acfb6236a78dff5357398&amp;source=constructor"
-            width="100%"
-            height="630"
-            frameBorder="0"
-          ></iframe>
+          <Map />
         </div>
       </div>
     </div>
