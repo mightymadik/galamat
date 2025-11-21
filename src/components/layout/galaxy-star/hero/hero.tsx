@@ -32,7 +32,7 @@ export default function Hero() {
     watchVideo: "Оставить заявку",
     viewOnMap: "Смотреть на карте",
     galaxyStar: "ЖК Galaxy Star ",
-    address: "Астана, район Есиль, улица Чингиз Айтматова",
+    address: "Астана, район Нура, улица Чингиз Айтматова",
   };
 
   // Kazakh texts
@@ -48,7 +48,7 @@ export default function Hero() {
     watchVideo: "Өтініш қалдыру",
     viewOnMap: "Картада қарау",
     galaxyStar: "Galaxy Star ЖК ",
-    address: "Астана, Есіл ауданы, Чингіз Айтматов көшесі",
+    address: "Астана, Нұра ауданы, Чингіз Айтматов көшесі",
   };
 
   // Function to get texts based on language with if-else logic
