@@ -1,8 +1,8 @@
-export const servLink = "https://pb14286.profitbase.ru/api/v4/json";
-
-export const filesLink = "https://s.galamat.kz";
+export const servLink = process.env.NEXT_PUBLIC_PROFITBASE_API_URL;
+export const filesLink = process.env.NEXT_PUBLIC_FILES_LINK_URL;
 export const filesLinkSave = `${filesLink}/save-images.php`;
 export const filesLinkRemove = `${filesLink}/remove-image.php`;
+
 export const SITE_URL = {
   HOME: "/",
   PRIVACY_POLICY: "/privacy-policy",

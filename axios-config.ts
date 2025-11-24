@@ -26,7 +26,7 @@ const fetchNewToken = async () => {
   const response = await axios.post(`${servLink}/authentication`, {
     type: "api-app",
     credentials: {
-      pb_api_key: "app-6839b0cd3f5f0",
+      pb_api_key: process.env.PB_API_KEY,
     },
   });
 
