@@ -33,6 +33,7 @@ export default function Hero() {
     viewOnMap: "Смотреть на карте",
     galaxyStar: "ЖК Galaxy Star ",
     address: "Астана, район Нура, улица Чингиз Айтматова",
+    booklet: "Скачать буклет",
   };
 
   // Kazakh texts
@@ -49,6 +50,7 @@ export default function Hero() {
     viewOnMap: "Картада қарау",
     galaxyStar: "Galaxy Star ЖК ",
     address: "Астана, Нұра ауданы, Чингіз Айтматов көшесі",
+    booklet: "Буклетті жүктеу",
   };
 
   // Function to get texts based on language with if-else logic
@@ -108,7 +110,31 @@ export default function Hero() {
       textColor: "#FFF",
       text: texts.watchVideo,
     },
+    {
+      id: 2,
+      bg: "#ECF0F8",
+      textColor: "#132C5E",
+      text: texts.booklet,
+      link: "https://drive.google.com/drive/folders/1fXlHgdTaeSyqI8fGI1XHY_4JZIRjecdz",
+    },
   ];
+
+  const scrollToLeaveRequest = () => {
+    const el = document.getElementById("leave-request");
+    if (!el) {
+      return;
+    }
+
+    const elementRect = el.getBoundingClientRect();
+    const absoluteElementTop = elementRect.top + window.pageYOffset;
+    const middle =
+      absoluteElementTop - window.innerHeight / 2 + elementRect.height / 2;
+
+    window.scrollTo({
+      top: middle,
+      behavior: "smooth",
+    });
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -226,23 +252,13 @@ export default function Hero() {
                 >
                   <Button
                     onClick={() => {
-                      const el = document.getElementById("leave-request");
-                      if (!el) {
-                        return;
+                      if (btn.id === 1) {
+                        // First button scrolls to leave-request
+                        scrollToLeaveRequest();
+                      } else if (btn.id === 2 && btn.link) {
+                        // Second button acts as a link
+                        window.open(btn.link, "_blank");
                       }
-
-                      const elementRect = el.getBoundingClientRect();
-                      const absoluteElementTop =
-                        elementRect.top + window.pageYOffset;
-                      const middle =
-                        absoluteElementTop -
-                        window.innerHeight / 2 +
-                        elementRect.height / 2;
-
-                      window.scrollTo({
-                        top: middle,
-                        behavior: "smooth",
-                      });
                     }}
                     className="!p-[4px] flex justify-center items-center gap-[4px] bg-transparent min-w-[176px] lg:max-w-[200px]"
                     style={{ color: btn.textColor }}
