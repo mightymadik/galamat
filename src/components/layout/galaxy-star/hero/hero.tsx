@@ -115,7 +115,7 @@ export default function Hero() {
       bg: "#ECF0F8",
       textColor: "#132C5E",
       text: texts.booklet,
-      link: "https://drive.google.com/drive/folders/1fXlHgdTaeSyqI8fGI1XHY_4JZIRjecdz",
+      link: "https://drive.google.com/drive/folders/1aTnF3P2aIOglbFGUQyzeIAuXACPO2xzI?usp=sharing",
     },
   ];
 
@@ -190,7 +190,7 @@ export default function Hero() {
                   </div>
                 ))}
               </div>
-            </div>
+            </div>cnfkm
 
             {/* Правая колонка с двумя карточками */}
             <div className="flex flex-col items-start gap-[12px] flex-shrink-0 self-stretch flex-row lg:flex-col">
