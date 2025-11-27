@@ -190,8 +190,8 @@ export default function Hero() {
                   </div>
                 ))}
               </div>
-            </div>cnfkm
-
+            </div>
+            cnfkm
             {/* Правая колонка с двумя карточками */}
             <div className="flex flex-col items-start gap-[12px] flex-shrink-0 self-stretch flex-row lg:flex-col">
               {cards.map((card, i) => (
