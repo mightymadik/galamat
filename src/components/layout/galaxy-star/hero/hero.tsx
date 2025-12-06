@@ -21,10 +21,10 @@ export default function Hero() {
 
   // Russian texts
   const russianTexts = {
-    hurry: "Успейте",
+    hurry: "Cтарт: 13 Декабря",
     keysIn2026: "Ключи в 2026 году",
-    infrastructure: "Инфраструктура",
-    convenientLocation: "Удобной локации",
+    infrastructure: "Цены",
+    convenientLocation: "от 16,6 млн ₸",
     comfortClass: "Комфорт класс",
     keysIn2026Badge: "Ключи в 2026 году",
     convenientLocationBadge: "Удобная локация",
@@ -40,8 +40,8 @@ export default function Hero() {
   const kazakhTexts = {
     hurry: "Yлгеріңіз",
     keysIn2026: "2026 жылы кілттер",
-    infrastructure: "Инфрақұрылым",
-    convenientLocation: "Ыңғайлы орналасқан",
+    infrastructure: "Бағасы",
+    convenientLocation: "16,6 млн ₸-ден",
     comfortClass: "Комфорт санаты",
     keysIn2026Badge: "Кілт 2026 жылы",
     convenientLocationBadge: "Ыңғайлы орналасу",
@@ -90,7 +90,7 @@ export default function Hero() {
       bg: "#DB1D31",
       icon: "/img/Rocket.svg",
       title: texts.hurry,
-      // date: "2025-12-01T00:00:00", // ← таймер
+      date: "2025-12-13T00:00:00", // ← таймер
       text: texts.keysIn2026,
     },
     {
