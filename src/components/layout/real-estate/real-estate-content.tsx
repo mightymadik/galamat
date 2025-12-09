@@ -1,9 +1,7 @@
 "use client";
 
-import "../home/filter-wrapper/filter-wrapper.scss";
 import "./real-estate.scss";
 import MainTemplate from "@/components/common/main-template/main-template";
-import HorizontalFilter from "@/components/common/horizontal-filter/horizontal-filter";
 import React, { useEffect, useState } from "react";
 import "react-photo-view/dist/react-photo-view.css";
 import CanvasViewHouse from "@/app/real-estate/canvas-view-house";
@@ -76,8 +74,6 @@ function RealEstateContent({ projects }: IThisProps) {
     dispatch(setObjectInfo(null));
   }
 
-  const [mobileFilter, setMobileFilter] = useState<boolean>(false);
-
   return (
     <MainTemplate>
       <div className="filter-wrapper">
@@ -86,13 +82,6 @@ function RealEstateContent({ projects }: IThisProps) {
             <BreadcrumbItem href={SITE_URL.HOME}>{$t("home__")}</BreadcrumbItem>
             <BreadcrumbItem>{$t("real_estate")}</BreadcrumbItem>
           </Breadcrumbs>
-
-          <HorizontalFilter
-            className={mobileFilter ? "open" : ""}
-            projects={projects}
-            onClose={() => setMobileFilter(false)}
-            page="estate"
-          />
           <div className="tab2-wrap relative hidden sm:block">
             <div className="tab2 overflow-x-scroll bottom-scroll-hidden">
               <div className="tabs2">

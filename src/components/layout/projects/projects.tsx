@@ -6,7 +6,6 @@ import ProductItem from "@/components/common/product-item/product-item";
 import { BreadcrumbItem, Breadcrumbs, Button } from "@heroui/react";
 import clsx from "clsx";
 import { useTranslate } from "@/hooks/useTranslate";
-import "../home/filter-wrapper/filter-wrapper.scss";
 import { mergeComplexesWithProjects } from "@/utils/helpers";
 import { SITE_URL } from "@/utils/consts";
 

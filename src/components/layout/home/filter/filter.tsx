@@ -1,11 +1,9 @@
-import HorizontalFilter from "@/components/common/horizontal-filter/horizontal-filter";
 import React, { useEffect, useState } from "react";
 import CanvasViewHouse from "@/app/real-estate/canvas-view-house";
 import { useDispatch, useSelector } from "react-redux";
 import Facade from "@/app/real-estate/facade";
 import { setHouse, setObjectInfo } from "@/redux/modals";
 
-import "@/components/layout/home/filter-wrapper/filter-wrapper.scss";
 import "@/components/layout/real-estate/real-estate.scss";
 
 interface IThisProps {
@@ -37,18 +35,10 @@ function Filter({ projects }: IThisProps) {
     dispatch(setObjectInfo(null));
   }
 
-  const [mobileFilter, setMobileFilter] = useState<boolean>(false);
-
   return (
     <section>
       <div className="filter-wrapper">
         <div className="wrapper !pt-6">
-          <HorizontalFilter
-            className={mobileFilter ? "open" : ""}
-            projects={projects}
-            onClose={() => setMobileFilter(false)}
-          />
-
           <Facade projects={projects} fakeItem={1} />
         </div>
       </div>

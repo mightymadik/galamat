@@ -7,7 +7,6 @@ import { Spinner, Button } from "@heroui/react";
 import { ActionGetProjectsProperty } from "@/app/actions/projects/get-projects-property";
 import DrawerViewPlansAndItems from "@/app/real-estate/drawer-view-plans-and-items";
 import { filesLink } from "@/utils/consts";
-import ChessView from "@/app/real-estate/chess-view";
 
 type Point = { x: number; y: number };
 type Polygon = {
@@ -368,9 +367,6 @@ function CanvasViewHouse({ objectInfo, house, onClose, projects }: IThisProps) {
         ref={containerRef}
         className="fixed top-0 left-0 w-full h-[100dvh] z-[10] backdrop-blur-[5px]"
       >
-        <div className={clsx({ hidden: !chess })}>
-          {chess && <ChessView projects={projects} activeHouse={activeHouse} />}
-        </div>
 
         <div className={clsx({ hidden: chess })}>
           <img
