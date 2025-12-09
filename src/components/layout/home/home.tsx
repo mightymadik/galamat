@@ -14,10 +14,11 @@ import { motionOptionText } from "@/utils/consts";
 import Filter from "./filter/filter";
 
 interface IThisProps {
-  projects: IProjectMerged[];
+  houses: IProjectStage[];
+  housesDataAdmin: IProjectData[];
 }
 
-export default function Home({ projects }: IThisProps) {
+export default function Home({ houses, housesDataAdmin }: IThisProps) {
   const $t = useTranslate();
 
   // useEffect(() => {
@@ -50,15 +51,7 @@ export default function Home({ projects }: IThisProps) {
         </div>
       </motion.div>
 
-      {/*<div className="wrapper !mt-6">*/}
-      {/*  <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">*/}
-      {/*    {projects.map((project: IProjectMerged) => (*/}
-      {/*      <ProductItem key={`complex-${project.id}`} project={project} />*/}
-      {/*    ))}*/}
-      {/*  </div>*/}
-      {/*</div>*/}
-
-      <Filter projects={projects} />
+      <Filter houses={houses} housesDataAdmin={housesDataAdmin} />
       <Objects />
       <LeaveRequest />
       <WhyUs />

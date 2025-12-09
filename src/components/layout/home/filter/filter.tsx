@@ -1,56 +1,21 @@
-import React, { useEffect, useState } from "react";
-import CanvasViewHouse from "@/app/real-estate/canvas-view-house";
-import { useDispatch, useSelector } from "react-redux";
 import Facade from "@/app/real-estate/facade";
-import { setHouse, setObjectInfo } from "@/redux/modals";
 
 import "@/components/layout/real-estate/real-estate.scss";
 
 interface IThisProps {
-  projects: IProjectMerged[];
+  houses: IProjectStage[];
+  housesDataAdmin: IProjectData[];
 }
 
-function Filter({ projects }: IThisProps) {
-  const dispatch = useDispatch();
-
-  const objectInfo = useSelector(
-    (state: IModalState) => state.modals.objectInfo,
-  );
-  const modalSelectedHouse = useSelector(
-    (state: IModalState) => state.modals.modalSelectedHouse,
-  );
-
-  useEffect(() => {
-    if (modalSelectedHouse) {
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-      document.documentElement.style.overflow = "unset";
-    }
-  }, [modalSelectedHouse]);
-
-  function closeModal() {
-    dispatch(setHouse(null));
-    dispatch(setObjectInfo(null));
-  }
+function Filter({ houses, housesDataAdmin }: IThisProps) {
 
   return (
     <section>
       <div className="filter-wrapper">
         <div className="wrapper !pt-6">
-          <Facade projects={projects} fakeItem={1} />
+          <Facade houses={houses} housesDataAdmin={housesDataAdmin} />
         </div>
       </div>
-
-      {objectInfo && modalSelectedHouse ? (
-        <CanvasViewHouse
-          house={modalSelectedHouse}
-          objectInfo={objectInfo}
-          onClose={closeModal}
-          projects={projects}
-        />
-      ) : null}
     </section>
   );
 }

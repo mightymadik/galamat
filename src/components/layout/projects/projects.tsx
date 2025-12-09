@@ -60,26 +60,6 @@ function Projects({ houses, housesDataAdmin }: IThisProps) {
             </div>
           )}
         </div>
-
-        {result.length ? (
-          <div className="show-wrap">
-            <span>
-              {$t("shown")}{" "}
-              {countSplits >= result.length ? result.length : countSplits}{" "}
-              {$t("from")} {result.length}
-            </span>
-            <Button
-              className={clsx("show-btn bg-transparent h-[60px]", {
-                "opacity-50 !cursor-default hover:opacity-50":
-                  countSplits >= result.length,
-              })}
-              onPress={SeeMore}
-              disabled={countSplits >= result.length}
-            >
-              {$t("show_more")}
-            </Button>
-          </div>
-        ) : null}
       </div>
     </MainTemplate>
   );
