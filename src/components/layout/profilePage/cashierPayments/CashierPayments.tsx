@@ -1,0 +1,528 @@
+"use client";
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { Button, Input } from "@heroui/react";
+
+export interface CashierScheduleRow {
+  documentId: string;
+  index: number;
+  dueDate: string | null;
+  amount: number;
+  paymentStatus: string;
+}
+
+export interface CashierPaymentRow {
+  documentId: string;
+  amount: number;
+  paymentStatus: string;
+  createdAt: string | null;
+  confirmedAt: string | null;
+  confirmedByDisplayName?: string | null;
+}
+
+export interface CashierDeal {
+  documentId: string;
+  dealStatus: string;
+  dealPrice: number;
+  paidAmount: number;
+  paymentMethod: string | null;
+  property: { projectName: string; apartmentNumber?: string | number };
+  customer: { displayName: string; phone?: string };
+  manager?: { displayName: string } | null;
+  paymentSchedules: CashierScheduleRow[];
+  payments: CashierPaymentRow[];
+}
+
+const formatMoney = (n: number) =>
+  `${Math.round(Number(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ₸`;
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function statusBadgeClass(status: string, type: "deal" | "schedule" | "payment"): string {
+  const s = (status || "").trim();
+  if (s === "Оплачено") return "bg-emerald-100 text-emerald-800 border-emerald-200";
+  if (s === "Просрочено") return "bg-red-100 text-red-800 border-red-200";
+  if (s === "Не оплачено") return "bg-red-50 text-red-700 border-red-100";
+  if (s === "Ожидание") return "bg-amber-100 text-amber-800 border-amber-200";
+  return "bg-gray-100 text-gray-700 border-gray-200";
+}
+
+function StatusBadge({ status, type }: { status: string; type: "deal" | "schedule" | "payment" }) {
+  const label = status || "—";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(label, type)}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+const CASHIER_ONLY_KEY = "cashier_only_access";
+const CASHIER_DEAL_STATUSES = ["Ожидания оплаты", "Договор подписан"] as const;
+const SCHEDULE_CONFIRMABLE_STATUSES = ["Ожидание", "Просрочено"];
+const PAGE_SIZE = 10;
+
+export default function CashierPayments() {
+  const t = useTranslations();
+  const [deals, setDeals] = useState<CashierDeal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [confirmingDealId, setConfirmingDealId] = useState<string | null>(null);
+  const [amount, setAmount] = useState("");
+  const [scheduleId, setScheduleId] = useState<string | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [filterProject, setFilterProject] = useState("");
+  const [filterApartment, setFilterApartment] = useState("");
+  const [filterManager, setFilterManager] = useState("");
+  const [page, setPage] = useState(1);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    fetch("/api/cashier/deals", { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) throw new Error(res.status === 403 ? CASHIER_ONLY_KEY : "load_error");
+        return res.json();
+      })
+      .then((json) => setDeals(json.deals ?? []))
+      .catch((err) => setError(err?.message === CASHIER_ONLY_KEY ? t("cashier_only_access") : err?.message === "load_error" ? t("load_error") : t("network_error")))
+      .finally(() => setLoading(false));
+  }, [t]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const activeDeals = useMemo(
+    () => deals.filter((d) => CASHIER_DEAL_STATUSES.includes((d.dealStatus || "").trim() as (typeof CASHIER_DEAL_STATUSES)[number])),
+    [deals]
+  );
+
+  const filteredDeals = useMemo(() => {
+    const proj = filterProject.trim().toLowerCase();
+    const apt = filterApartment.trim().toLowerCase();
+    const mgr = filterManager.trim().toLowerCase();
+    if (!proj && !apt && !mgr) return activeDeals;
+    return activeDeals.filter((d) => {
+      if (proj && !(d.property?.projectName ?? "").toLowerCase().includes(proj)) return false;
+      const aptStr = d.property?.apartmentNumber != null ? String(d.property.apartmentNumber) : "";
+      if (apt && !aptStr.toLowerCase().includes(apt)) return false;
+      const managerName = (d.manager?.displayName ?? "").toLowerCase();
+      if (mgr && !managerName.includes(mgr)) return false;
+      return true;
+    });
+  }, [activeDeals, filterProject, filterApartment, filterManager]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredDeals.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedDeals = useMemo(
+    () => filteredDeals.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredDeals, safePage]
+  );
+
+  useEffect(() => {
+    setPage((p) => (p > totalPages ? Math.max(1, totalPages) : p));
+  }, [totalPages]);
+
+  const startConfirm = (deal: CashierDeal) => {
+    setConfirmingDealId(deal.documentId);
+    const firstPending = deal.paymentSchedules.find((s) => SCHEDULE_CONFIRMABLE_STATUSES.includes(s.paymentStatus));
+    setScheduleId(firstPending?.documentId ?? null);
+    setAmount(firstPending ? String(firstPending.amount) : "");
+    setReceiptFile(null);
+    setSubmitError(null);
+  };
+
+  const cancelConfirm = () => {
+    setConfirmingDealId(null);
+    setScheduleId(null);
+    setAmount("");
+    setReceiptFile(null);
+    setSubmitError(null);
+  };
+
+  const submitConfirm = async () => {
+    if (!confirmingDealId) return;
+    if (!receiptFile || receiptFile.size === 0) {
+      setSubmitError(t("attach_receipt_error"));
+      return;
+    }
+    const num = parseInt(String(amount).replace(/\D/g, ""), 10);
+    if (!num || num <= 0) {
+      setSubmitError(t("enter_amount_error"));
+      return;
+    }
+    setSubmitError(null);
+    const form = new FormData();
+    form.append("dealDocumentId", confirmingDealId);
+    form.append("amount", String(num));
+    if (scheduleId) form.append("paymentScheduleDocumentId", scheduleId);
+    if (receiptFile) form.append("receipt", receiptFile);
+    try {
+      const res = await fetch("/api/cashier/confirm-payment", {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSubmitError(json?.error ?? t("confirm_payment_error"));
+        return;
+      }
+      cancelConfirm();
+      load();
+    } catch {
+      setSubmitError(t("network_error"));
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex w-full max-w-[1600px] flex-col gap-6">
+        <h1 className="text-[#000] text-2xl lg:text-3xl font-medium">{t("cashier")}</h1>
+        <p className="text-gray-500">{t("loading")}</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex w-full max-w-[1600px] flex-col gap-6">
+        <h1 className="text-[#000] text-2xl lg:text-3xl font-medium">{t("cashier")}</h1>
+        <p className="text-red-600">{error}</p>
+        <Button size="sm" variant="flat" color="primary" onPress={load}>{t("refresh")}</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex w-full max-w-[1600px] flex-col gap-6">
+      <div className="flex w-full flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[#000] text-2xl lg:text-3xl font-medium">{t("cashier")}</h1>
+          <p className="text-[#122C5E] text-base opacity-80 mt-1">
+            {t("cashier_description")}
+          </p>
+        </div>
+        <Button size="sm" variant="flat" color="primary" onPress={load} isDisabled={loading}>
+          {t("refresh")}
+        </Button>
+      </div>
+
+      {activeDeals.length > 0 && (
+        <div className="rounded-[20px] border border-[#122C5E]/10 bg-white/80 p-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("filter_by_project")}</label>
+              <Input
+                size="sm"
+                value={filterProject}
+                onValueChange={(v) => {
+                  setFilterProject(v);
+                  setPage(1);
+                }}
+                placeholder={t("filter_project_placeholder")}
+                classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-9" }}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("filter_by_apartment")}</label>
+              <Input
+                size="sm"
+                value={filterApartment}
+                onValueChange={(v) => {
+                  setFilterApartment(v);
+                  setPage(1);
+                }}
+                placeholder={t("filter_apartment_placeholder")}
+                classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-9" }}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("filter_by_manager")}</label>
+              <Input
+                size="sm"
+                value={filterManager}
+                onValueChange={(v) => {
+                  setFilterManager(v);
+                  setPage(1);
+                }}
+                placeholder={t("filter_manager_placeholder")}
+                classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-9" }}
+              />
+            </div>
+            <Button
+              size="sm"
+              variant="flat"
+              className="shrink-0 rounded-[10px] self-end lg:self-auto"
+              onPress={() => {
+                setFilterProject("");
+                setFilterApartment("");
+                setFilterManager("");
+                setPage(1);
+              }}
+            >
+              {t("reset")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {activeDeals.length === 0 ? (
+        <div className="rounded-[32px] bg-[#F4F6FB] p-8 text-center">
+          <p className="text-[#122C5E] opacity-70">{t("no_deals")}</p>
+        </div>
+      ) : filteredDeals.length === 0 ? (
+        <div className="rounded-[32px] bg-[#F4F6FB] p-8 text-center">
+          <p className="text-[#122C5E] opacity-70">{t("no_deals_match_filters")}</p>
+          <Button size="sm" variant="flat" color="primary" className="mt-2" onPress={() => { setFilterProject(""); setFilterApartment(""); setFilterManager(""); setPage(1); }}>
+            {t("reset")}
+          </Button>
+        </div>
+      ) : (
+        <>
+        <div className="flex flex-col gap-4">
+          {paginatedDeals.map((deal) => (
+            <div key={deal.documentId} className="overflow-hidden rounded-[24px] border border-[#122C5E]/10 bg-[#F4F6FB]">
+              <button
+                type="button"
+                className="w-full grid grid-cols-1 gap-3 py-4 px-4 text-left transition-colors hover:bg-[#122C5E]/05 sm:grid-cols-2 sm:px-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(160px,200px)_auto_auto] lg:items-center lg:gap-4 lg:py-5 lg:px-6"
+                onClick={() => setExpandedId(expandedId === deal.documentId ? null : deal.documentId)}
+              >
+                <div className="min-w-0">
+                  <span className="truncate text-[#122C5E] font-medium">
+                    {deal.property.projectName || "—"}
+                    {deal.property.apartmentNumber != null && deal.property.apartmentNumber !== ""
+                      ? `, кв. ${deal.property.apartmentNumber}`
+                      : ""}
+                  </span>
+                </div>
+                <div className="min-w-0 text-[#000] text-[15px]">
+                  <span className="truncate">{deal.customer.displayName || "—"}</span>
+                </div>
+                <div className="min-w-0 text-[#122C5E] text-sm opacity-80 sm:col-span-2 lg:col-span-1">
+                  {deal.manager?.displayName ? (
+                    <span className="truncate">{t("manager")}: {deal.manager.displayName}</span>
+                  ) : (
+                    <span className="text-[#122C5E]/50">—</span>
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-1">
+                  <div className="flex items-center gap-2 text-[#122C5E] text-sm">
+                    <span className="tabular-nums">{formatMoney(deal.paidAmount)}</span>
+                    <span className="shrink-0 opacity-70">/ {formatMoney(deal.dealPrice)}</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-[#122C5E]/15">
+                    <div
+                      className="h-full rounded-full bg-[#1A3C7E] transition-all duration-300"
+                      style={{
+                        width: `${deal.dealPrice > 0 ? Math.min(100, (Number(deal.paidAmount) / Number(deal.dealPrice)) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <StatusBadge status={deal.dealStatus} type="deal" />
+                </div>
+                <div className="flex items-center justify-end text-[#122C5E] text-sm">
+                  {expandedId === deal.documentId ? "▲ " + t("collapse") : "▼ " + t("expand_list")}
+                </div>
+              </button>
+
+              {expandedId === deal.documentId && (
+                <div className="border-t border-[#122C5E]/10 bg-white/50 px-4 pb-5 pt-4 sm:px-5 lg:px-6">
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <section className="min-w-0">
+                      <h3 className="mb-2 text-[#122C5E] font-medium">{t("payment_schedule")}</h3>
+                      <div className="overflow-x-auto rounded-[12px] border border-[#122C5E]/10 bg-white">
+                        <table className="w-full min-w-[280px] border-collapse text-left text-sm">
+                          <thead>
+                            <tr className="border-b border-[#122C5E]/15 bg-[#122C5E]/05">
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">№</th>
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("due_date_short")}</th>
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("amount")}</th>
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("status_label")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {deal.paymentSchedules.map((s) => (
+                              <tr key={s.documentId} className="border-b border-[#122C5E]/08 last:border-0">
+                                <td className="px-3 py-2.5">{s.index}</td>
+                                <td className="px-3 py-2.5">{formatDate(s.dueDate)}</td>
+                                <td className="px-3 py-2.5 tabular-nums">{formatMoney(s.amount)}</td>
+                                <td className="px-3 py-2.5">
+                                  <StatusBadge status={s.paymentStatus} type="schedule" />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                    <section className="min-w-0">
+                      <h3 className="mb-2 text-[#122C5E] font-medium">{t("payments")}</h3>
+                      <div className="overflow-x-auto rounded-[12px] border border-[#122C5E]/10 bg-white">
+                        <table className="w-full min-w-[260px] border-collapse text-left text-sm">
+                          <thead>
+                            <tr className="border-b border-[#122C5E]/15 bg-[#122C5E]/05">
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("amount")}</th>
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("status_label")}</th>
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("confirmed_at")}</th>
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("confirmed_by")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {deal.payments.length === 0 ? (
+                              <tr>
+                                <td colSpan={4} className="px-3 py-4 text-center text-[#122C5E] opacity-60">
+                                  {t("no_payments")}
+                                </td>
+                              </tr>
+                            ) : (
+                              deal.payments.map((p) => (
+                                <tr key={p.documentId} className="border-b border-[#122C5E]/08 last:border-0">
+                                  <td className="px-3 py-2.5 tabular-nums">{formatMoney(p.amount)}</td>
+                                  <td className="px-3 py-2.5">
+                                    <StatusBadge status={p.paymentStatus} type="payment" />
+                                  </td>
+                                  <td className="px-3 py-2.5">{formatDate(p.confirmedAt ?? p.createdAt)}</td>
+                                  <td className="px-3 py-2.5">{p.confirmedByDisplayName ?? "—"}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+
+                  {confirmingDealId === deal.documentId ? (
+                    <div className="mt-5 rounded-[16px] border border-[#122C5E]/12 bg-white p-4 sm:p-5">
+                      <h3 className="mb-4 text-[#122C5E] font-medium">{t("confirm_payment")}</h3>
+                      <div className="grid max-w-md grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-x-6">
+                        <div className="flex flex-col gap-1.5 sm:col-span-2">
+                          <label className="text-sm font-medium text-[#122C5E] opacity-80">{t("schedule_position")}</label>
+                          <select
+                            className="w-full rounded-[10px] border border-[#122C5E]/25 bg-white px-3 py-2.5 text-[#122C5E] outline-none focus:ring-2 focus:ring-[#122C5E]/20"
+                            value={scheduleId ?? ""}
+                            onChange={(e) => {
+                              setScheduleId(e.target.value || null);
+                              const s = deal.paymentSchedules.find((x) => x.documentId === e.target.value);
+                              if (s) setAmount(String(s.amount));
+                            }}
+                          >
+                            {deal.paymentSchedules
+                              .filter((s) => SCHEDULE_CONFIRMABLE_STATUSES.includes(s.paymentStatus))
+                              .map((s) => (
+                                <option key={s.documentId} value={s.documentId}>
+                                  №{s.index} — {formatDate(s.dueDate)} — {formatMoney(s.amount)}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-sm font-medium text-[#122C5E] opacity-80">{t("amount")} (₸)</label>
+                          <Input
+                            type="text"
+                            value={amount}
+                            onValueChange={setAmount}
+                            placeholder={t("amount_placeholder")}
+                            classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-10" }}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-sm font-medium text-[#122C5E] opacity-80">
+                            {t("receipt_file")} <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            className="block w-full text-sm text-[#122C5E] file:rounded-[10px] file:border-0 file:bg-[#1A3C7E] file:px-4 file:py-2 file:text-white file:transition-colors hover:file:bg-[#122C5E]"
+                            onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+                          />
+                          {!receiptFile && (
+                            <p className="mt-0.5 text-xs text-amber-600">{t("receipt_required_hint")}</p>
+                          )}
+                        </div>
+                        {submitError && (
+                          <p className="text-sm text-red-600 sm:col-span-2">{submitError}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2 sm:col-span-2">
+                          <Button
+                            color="success"
+                            className="rounded-[10px] text-white"
+                            onPress={submitConfirm}
+                            isDisabled={!receiptFile || receiptFile.size === 0}
+                          >
+                            {t("confirm_payment")}
+                          </Button>
+                          <Button variant="flat" className="rounded-[10px]" onPress={cancelConfirm}>
+                            {t("cancel")}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <Button
+                        size="sm"
+                        color="success"
+                        variant="flat"
+                        className="rounded-[10px]"
+                        onPress={() => startConfirm(deal)}
+                        isDisabled={!deal.paymentSchedules.some((s) => SCHEDULE_CONFIRMABLE_STATUSES.includes(s.paymentStatus))}
+                      >
+                        {t("confirm_payment")}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex flex-col items-center justify-between gap-3 rounded-[20px] bg-[#F4F6FB] px-4 py-3 sm:flex-row sm:gap-4">
+            <p className="order-2 text-sm text-[#122C5E] opacity-80 sm:order-1">
+              {t("pagination_page_of", { current: safePage, total: totalPages })} · {filteredDeals.length} {t("deals")}
+            </p>
+            <div className="order-1 flex items-center gap-2 sm:order-2">
+              <Button
+                size="sm"
+                variant="flat"
+                isDisabled={safePage <= 1}
+                onPress={() => setPage((p) => Math.max(1, p - 1))}
+                className="min-w-[36px] rounded-[10px]"
+              >
+                ←
+              </Button>
+              <span className="min-w-[4rem] text-center text-sm text-[#122C5E]">
+                {safePage} / {totalPages}
+              </span>
+              <Button
+                size="sm"
+                variant="flat"
+                isDisabled={safePage >= totalPages}
+                onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="min-w-[36px] rounded-[10px]"
+              >
+                →
+              </Button>
+            </div>
+          </div>
+        )}
+        </>
+      )}
+    </div>
+  );
+}

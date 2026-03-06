@@ -1,0 +1,419 @@
+"use client"
+
+import React, { useEffect, useRef, useState } from "react";
+import { sendAuthCode } from "@/store/authThunks";
+import { usePathname, useRouter } from "next/navigation";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState } from "@/store";
+import { handleSpin } from "@/store/galaSlice";
+import { closeAuth, setPhone, setFirstName, setLastName, changeNumber, clearVerifyError, setStep } from "@/store/authSlice";
+import { Drawer, DrawerContent, DrawerHeader, DrawerBody, Button, Input } from "@heroui/react";
+import { withMask } from "use-mask-input";
+import { verifyAuthCode, registerAuth } from "@/store/authThunks";
+
+export default function AuthModal() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const dispatch = useDispatch();
+    const { isOpen, step, phone, firstName, lastName, isRegistered, isSendingCode, sendCodeError, otpExpiresInSec, isRegistering, registerError, user } =
+        useSelector((state: RootState) => state.auth);
+
+    const isPhoneValid = /^\+7 \(\d{3}\) \d{3}-\d{2}-\d{2}$/.test(phone || "");
+    const isNameValid = (firstName?.trim() || "") !== "";
+    const isSurnameValid = (lastName?.trim() || "") !== "";
+
+    const [code, setCode] = useState(["", "", "", ""]);
+    const [timeLeft, setTimeLeft] = useState(180); // 3 минуты
+    const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+
+    useEffect(() => {
+        if (step === "verification") setTimeLeft(otpExpiresInSec || 180);
+    }, [step, otpExpiresInSec]);
+
+    useEffect(() => {
+        if (timeLeft <= 0) return;
+        const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
+        return () => clearInterval(timer);
+    }, [timeLeft]);
+
+    // === Формат таймера (mm:ss) ===
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60)
+            .toString()
+            .padStart(2, "0");
+        const s = (seconds % 60).toString().padStart(2, "0");
+        return `${m}:${s}`;
+    };
+
+    // === Проверка валидности кода ===
+    const isCodeValid = code.join("").length === 4;
+
+    // === Обработка ввода ===
+    const handleChange = (index: number, value: string) => {
+        if (!/^\d?$/.test(value)) return; // только цифры
+
+        const newCode = [...code];
+        newCode[index] = value;
+        setCode(newCode);
+
+        // переход к следующему инпуту
+        if (value && index < 3) {
+            inputsRef.current[index + 1]?.focus();
+        }
+
+        // если все цифры введены
+        if (newCode.join("").length === 4) {
+            // здесь можно вызывать проверку кода через API
+            console.log("Код введен:", newCode.join(""));
+        }
+    };
+
+    const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Backspace" && !code[index] && index > 0) {
+            inputsRef.current[index - 1]?.focus();
+        }
+    };
+
+    // === Повторная отправка кода ===
+    const resendCode = () => {
+        setTimeLeft(180);
+        dispatch(sendAuthCode({ phoneMasked: phone ?? "" }) as any);
+    };
+
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 1024);
+        handleResize(); // Проверяем сразу при монтировании
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
+    const { verifyError, attemptsLeft, isVerifyingCode } = useSelector((s: RootState) => s.auth);
+
+    useEffect(() => {
+        if (verifyError === "invalid_code") {
+            setCode(["", "", "", ""]);
+            inputsRef.current[0]?.focus();
+        }
+    }, [verifyError]);
+
+    const verifyErrorText =
+        verifyError === "invalid_code"
+            ? `Неверный код${typeof attemptsLeft === "number" ? `. Осталось попыток: ${attemptsLeft}` : ""}`
+            : verifyError === "code_expired_or_not_found"
+                ? "Код истёк. Запросите новый."
+                : verifyError === "too_many_attempts"
+                    ? "Слишком много попыток. Попробуйте позже."
+                    : verifyError
+                        ? "Ошибка проверки кода. Попробуйте ещё раз."
+                        : null;
+
+    const isCodeError = !!verifyError;
+
+    return (
+        <Drawer
+            isDismissable={false}
+            hideCloseButton
+            isKeyboardDismissDisabled
+            classNames={{ base: "fixed flex w-full max-w-full lg:max-w-[600px] min-h-[75vh] bottom-0 h-full px-[16px] py-[24px] lg:px-[40px] lg:py-[64px] flex-col gap-[10px] rounded-t-[32px] bg-[#FFF]" }}
+            placement={isMobile ? "bottom" : "right"}
+            isOpen={isOpen}
+            onOpenChange={(open) => { if (!open) dispatch(closeAuth()); }}
+        >
+            <DrawerContent className="flex flex-col gap-[32px] h-full self-stretch">
+                {() => (
+                    <>
+                        <DrawerHeader className="flex items-start justify-between gap-[32px] self-stretch text-[#122C5E] text-[32px] not-italic font-normal leading-[100%] bg-white p-0">
+                            {step === "phone" && "Пройдите верификацию"}
+                            {step === "verification" && "Пройдите верификацию"}
+                            {step === "registration" && "Регистрация"}
+                            {step === "successSpin" && "Верификация пройдена"}
+                            {step === "successDefault" && "Верификация пройдена"}
+                            <Button onPress={() => dispatch(closeAuth())} className="!p-0 !min-w-[32px] !w-[32px] !h-[32px] rounded-[16px] bg-[#F4F6FB] flex items-center !justify-center">
+                                ✕
+                            </Button>
+                        </DrawerHeader>
+
+                        <DrawerBody className="flex flex-col gap-[32px] p-0 self-stretch h-full">
+                            {/* PHONE STEP */}
+                            {step === "phone" && (
+                                <div className="flex flex-col items-start gap-[32px] self-stretch">
+                                    <div className="flex flex-col gap-[12px] w-full">
+                                        <span>Введите номер телефона, чтобы получить код подтверждения</span>
+                                        <Input
+                                            type="tel"
+                                            inputMode="numeric"
+                                            value={phone}
+                                            onChange={(e) => dispatch(setPhone(e.target.value))}
+                                            ref={withMask("+7 (999) 999-99-99")}
+                                            classNames={{
+                                                input: "flex pt-[11px] pr-[12px] pb-[13px] pl-[16px] rounded-[12px] bg-[#F4F6FB] text-[#282D3C] text-[15px] font-medium leading-[20px]",
+                                                inputWrapper: "p-0"
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="flex flex-col items-center gap-[16px] self-stretch">
+                                        <Button
+                                            onPress={() => dispatch(sendAuthCode({ phoneMasked: phone || "" }) as any)}
+                                            isDisabled={!isPhoneValid || isSendingCode}
+                                            className={`flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] ${isPhoneValid && !isSendingCode ? "bg-[#DB1D31] text-white" : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"}`}
+                                        >
+                                            {isSendingCode ? "Отправляем..." : "Получить код"}
+                                        </Button>
+                                        {sendCodeError && (
+                                            <p className="text-[12px] text-red-600">
+                                                {sendCodeError}
+                                            </p>
+                                        )}
+                                        <p className="text-[#1E1E1E] text-center text-[12px] not-italic font-normal leading-[100%]">
+                                            Нажимая кнопку «Получить SMS с паролем», вы подтверждаете своё согласие на обработку персональных данных и получение рекламных рассылок
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* VERIFICATION STEP */}
+                            {step === "verification" && (
+                                <div className="flex flex-col items-start gap-[32px] self-stretch">
+                                    <div className="flex flex-col gap-[12px]">
+                                        <div className="flex flex-col items-start gap-[8px] self-stretch">
+                                            <span className="text-[#122C5E] text-[16px] not-italic font-normal leading-[16px] opacity-60">
+                                                СМС код был отправлен на WhatsApp на номер
+                                            </span>
+                                            <div className="flex items-end gap-[16px] self-stretch">
+                                                <span className="text-[#122C5E] text-[16px] not-italic font-normal leading-[16px] opacity-60">
+                                                    {phone}
+                                                </span>
+                                                <Button
+                                                    onPress={() => dispatch(changeNumber())}
+                                                    className="!p-0 !m-0 !bg-transparent !border-none !rounded-none text-[#1A3C7E] text-[16px] not-italic font-bold leading-[16px] min-h-0 h-auto"
+                                                >
+                                                    Изменить
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start gap-[8px] self-stretch w-full">
+                                            {code.map((value, index) => (
+                                                <Input
+                                                    key={index}
+                                                    type="tel"
+                                                    inputMode="numeric"
+                                                    value={value}
+                                                    maxLength={1}
+                                                    onChange={(e) => {
+                                                        handleChange(index, e.target.value);
+                                                        if (verifyError) dispatch(clearVerifyError());
+                                                    }}
+                                                    onKeyDown={(e) => handleKeyDown(index, e)}
+                                                    ref={(el) => { inputsRef.current[index] = el; }}
+                                                    classNames={{
+                                                        input:
+                                                            `flex justify-center items-center text-center text-[18px] font-medium text-[#282D3C] bg-[#F4F6FB] rounded-[20px] h-[62px]`,
+                                                        inputWrapper:
+                                                            `p-0 w-full h-[62px]`,
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+
+                                        {verifyErrorText && (
+                                            <p className="text-[12px] text-red-600 -mt-2">
+                                                {verifyErrorText}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col items-start gap-[16px] self-stretch">
+                                        <Button
+                                            onPress={() => dispatch(verifyAuthCode({ phoneMasked: phone ?? "", code: code.join("") }) as any)}
+                                            isDisabled={!isCodeValid || isVerifyingCode}
+                                            className={`flex w-full h-[44px] justify-center items-center rounded-[12px] transition-colors ${isCodeValid
+                                                ? "bg-[#DB1D31] text-white"
+                                                : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"
+                                                }`}
+                                        >
+                                            {isVerifyingCode ? "Проверяем..." : "Подтвердить"}
+                                        </Button>
+
+                                        {timeLeft > 0 ? (
+                                            <Button
+                                                disabled
+                                                className="!p-0 !m-0 !bg-transparent !border-none !rounded-none text-[#1A3C7E] text-[16px] not-italic font-normal leading-[16px] min-h-0 h-auto"
+                                            >
+                                                Отправить код еще раз можно через {formatTime(timeLeft)}
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                onPress={resendCode}
+                                                className="!p-0 !m-0 !bg-transparent !border-none !rounded-none text-[#1A3C7E] text-[16px] not-italic font-bold leading-[16px] min-h-0 h-auto"
+                                            >
+                                                Отправить код еще раз
+                                            </Button>
+                                        )}
+
+                                        <p className="text-[#1E1E1E] text-center text-[12px] not-italic font-normal leading-[100%]">
+                                            Нажимая кнопку «Получить SMS с паролем», вы подтверждаете своё согласие
+                                            на обработку персональных данных и получение рекламных рассылок
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* REGISTRATION STEP */}
+                            {/* {step === "registration" && !isRegistered && ( */}
+                            {step === "registration" && (
+                                <div className="flex flex-col items-start gap-[32px] self-stretch">
+                                    <div className="flex flex-col gap-[12px] w-full">
+                                        <div className="flex flex-col items-start gap-[16px] self-stretch w-full">
+                                            <div className="flex flex-col items-start gap-[16px] self-stretch">
+                                                <div className="flex flex-col items-start self-stretch gap-[16px]">
+                                                    <div className="flex flex-col items-start gap-[16px] self-stretch">
+                                                        <div className="flex flex-col items-start self-stretch gap-[12px]">
+                                                            <p className="text-[#282D3C] text-[16px] not-italic font-normal leading-[20px]">
+                                                                Имя
+                                                            </p>
+                                                            <Input
+                                                                placeholder="Введите свое имя "
+                                                                value={firstName}
+                                                                onChange={(e) => dispatch(setFirstName(e.target.value))}
+                                                                classNames={{
+                                                                    input: "flex w-full pt-[11px] pr-[12px] pb-[13px] pl-[16px] rounded-[12px] bg-[#F4F6FB] text-[#282D3C] text-[15px] font-normal leading-[20px]",
+                                                                    inputWrapper: "p-0"
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-start gap-[16px] self-stretch">
+                                                <div className="flex flex-col items-start self-stretch gap-[16px]">
+                                                    <div className="flex flex-col items-start gap-[16px] self-stretch">
+                                                        <div className="flex flex-col items-start self-stretch gap-[12px]">
+                                                            <p className="text-[#282D3C] text-[16px] not-italic font-normal leading-[20px]">
+                                                                Фамилия
+                                                            </p>
+                                                            <Input
+                                                                placeholder="Введите свою фамилию"
+                                                                value={lastName}
+                                                                onChange={(e) => dispatch(setLastName(e.target.value))}
+                                                                classNames={{
+                                                                    input: "flex w-full pt-[11px] pr-[12px] pb-[13px] pl-[16px] rounded-[12px] bg-[#F4F6FB] text-[#282D3C] text-[15px] font-normal leading-[20px]",
+                                                                    inputWrapper: "p-0"
+                                                                }} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {registerError && <p className="text-[12px] text-red-600">{registerError}</p>}
+                                    </div>
+                                    {pathname === "/gala-bonus" && (
+                                        <div className="flex flex-col items-start gap-[16px] self-stretch">
+
+                                            <Button
+                                                onPress={() => dispatch(
+                                                    setStep("successSpin"),
+                                                    registerAuth({
+                                                        phoneMasked: phone ?? "",
+                                                        firstName: firstName ?? "",
+                                                        lastName: lastName ?? "",
+                                                    }) as any
+                                                )}
+                                                isDisabled={!(isNameValid && isSurnameValid) || isRegistering}
+                                                className={`flex w-full h-[44px] justify-center items-center rounded-[12px] transition-colors ${isNameValid && isSurnameValid
+                                                    ? "bg-[#DB1D31] text-white"
+                                                    : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"}`}
+                                            >
+                                                {isRegistering ? "Сохраняем..." : "Завершить"}
+                                            </Button>
+                                        </div>
+                                    )}
+                                    {pathname !== "/gala-bonus" && (
+                                        <div className="flex flex-col items-start gap-[16px] self-stretch">
+
+                                            <Button
+                                                onPress={() =>
+                                                    dispatch(
+                                                        registerAuth({
+                                                            phoneMasked: phone ?? "",
+                                                            firstName: firstName ?? "",
+                                                            lastName: lastName ?? "",
+                                                        }) as any
+                                                    )
+                                                }
+                                                isDisabled={!(isNameValid && isSurnameValid) || isRegistering}
+                                                className={`flex w-full h-[44px] justify-center items-center rounded-[12px] transition-colors ${isNameValid && isSurnameValid
+                                                    ? "bg-[#DB1D31] text-white"
+                                                    : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"}`}
+                                            >
+                                                {isRegistering ? "Сохраняем..." : "Завершить"}
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* SUCCESS  SPIN*/}
+                            {step === "successSpin" && (
+                                <div className="flex flex-col items-start gap-[32px] self-stretch">
+                                    <div className="flex flex-row gap-[12px] w-full">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                            <path fillRule="evenodd" clipRule="evenodd" d="M20 10C20 15.5228 15.5228 20 10 20C4.47715 20 0 15.5228 0 10C0 4.47715 4.47715 0 10 0C15.5228 0 20 4.47715 20 10ZM14.0303 6.96967C14.3232 7.26256 14.3232 7.73744 14.0303 8.03033L9.03033 13.0303C8.73744 13.3232 8.26256 13.3232 7.96967 13.0303L5.96967 11.0303C5.67678 10.7374 5.67678 10.2626 5.96967 9.96967C6.26256 9.67678 6.73744 9.67678 7.03033 9.96967L8.5 11.4393L10.7348 9.2045L12.9697 6.96967C13.2626 6.67678 13.7374 6.67678 14.0303 6.96967Z" fill="#26AF2B" />
+                                        </svg>
+                                        <span>Теперь вы можете крутить колесо</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-[16px] self-stretch">
+                                        <Button
+                                            onPress={() => {
+                                                dispatch(closeAuth());
+                                                dispatch(handleSpin() as any);
+                                            }}
+                                            className={`flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] bg-[#DB1D31] font-medium text-white`}
+                                        >
+                                            Крутить колесо
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SUCCESS  DEFAULT*/}
+                            {step === "successDefault" && (
+                                <div className="flex flex-col items-start gap-[32px] self-stretch">
+                                    <div className="flex flex-row gap-[12px] w-full">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                            <path fillRule="evenodd" clipRule="evenodd" d="M20 10C20 15.5228 15.5228 20 10 20C4.47715 20 0 15.5228 0 10C0 4.47715 4.47715 0 10 0C15.5228 0 20 4.47715 20 10ZM14.0303 6.96967C14.3232 7.26256 14.3232 7.73744 14.0303 8.03033L9.03033 13.0303C8.73744 13.3232 8.26256 13.3232 7.96967 13.0303L5.96967 11.0303C5.67678 10.7374 5.67678 10.2626 5.96967 9.96967C6.26256 9.67678 6.73744 9.67678 7.03033 9.96967L8.5 11.4393L10.7348 9.2045L12.9697 6.96967C13.2626 6.67678 13.7374 6.67678 14.0303 6.96967Z" fill="#26AF2B" />
+                                        </svg>
+                                        <span>Вы успешно авторизовались</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-[16px] self-stretch">
+                                        {pathname === "/gala-bonus" && (
+                                            <Button
+                                                onPress={() => {
+                                                    dispatch(closeAuth());
+                                                    dispatch(handleSpin() as any);
+                                                }}
+                                                className="flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] bg-[#DB1D31] font-medium text-white"
+                                            >
+                                                Крутить колесо
+                                            </Button>
+                                        )}
+                                        <Button
+                                            onPress={() => {
+                                                dispatch(closeAuth());
+                                                router.push(user?.documentId ? `/profile/${user.documentId}` : "/profile");
+                                            }}
+                                            className={`flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] font-medium ${pathname === "/gala-bonus" ? "bg-[#F4F6FB] text-[#1A3C7E]" : "bg-[#DB1D31] text-white"}`}
+                                        >
+                                            Перейти в личный кабинет
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </DrawerBody>
+                    </>
+                )}
+            </DrawerContent>
+        </Drawer>
+    );
+}

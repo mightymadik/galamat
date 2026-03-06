@@ -1,0 +1,90 @@
+footer {
+    border-radius: 32px 32px 0 0;
+    background: var(--Color-White-Light-blue, #F4F6FB);
+}
+
+footer .wrapper {
+    gap: 32px;
+    flex: 1 0 0;
+    padding: 36px 0px;
+}
+
+.leftSide {
+    gap: 32px;
+}
+
+.leftSideContainer {
+    width: 304px;
+    max-width: 304px;
+    gap: 24px;
+    flex: 1 0 0;
+}
+
+.leftSideInfo {
+    gap: 16px;
+}
+
+.leftSideInfoSocial {
+    gap: 24px;
+}
+
+.leftSideInfoSocialText {
+    letter-spacing: -0.14px;
+}
+
+.leftSideInfoSocialLinks {
+    gap: 6px;
+}
+
+.leftSideInfoSocialLinks a {
+    color: var(--Color-Jeans-blue-Dark, #282D3C) !important;
+    font-family: Gotham;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 12px;
+    /* 100% */
+    letter-spacing: -0.06px;
+}
+
+.policyText {
+    line-height: 120%;
+    letter-spacing: -0.14px;
+    color: #8C94A8;
+    font-family: Gotham;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 120%;
+    /* 14.4px */
+    letter-spacing: -0.14px;
+}
+
+.rightSide {
+    flex: 1 0 0;
+}
+
+.rightSideListHeadingText {
+    letter-spacing: -0.14px;
+}
+
+.rightSideListItemLink {
+    padding: 2.75px 0 1.4px 0;
+}
+
+.rightSideListItemLinkText {
+    letter-spacing: -0.14px;
+}
+
+@media screen and (max-width: 1350px) {
+  footer .wrapper {
+    padding: 36px 16px;
+  }
+}
+
+@media screen and (max-width: 1280px) {
+    .rightSide {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+}

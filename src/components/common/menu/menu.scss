@@ -1,0 +1,93 @@
+.menuContainer {
+    margin: 0 auto;
+    background: var(--Light-Background-Content, #FFF);
+    border-top-left-radius: 25px;
+    border-top-right-radius: 25px;
+    box-shadow: 0 -4px 8px #282d3c0a, 0 0 2px #282d3c0d, 0 0 1px #282d3c08;
+    height: 70px;
+    width: 100%;
+}
+
+.menuItems {
+    padding: 5px 2px 6px 2px;
+}
+
+.menuItem {
+    gap: 4px;
+}
+
+.menuItem p {
+    flex: 1 0 0;
+    font-size: 10px;
+    line-height: normal;
+    letter-spacing: 0.15px;
+}
+
+.drawer {
+    width: 100%;
+    height: 100%;
+    gap: -0.444px;
+    background: var(--Color-White-White, #FFF);
+}
+
+.drawerHeader {
+    padding: 32px 16px 16px 16px;
+    gap: 32px;
+    border-bottom: 1px solid rgba(40, 45, 60, 0.24);
+}
+
+.drawerHeaderClose button {
+    gap: 10px;
+    aspect-ratio: 1/1;
+    border-radius: 16px;
+}
+
+.drawerNavigation {
+    gap: 32px;
+    margin: 0 auto;
+}
+
+.drawerNavigationItem {
+    gap: 4px;
+    flex: 1 0 0;
+}
+
+.drawerNavigationItem button {
+    min-width: var(--button-s-weight-min, 36px);
+    min-height: var(--button-s-height-fixed, 36px);
+    padding: var(--button-s-padding-top, 9px) var(--button-s-padding-right, 11px) var(--button-s-padding-bottom, 11px) var(--button-s-padding-left, 11px);
+    border-radius: var(--button-s-radius-square, 12px);
+    border: 1.5px solid #F3F3F3;
+    background: var(--Color-White-White, #FFF);
+    box-shadow: var(--Effect-settings-1-x, 0) var(--Effect-settings-1-y, 1px) var(--Effect-settings-1-blur, 3px) var(--Effect-settings-1-spread, 0) var(--l-transparent-1, rgba(0, 0, 0, 0.00)), var(--Effect-settings-2-x, 0) var(--Effect-settings-2-y, 4px) var(--Effect-settings-2-blur, 30px) var(--Effect-settings-2-spread, 0) var(--l-transparent-2, rgba(0, 0, 0, 0.00));
+}
+
+.drawerMenu {
+    gap: 8px;
+    width: 100%;
+}
+
+.drawerMenuButton {
+    min-width: var(--button-m-weight-min, 44px);
+    min-height: var(--button-m-height-fixed, 44px);
+    padding: var(--button-m-padding-top, 11px) var(--button-m-padding-right, 13px) var(--button-m-padding-bottom, 13px) var(--button-m-padding-left, 13px);
+    border-radius: 12px;
+}
+
+.drawerContact {
+    gap: 8px;
+    width: 100%;
+}
+
+.drawerContact h1 {
+    line-height: 100%; /* 16px */
+}
+
+.drawerContactButton {
+    min-width: var(--button-m-weight-min, 44px);
+    min-height: var(--button-m-height-fixed, 44px);
+    width: 100%;
+    padding: var(--button-m-padding-top, 11px) var(--button-m-padding-right, 13px) var(--button-m-padding-bottom, 13px) var(--button-m-padding-left, 13px);
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+}

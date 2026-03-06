@@ -1,0 +1,30 @@
+.projects .wrapper {
+    height: 1020px;
+}
+
+@media screen and (max-width: 1350px) {
+  .projects .wrapper {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+  }
+}
+
+@media screen and (max-width: 1025px) {
+  .projects .wrapper {
+    grid-template-columns: repeat(1, 1fr 1fr);
+    grid-template-rows: auto;
+    height: 100%;
+  }
+
+  .projectItem { height: 442px; }
+}
+
+@media screen and (max-width: 900px) {
+  .projects .wrapper {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .projectItem { height: 492px; }
+}
+

@@ -1,0 +1,18 @@
+@media screen and (max-width: 1350px) {
+    .positions {
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+    .positions::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }
+
+  .banners {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .banners::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }
+}

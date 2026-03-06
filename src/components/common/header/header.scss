@@ -1,0 +1,110 @@
+header {
+    background: var(--Color-White-Light-blue, #F4F6FB);
+    width: 100%;
+    top: 0px;
+}
+
+.logo {
+    gap: 6px;
+}
+
+.navigation {
+    flex: 1 0 0;
+}
+
+.navigation span {
+    font-weight: 500;
+}
+
+.navigationContainer {
+    flex: 1 0 0;
+}
+
+.navigationButtons {
+    gap: 16px;
+}
+
+.navigationLinks a {
+    min-width: var(--button-s-weight-min, 36px);
+    min-height: var(--button-s-height-fixed, 36px);
+    padding: var(--button-s-padding-top, 9px) var(--button-s-padding-right, 11px) var(--button-s-padding-bottom, 11px) var(--button-s-padding-left, 11px);
+    border-radius: var(--button-s-radius-square, 12px);
+}
+
+.navigationSublinks {
+    gap: 16px;
+}
+
+.navigationSublinksCallRequest {
+    min-width: var(--button-s-weight-min, 36px);
+    min-height: var(--button-s-height-fixed, 36px);
+    padding: var(--button-s-padding-top, 9px) var(--button-s-padding-right, 11px) var(--button-s-padding-bottom, 11px) var(--button-s-padding-left, 11px);
+    border-radius: var(--button-s-radius-square, 12px);
+    border: 1.5px solid #F3F3F3;
+    background: var(--Color-White-White, #FFF);
+    box-shadow: var(--Effect-settings-1-x, 0) var(--Effect-settings-1-y, 1px) var(--Effect-settings-1-blur, 3px) var(--Effect-settings-1-spread, 0) var(--l-transparent-1, rgba(0, 0, 0, 0.00)), var(--Effect-settings-2-x, 0) var(--Effect-settings-2-y, 4px) var(--Effect-settings-2-blur, 30px) var(--Effect-settings-2-spread, 0) var(--l-transparent-2, rgba(0, 0, 0, 0.00));
+}
+
+.navigationSublinksAuth {
+    border-radius: var(--button-s-radius-square, 12px);
+    background: var(--Color-Blue, #1A3C7E);
+
+    /* Shadow */
+    box-shadow: var(--Effect-settings-1-x, 0) var(--Effect-settings-1-y, 1px) var(--Effect-settings-1-blur, 3px) var(--Effect-settings-1-spread, 0) var(--l-transparent-1, rgba(0, 0, 0, 0.00)), var(--Effect-settings-2-x, 0) var(--Effect-settings-2-y, 4px) var(--Effect-settings-2-blur, 30px) var(--Effect-settings-2-spread, 0) var(--l-transparent-2, rgba(0, 0, 0, 0.00));
+}
+
+.navigationSublinksAuthA {
+    min-width: var(--button-s-weight-min, 36px);
+    padding: var(--button-s-padding-top, 9px) var(--button-s-padding-right, 11px) var(--button-s-padding-bottom, 11px) var(--button-s-padding-left, 11px);
+    border-radius: var(--button-s-radius-square, 12px);
+    box-shadow: var(--Effect-settings-1-x, 0) var(--Effect-settings-1-y, 1px) var(--Effect-settings-1-blur, 3px) var(--Effect-settings-1-spread, 0) var(--l-transparent-1, rgba(0, 0, 0, 0.00)), var(--Effect-settings-2-x, 0) var(--Effect-settings-2-y, 4px) var(--Effect-settings-2-blur, 30px) var(--Effect-settings-2-spread, 0) var(--l-transparent-2, rgba(0, 0, 0, 0.00));
+}
+
+.navigationSublinksAuthP {
+    color: var(--components-button-text-accentPrimary, #FFF);
+    line-height: var(--font-line-height-M20, 20px);
+}
+
+.langSelect {
+    display: flex;
+    height: 36px;
+    width: 68px;
+    min-width: var(--button-s-weight-min, 36px);
+    min-height: var(--button-s-height-fixed, 36px);
+    padding: var(--button-s-padding-top, 9px) var(--button-s-padding-right, 11px) var(--button-s-padding-bottom, 11px) var(--button-s-padding-left, 11px);
+    justify-content: center;
+    align-items: center;
+    border-radius: var(--button-s-radius-square, 12px);
+    border: 1.5px solid #F3F3F3;
+    background: #FFF !important;
+    /* Shadow */
+    box-shadow: var(--Effect-settings-1-x, 0) var(--Effect-settings-1-y, 1px) var(--Effect-settings-1-blur, 3px) var(--Effect-settings-1-spread, 0) var(--l-transparent-1, rgba(0, 0, 0, 0.00)), var(--Effect-settings-2-x, 0) var(--Effect-settings-2-y, 4px) var(--Effect-settings-2-blur, 30px) var(--Effect-settings-2-spread, 0) var(--l-transparent-2, rgba(0, 0, 0, 0.00));
+}
+
+.langLabel {
+    color: var(--components-button-text-secondary, #000);
+    font-weight: 800;
+    line-height: var(--font-line-height-M20, 20px);
+}
+
+ul {
+    list-style-type: none;
+}
+
+.navigationSublinks .absolute {
+    position: relative;
+}
+
+@media screen and (max-width: 1024px) {
+    .navigation {
+        flex: 0 0 0;
+    }
+
+    header .flex {
+        justify-content: space-between;
+    }
+
+    .navigationSublinks {
+        gap: 4px;
+    }
+}

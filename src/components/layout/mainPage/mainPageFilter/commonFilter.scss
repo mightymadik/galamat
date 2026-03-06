@@ -1,0 +1,153 @@
+.mainPageFilter {
+    width: 100%;
+    gap: 32px;
+}
+
+.main {
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1313px;
+    gap: 24px;
+}
+
+.mainPageFilterTitle {
+    gap: 7.606px;
+}
+
+.mainPageFilterTitle .mainPageFilterSelector button {
+    background: none;
+}
+
+.mainPageFilterTitle h1 {
+    color: #1E1E1E;
+    font-style: normal;
+    font-weight: 500;
+    line-height: 100%;
+}
+
+.mainPageFilterMain {
+    width: 100%;
+}
+
+.mainPageFilterCategory {
+    min-width: var(--button-s-weight-min, 36px);
+    min-height: var(--button-s-height-fixed, 36px);
+    padding: var(--button-s-padding-top, 9px) var(--button-s-padding-right, 11px) var(--button-s-padding-bottom, 11px) var(--button-s-padding-left, 11px);
+    border-radius: var(--button-s-radius-square, 12px);
+    box-shadow: var(--Effect-settings-1-x, 0) var(--Effect-settings-1-y, 1px) var(--Effect-settings-1-blur, 3px) var(--Effect-settings-1-spread, 0) var(--l-transparent-1, rgba(0, 0, 0, 0.00)), var(--Effect-settings-2-x, 0) var(--Effect-settings-2-y, 4px) var(--Effect-settings-2-blur, 30px) var(--Effect-settings-2-spread, 0) var(--l-transparent-2, rgba(0, 0, 0, 0.00));
+}
+
+.mainPageFilterContainer {
+    width: 100%;
+    max-width: 1313px;
+}
+
+.mainPageFilterSelectors {
+    width: 100%;
+}
+
+.mainPageFilterSelector {
+    gap: 4px;
+    flex: 1 0 0;
+}
+
+.mainPageFilterSelector p {
+    color: var(--Color-Jeans-blue-Jeans-blue, #132C5E);
+    text-overflow: ellipsis;
+    line-height: normal;
+}
+
+.mainPageFilterSelector button {
+    padding: var(--Controls-top, 11px) var(--Controls-right, 12px) var(--Controls-bottom, 13px) var(--Controls-left, 16px);
+    gap: 4px;
+    border-radius: var(--rad-12, 12px);
+    background: var(--Color-White-Light-blue, #F4F6FB);
+}
+
+.mainPageFilterSelectorDropdown {
+    padding: var(--dropdown-m-padding-top, 18px) var(--dropdown-m-padding-right, 16px) var(--dropdown-m-padding-bottom, 20px) var(--dropdown-m-padding-left, 16px);
+    border-radius: var(--dropdown-m-radius-square-top, 12px) var(--dropdown-m-radius-square-top, 12px) var(--dropdown-m-radius-square-bottom, 24px) var(--dropdown-m-radius-square-bottom, 24px);
+    background: var(--bg-elevation2, #FFF);
+    /* Shadow */
+    box-shadow: var(--Effect-settings-1-x, 0) var(--Effect-settings-1-y, 1px) var(--Effect-settings-1-blur, 3px) var(--Effect-settings-1-spread, 0) var(--l-transparent-1, rgba(0, 0, 0, 0.05)), var(--Effect-settings-2-x, 0) var(--Effect-settings-2-y, 4px) var(--Effect-settings-2-blur, 30px) var(--Effect-settings-2-spread, 0) var(--l-transparent-2, rgba(0, 0, 0, 0.12));
+}
+
+.mainPageFilterSelectorDropdownItem {
+    padding: var(--Lists-top, 11px) var(--Lists-right, 11px) var(--Lists-bottom, 11px) var(--Lists-left, 11px);
+}
+
+span.text-inherit.w-3.h-3.shrink-0 {
+    display: none;
+}
+
+.mainPageFilterRadio {
+    flex: 1 0 0;
+}
+
+.mainPageFilterRadio p {
+    color: var(--Color-Jeans-blue-Jeans-blue, #132C5E);
+    text-overflow: ellipsis;
+    line-height: normal;
+}
+
+.mainPageFilterRadioInnerItem {
+    min-width: var(--button-m-weight-min, 44px);
+    min-height: var(--button-m-height-fixed, 44px);
+    padding: var(--button-m-padding-top, 11px) var(--button-m-padding-right, 13px) var(--button-m-padding-bottom, 13px) var(--button-m-padding-left, 13px);
+    flex: 1 0 0;
+    border-radius: var(--button-m-radius-square, 12px);
+    cursor: pointer;
+    background: #F4F5F9;
+    box-shadow: var(--Effect-settings-1-x, 0) var(--Effect-settings-1-y, 1px) var(--Effect-settings-1-blur, 3px) var(--Effect-settings-1-spread, 0) var(--l-transparent-1, rgba(0, 0, 0, 0.00)), var(--Effect-settings-2-x, 0) var(--Effect-settings-2-y, 4px) var(--Effect-settings-2-blur, 30px) var(--Effect-settings-2-spread, 0) var(--l-transparent-2, rgba(0, 0, 0, 0.00));
+}
+
+.mainPageFilterSlide {
+    flex: 1 0 0;
+}
+
+.mainPageFilterSlide p,
+sup {
+    color: var(--Color-Jeans-blue-Jeans-blue, #132C5E);
+    text-overflow: ellipsis;
+    line-height: normal;
+}
+
+.mainPageFilterSlideValue {
+    padding: var(--Controls-top, 11px) var(--Controls-right, 12px) var(--Controls-bottom, 13px) var(--Controls-left, 16px);
+    gap: 4px;
+    flex: 1 0 0;
+    background: var(--Color-White-Light-blue, #F4F6FB);
+}
+
+.mainPageFilterSlider {
+    padding: 0 16px;
+    gap: 10px;
+}
+
+/* Убираем стандартную синюю обводку при клике */
+.rc-slider-handle-click-focused:focus {
+    border-color: #1A3C7E !important;
+    /* твой фирменный фиолетовый */
+    box-shadow: 0 0 0 4px rgba(24, 1, 97, 0.25) !important;
+    /* мягкая подсветка */
+}
+
+/* При активном перетаскивании */
+.rc-slider-handle:active {
+    border-color: #1A3C7E !important;
+    box-shadow: 0 0 0 6px rgba(24, 1, 97, 0.3) !important;
+}
+
+/* Если хочешь полностью убрать подсветку */
+.rc-slider-handle-click-focused:focus,
+.rc-slider-handle:active {
+    box-shadow: none !important;
+}
+
+.mainPageFilterMap button{
+    min-width: var(--button-m-weight-min, 44px);
+    min-height: var(--button-m-height-fixed, 44px);
+    padding: var(--button-m-padding-top, 11px) var(--button-m-padding-right, 13px) var(--button-m-padding-bottom, 13px) var(--button-m-padding-left, 13px);
+    border-radius: var(--button-m-radius-square, 12px);
+    box-shadow: var(--Effect-settings-1-x, 0) var(--Effect-settings-1-y, 1px) var(--Effect-settings-1-blur, 3px) var(--Effect-settings-1-spread, 0) var(--l-transparent-1, rgba(0, 0, 0, 0.00)), var(--Effect-settings-2-x, 0) var(--Effect-settings-2-y, 4px) var(--Effect-settings-2-blur, 30px) var(--Effect-settings-2-spread, 0) var(--l-transparent-2, rgba(0, 0, 0, 0.00));
+}

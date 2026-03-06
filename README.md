@@ -1,0 +1,2 @@
+Galamat Frontend
+Galamat.kz

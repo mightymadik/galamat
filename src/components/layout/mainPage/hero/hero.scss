@@ -1,0 +1,72 @@
+.hero {
+  .wrapper {
+    max-width: 1320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  @media only screen and (min-width: 1600px) {
+    .wrapper {
+      flex: 0 0 1;
+      width: 100%;
+      max-width: 1320px;
+    }
+  }
+
+  /* скрываем скролл */
+  .heroScroll {
+    -ms-overflow-style: none; /* IE и Edge */
+    scrollbar-width: none; /* Firefox */
+    overflow: auto hidden;
+    scrollbar-width: none;
+  }
+  .heroScroll::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }
+}
+
+@media only screen and (min-width: 1600px) {
+    .hero .wrapper {
+        flex: 0 0 1;
+        width: 100%;
+        max-width: 1320px;
+    }
+}
+
+@media only screen and (max-width: 1025) {
+    .hero .wrapper {
+        overflow: auto hidden;
+        scrollbar-width: none;
+    }
+}
+
+.heroContainer {
+    max-width: 1320px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+@media screen and (max-width: 1024px) {
+    .heroItem {
+        box-sizing: border-box;
+        position: relative;
+        background-color: rgb(247, 247, 245);
+        width: 100%;
+        height: 512px;
+        cursor: pointer;
+        padding: 16px;
+        background-repeat: no-repeat;
+        background-position: center center;
+        background-size: cover;
+        overflow: hidden;
+        border-radius: 32px;
+        transform: translateZ(0px);
+    }
+}
+
+@media screen and (min-width: 1200px) {
+    .heroItem h2 {
+        font-size: 15vw;
+    }
+}
