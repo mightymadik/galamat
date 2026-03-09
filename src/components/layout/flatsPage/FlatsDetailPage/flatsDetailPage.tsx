@@ -156,6 +156,7 @@ function adaptPropertyDetail(api: PropertyDetailApi): { flatDetail: FlatDetail; 
         originalPrice: originalPriceStr,
         paymentConditions: api.paymentConditions,
         fullPriceBeforeDiscount: basePrice > 0 ? basePrice : undefined,
+        projectDocumentId: api.projectDocumentId,
     };
 
     return { flatDetail, originalFlat };
