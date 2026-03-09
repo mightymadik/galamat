@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const url = `${baseUrl()}/api/gala-bonuses`;
     const res = await axios.post(
       url,
-      { data: { user: documentId, prize: prizeDigits } },
+      { data: { user: documentId, prize: prizeDigits, active: true } },
       {
         headers: headers(),
         timeout: 10000,
