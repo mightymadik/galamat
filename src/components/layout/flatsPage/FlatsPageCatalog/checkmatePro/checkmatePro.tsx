@@ -56,7 +56,9 @@ const adaptProperty = (property: any): ComponentFlat => {
     const priceM2Checkmate = property.priceM2Checkmate != null ? Number(property.priceM2Checkmate) : 0;
     const district = property.district ?? property.project?.district ?? "";
 
-    const saleStatusClosed = String(property.saleStatus ?? "").trim().toLowerCase() === "закрыто";
+    // Статус продажи закрыт → квартира серая и недоступная
+    const saleStatusRaw = String(property.saleStatus ?? "").trim().toLowerCase();
+    const saleStatusClosed = ["закрыто", "closed", "продано", "sold"].includes(saleStatusRaw);
     const statusMap: Record<string, string> = {
         свободно: "available",
         бронь: "reserved",
@@ -200,7 +202,7 @@ export default function CheckmatePro({ filterParams = {}, onTotalCountChange }: 
         const params = new URLSearchParams();
         params.set("project", selectedComplex);
         params.set("light", "1");
-        // не передаём allStatuses — только свободные/открытые, как в списке и сетке
+        params.set("allStatuses", "1"); // все квартиры ЖК (включая закрытые) для шахматки+
 
         fetch(`/api/properties?${params.toString()}`)
             .then((res) => res.json())

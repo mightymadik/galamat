@@ -248,6 +248,7 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
         complexGenPlanImage,
         sunshine: item.sunshine || "",
         projectDocumentId,
+        saleStatus: item.saleStatus,
       };
     };
 
