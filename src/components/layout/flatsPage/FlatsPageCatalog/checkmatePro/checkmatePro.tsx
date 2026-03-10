@@ -117,12 +117,8 @@ function flatMatchesFilters(flat: ComponentFlat, filterParams: FlatsFilterParams
         if (flat.district !== filterParams.district) return false;
     }
     if (filterParams.tags?.length) {
-        const hasHypothec = filterParams.tags.includes("Ипотека");
-        const hasInstallment = filterParams.tags.includes("Рассрочка");
-        if (hasHypothec && hasInstallment) {
-            if (!flat.hypothec && !flat.installment) return false;
-        } else if (hasHypothec && !flat.hypothec) return false;
-        else if (hasInstallment && !flat.installment) return false;
+        const hasMatch = filterParams.tags.some((t) => flat.tags?.includes(t));
+        if (!hasMatch) return false;
     }
     return true;
 }
@@ -204,7 +200,7 @@ export default function CheckmatePro({ filterParams = {}, onTotalCountChange }: 
         const params = new URLSearchParams();
         params.set("project", selectedComplex);
         params.set("light", "1");
-        params.set("allStatuses", "1");
+        // не передаём allStatuses — только свободные/открытые, как в списке и сетке
 
         fetch(`/api/properties?${params.toString()}`)
             .then((res) => res.json())

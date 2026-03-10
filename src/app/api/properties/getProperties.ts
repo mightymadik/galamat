@@ -58,14 +58,12 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       "fields[4]": "floor",
       "fields[5]": "section",
       "fields[6]": "entrance",
-      "fields[7]": "hypothec",
-      "fields[8]": "installment",
-      "fields[9]": "propertyStatus",
-      "fields[10]": "saleStatus",
-      "fields[11]": "apartmentNumber",
-      "fields[12]": "numberApartmentFloor",
-      "fields[13]": "documentId",
-      "fields[14]": "sunshine",
+      "fields[7]": "propertyStatus",
+      "fields[8]": "saleStatus",
+      "fields[9]": "apartmentNumber",
+      "fields[10]": "numberApartmentFloor",
+      "fields[11]": "documentId",
+      "fields[12]": "sunshine",
 
       "populate[project][fields][0]": "projectName",
       "populate[project][fields][1]": "district",
@@ -73,13 +71,13 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       "populate[project][populate][complexes][fields][0]": "complexAddress",
       "populate[project][populate][complexes][fields][1]": "locale",
       "populate[project][populate][complexes][fields][2]": "complexGenPlan",
+      "populate[paymentConditions][fields][0]": "paymentMethod",
     };
 
-    // Для шахматки загружаем все квартиры (любой статус); иначе только свободные
+    // Только свободные и в продаже: при allStatuses (шахматка) не фильтруем по статусу; иначе — только «свободно» / «открыто»
     if (!allStatuses) {
       params["filters[propertyStatus][$eq]"] = "свободно";
       params["filters[saleStatus][$eq]"] = "открыто";
-      params["filters[priceCheckmate][$gte]"] = "10000000";
     }
 
     // Планировки: при пагинации (список/сетка) — только url, без всех форматов; иначе полная подгрузка (страница квартиры)
@@ -148,22 +146,15 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       });
     }
 
-    // Фильтр по тегам (ипотека/рассрочка)
-    // Если выбраны оба тега, используем $or для поиска квартир с любым из них
+    // Фильтр по тегам программ оплаты (из связи paymentConditions.paymentMethod)
     if (filters?.tags && filters.tags.length > 0) {
-      const hasHypothec = filters.tags.includes("Ипотека");
-      const hasInstallment = filters.tags.includes("Рассрочка");
-
-      if (hasHypothec && hasInstallment) {
-        // Если выбраны оба, используем $or для поиска квартир с любым из них
-        params["filters[$or][0][hypothec][$eq]"] = "true";
-        params["filters[$or][1][installment][$eq]"] = "true";
-      } else if (hasHypothec) {
-        // Фильтр только по ипотеке (hypothec - boolean поле)
-        params["filters[hypothec][$eq]"] = "true";
-      } else if (hasInstallment) {
-        // Фильтр только по рассрочке (installment - boolean поле)
-        params["filters[installment][$eq]"] = "true";
+      const methods = filters.tags.filter((t) => t && String(t).trim());
+      if (methods.length === 1) {
+        params["filters[paymentConditions][paymentMethod][$eq]"] = methods[0];
+      } else if (methods.length > 1) {
+        methods.forEach((m, i) => {
+          params[`filters[$or][${i}][paymentConditions][paymentMethod][$eq]`] = m;
+        });
       }
     }
 
@@ -196,8 +187,15 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
             : [];
 
       const tags: string[] = [];
-      if (item.hypothec) tags.push("Ипотека");
-      if (item.installment) tags.push("Рассрочка");
+      const pcList = Array.isArray(item.paymentConditions)
+        ? item.paymentConditions
+        : Array.isArray(item.paymentConditions?.data)
+          ? item.paymentConditions.data
+          : [];
+      for (const pc of pcList) {
+        const method = pc?.paymentMethod ?? pc?.attributes?.paymentMethod ?? "";
+        if (method && !tags.includes(method)) tags.push(String(method).trim());
+      }
 
       let complexAddress = "";
       const complexes = item.project?.complexes;
@@ -271,6 +269,9 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       const pagination = res?.meta?.pagination || res?.data?.meta?.pagination;
       const total = pagination?.total ?? propertiesData.length;
       const pageCount = pagination?.pageCount ?? 1;
+      if (propertiesData.length === 0 && Object.keys(params).filter((k) => k.startsWith("filters")).length > 0) {
+        console.log("[flats getProperties] pagination: 0 items, applied filters:", Object.keys(params).filter((k) => k.startsWith("filters")));
+      }
 
       return {
         data: propertiesData.map(mapItem),
@@ -320,9 +321,13 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       if (currentPage > 1000) break;
     }
 
-    if (allProperties.length === 0) return [];
+    if (allProperties.length === 0) {
+      console.log("[flats getProperties] chessboard: 0 items, filters:", Object.keys(params).filter((k) => k.startsWith("filters")));
+      return [];
+    }
     return allProperties.map(mapItem);
   } catch (error) {
+    console.error("[flats getProperties] error:", error);
     return [];
   }
 }
@@ -403,8 +408,19 @@ function mapRawPropertyToDetail(item: any, locale: string): PropertyDetailItem {
       : [];
 
   const tags: string[] = [];
-  if (item.hypothec) tags.push("Ипотека");
-  if (item.installment) tags.push("Рассрочка");
+  const pcListDetail = Array.isArray(item.paymentConditions)
+    ? item.paymentConditions
+    : Array.isArray(item.paymentConditions?.data)
+      ? item.paymentConditions.data
+      : Array.isArray(item.paymentCondtions)
+        ? item.paymentCondtions
+        : Array.isArray(item.paymentCondtions?.data)
+          ? item.paymentCondtions.data
+          : [];
+  for (const pc of pcListDetail) {
+    const method = pc?.paymentMethod ?? pc?.attributes?.paymentMethod ?? "";
+    if (method && !tags.includes(method)) tags.push(String(method).trim());
+  }
 
   const project =
     item.project?.data ??
@@ -473,8 +489,8 @@ function mapRawPropertyToDetail(item: any, locale: string): PropertyDetailItem {
     propertyStatus: item.propertyStatus || "свободно",
     apartmentNumber: item.apartmentNumber != null ? item.apartmentNumber : item.id,
     numberApartmentFloor: item.numberApartmentFloor != null ? item.numberApartmentFloor : 0,
-    hypothec: item.hypothec === true || item.hypothec === "true",
-    installment: item.installment === true || item.installment === "true",
+    hypothec: tags.includes("Ипотека"),
+    installment: tags.includes("Рассрочка"),
     saleStatus: item.saleStatus,
     complexClass,
     complexGenPlanImage,
@@ -632,11 +648,7 @@ export async function getPropertyFiltersMetadata(): Promise<PropertyFiltersMetad
 
       "populate[project][fields][0]": "projectName",
       "populate[project][fields][1]": "district",
-
-      // Фильтры: только свободные квартиры с ценой >= 10,000,000 (8 цифр)
-      "filters[propertyStatus][$eq]": "свободно",
-      "filters[saleStatus][$eq]": "открыто",
-      "filters[priceCheckmate][$gte]": "10000000",
+      // Без жёстких фильтров по статусу/цене, иначе метаданные пустые → фильтры и каталог без данных
     };
 
     // Получаем все данные с пагинацией
@@ -685,8 +697,8 @@ export async function getPropertyFiltersMetadata(): Promise<PropertyFiltersMetad
     }
 
     const totalCount = allProperties.length;
-
     if (allProperties.length === 0) {
+      console.log("[flats getPropertyFiltersMetadata] 0 properties from Strapi → returning empty metadata");
       return {
         priceRange: { min: 0, max: 0 },
         pricePerM2Range: { min: 0, max: 0 },
@@ -763,10 +775,11 @@ export async function getPropertyFiltersMetadata(): Promise<PropertyFiltersMetad
       complexes,
       totalCount,
     };
+    console.log("[flats getPropertyFiltersMetadata] ok → totalCount:", totalCount, "priceRange:", result.priceRange);
     metadataCache = { data: result, expiresAt: Date.now() + METADATA_CACHE_TTL_MS };
     return result;
   } catch (error) {
-    console.error("Error getting property filters metadata:", error);
+    console.error("[flats getPropertyFiltersMetadata] error:", error);
     return {
       priceRange: { min: 0, max: 0 },
       pricePerM2Range: { min: 0, max: 0 },

@@ -401,10 +401,11 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
                             {flat.tags.map((tag: string, i: number) => (
                                 <div
                                     key={i}
-                                    className={`flex text-[10px] p-[4px] justify-center items-center rounded-[16px] leading-full ${tag === "Ипотека"
-                                        ? "bg-[#3682F5] text-[#FFF]"
+                                    className={`flex text-[10px] p-[4px] justify-center items-center rounded-[16px] leading-full ${
+                                        tag === "Ипотека" ? "bg-[#3682F5] text-[#FFF]"
+                                        : tag === "Рассрочка" || tag === "Отложенный платеж" ? "bg-[#1A3C7E] text-[#FFF]"
                                         : "bg-[#F4F5F9] text-[#282D3C]"
-                                        }`}
+                                    }`}
                                 >
                                     {tag}
                                 </div>

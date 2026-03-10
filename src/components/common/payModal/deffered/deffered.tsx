@@ -712,7 +712,7 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                     </div>
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
-                            {t("make_deffered_payment_until")} {remainderDueDateStr}
+                            {t("make_deffered_payment_until")} {formattedValidTo ? ` ${formattedValidTo}` : ""}
                         </span>
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formattedRemaining}</span>
                     </div>

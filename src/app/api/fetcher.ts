@@ -50,6 +50,12 @@ export async function apiGet(
     const response = await axios.get(url.toString(), { headers });
     return response.data;
   } catch (err: any) {
+    const status = err?.response?.status;
+    const data = err?.response?.data;
+    if (status === 400 && data != null) {
+      console.error("[apiGet] 400 Bad Request — URL:", url.toString().replace(process.env.STRAPI_URL ?? "", ""));
+      console.error("[apiGet] 400 response body:", typeof data === "object" ? JSON.stringify(data) : data);
+    }
     throw new Error(err?.message || "Fetch error");
   }
 }

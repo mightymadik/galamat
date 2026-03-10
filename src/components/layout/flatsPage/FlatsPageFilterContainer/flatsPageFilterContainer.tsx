@@ -58,7 +58,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
 
     // Categories Filter
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
-    const categories = ["Ипотека", "Рассрочка"];
+    const categories = ["Рассрочка", "Отложенный платеж"];
 
     // Filter metadata state
     const [filterMetadata, setFilterMetadata] = useState<PropertyFiltersMetadata | null>(null);

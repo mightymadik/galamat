@@ -4,15 +4,13 @@ import { getProperties, getPropertyFiltersMetadata, PropertyFilters } from "../p
 
 export async function GET(request: NextRequest) {
   try {
-    // Получаем locale из cookies для правильной локализации
     const cookieStore = await cookies();
     const locale = cookieStore.get("locale")?.value || "ru";
-    
     const searchParams = request.nextUrl.searchParams;
-    
-    // Если запрашиваются метаданные фильтров
+
     if (searchParams.has("metadata") && searchParams.get("metadata") === "true") {
       const metadata = await getPropertyFiltersMetadata();
+      console.log("[flats API] GET metadata=true → totalCount:", metadata?.totalCount, "priceRange:", metadata?.priceRange);
       return NextResponse.json(metadata);
     }
     
@@ -72,12 +70,16 @@ export async function GET(request: NextRequest) {
     const options = { light, allStatuses, ...(usePagination ? { page, pageSize } : {}) };
     const result = await getProperties(filters, options);
 
+    const dataLength = Array.isArray(result) ? result.length : (result && typeof result === "object" && "data" in result ? (result as { data: unknown[] }).data?.length : 0);
+    const total = result && typeof result === "object" && "meta" in result ? (result as { meta: { total?: number } }).meta?.total : undefined;
+    console.log("[flats API] GET list → page:", page, "pageSize:", pageSize, "filters:", Object.keys(filters).join(",") || "none", "→ dataLength:", dataLength, "meta.total:", total);
+
     if (usePagination && result && typeof result === "object" && "data" in result && "meta" in result) {
       return NextResponse.json(result);
     }
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error in properties API route:", error);
+    console.error("[flats API] Error in properties API route:", error);
     return NextResponse.json({ error: "Failed to fetch properties" }, { status: 500 });
   }
 }

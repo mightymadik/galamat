@@ -124,12 +124,8 @@ function flatMatchesFilters(flat: ComponentFlat, filterParams: FlatsFilterParams
         if (flat.district !== filterParams.district) return false;
     }
     if (filterParams.tags?.length) {
-        const hasHypothec = filterParams.tags.includes("Ипотека");
-        const hasInstallment = filterParams.tags.includes("Рассрочка");
-        if (hasHypothec && hasInstallment) {
-            if (!flat.hypothec && !flat.installment) return false;
-        } else if (hasHypothec && !flat.hypothec) return false;
-        else if (hasInstallment && !flat.installment) return false;
+        const hasMatch = filterParams.tags.some((t) => flat.tags?.includes(t));
+        if (!hasMatch) return false;
     }
     return true;
 }
@@ -230,7 +226,7 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange }: Che
         const params = new URLSearchParams();
         params.set("project", selectedComplex);
         params.set("light", "1");
-        params.set("allStatuses", "1"); // все квартиры ЖК без фильтрации по статусу
+        // не передаём allStatuses — только свободные/открытые, как в списке и сетке
         // Фильтры в шахматке не отправляем в API — загружаем все квартиры ЖК и красим не подходящие в «Недоступно»
 
         fetch(`/api/properties?${params.toString()}`)
