@@ -100,22 +100,34 @@ export default function BonusProfile() {
               </div>
             </div>
             <div className="flex items-center gap-[12px] lg:gap-[40px] w-full">
-              <div className="relative w-full max-w-[162px] h-[50px]">
+              <a
+                href="https://form.passquare.com/9fd66ccf-746d-481e-9a16-860da142a6d7"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative w-full max-w-[162px] h-[50px] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2655AF] focus-visible:ring-offset-2 rounded-[12px]"
+                aria-label="Open Passquare form (Apple Wallet)"
+              >
                 <Image
                   src="/img/appleWallet.svg"
                   alt="appleWallet"
                   fill
                   className="object-contain"
                 />
-              </div>
-              <div className="relative w-full max-w-[162px] h-[50px]">
+              </a>
+              <a
+                href="https://form.passquare.com/9fd66ccf-746d-481e-9a16-860da142a6d7"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative w-full max-w-[162px] h-[50px] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2655AF] focus-visible:ring-offset-2 rounded-[12px]"
+                aria-label="Open Passquare form (Google Wallet)"
+              >
                 <Image
                   src="/img/googleWallet.svg"
                   alt="googleWallet"
                   fill
                   className="object-contain"
                 />
-              </div>
+              </a>
             </div>
           </div>
         </div>
@@ -143,7 +155,7 @@ export default function BonusProfile() {
                             {formatClaimedDate(date)}
                           </p>
                           <span className="text-[#000] text-[16px] not-italic font-medium leading-[16px]">
-                            {isWriteOff ? "Списание (квартира)" : "Gala Bonus"}
+                            {isWriteOff ? "Списание" : "Gala Bonus"}
                           </span>
                         </div>
                         {isWriteOff ? (
