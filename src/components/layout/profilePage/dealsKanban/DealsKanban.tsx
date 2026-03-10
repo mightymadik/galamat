@@ -37,6 +37,7 @@ export default function DealsKanban() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [projectFilter, setProjectFilter] = useState("");
+  const [projectOptions, setProjectOptions] = useState<string[]>([]);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("");
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [excludeCancelled, setExcludeCancelled] = useState(true);
@@ -58,9 +59,18 @@ export default function DealsKanban() {
         return;
       }
       const json = await res.json();
-      setDeals(json.deals ?? []);
+      const list = json.deals ?? [];
+      setDeals(list);
       setByStatus(json.byStatus ?? {});
       setError(null);
+      if (!projectFilter && list.length > 0) {
+        const names = new Set<string>();
+        for (const d of list) {
+          const p = (d as DealCardItem)?.property?.projectName?.trim();
+          if (p) names.add(p);
+        }
+        setProjectOptions(Array.from(names).sort());
+      }
     } catch {
       setError(t("network_error"));
     } finally {
@@ -130,16 +140,20 @@ export default function DealsKanban() {
         >
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
         </Select>
-        <Input
+        <Select
           label={t("project_label")}
           placeholder={t("project_placeholder")}
-          value={projectFilter}
-          onValueChange={setProjectFilter}
+          selectedKeys={projectFilter ? [projectFilter] : [""]}
+          onSelectionChange={(keys) => {
+            const k = Array.from(keys)[0] as string;
+            setProjectFilter(k ?? "");
+          }}
           size="sm"
-          isClearable
-          onClear={() => setProjectFilter("")}
           classNames={{ base: "max-w-[180px]" }}
-        />
+          items={[{ key: "", label: t("project_placeholder") }, ...projectOptions.map((p) => ({ key: p, label: p }))]}
+        >
+          {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
+        </Select>
         <Select
           label={t("payment_type_label")}
           placeholder={t("payment_any")}

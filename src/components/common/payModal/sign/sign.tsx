@@ -95,7 +95,7 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                             .then((json: { url?: string }) => {
                                 if (json?.url) dispatch(setAgreementFileUrl(json.url));
                             })
-                            .catch(() => {});
+                            .catch(() => { });
                     }
                 }
             })
@@ -209,16 +209,22 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
             <div className="flex flex-col items-start gap-[8px] self-stretch">
                 <div className="flex w-full h-full max-h-[168px] p-[16px] flex-col items-start gap-[10px] self-stretch rounded-[32px] bg-[#F4F6FB]">
                     <div className="flex h-full max-h-[168px] justify-between items-center self-stretch gap-[36px]">
-                        <div className="flex p-[10px] flex-col items-start gap-[10px] rounded-[16px] bg-[#FFF]">
-                            <Image
-                                rel="preload"
-                                src={flatData?.images?.[0] || "/img/no-image.svg"}
-                                alt={flatData?.id?.toString() || "no-image"}
-                                width={130}
-                                height={116}
-                                className="max-w-[200px] max-h-[200px] h-full w-full"
-                            />
-                        </div>
+                        {flatData?.images?.[0] ? (
+                            <div className="flex p-[10px] flex-col items-start gap-[10px] rounded-[16px] bg-[#FFF]">
+                                <Image
+                                    rel="preload"
+                                    src={flatData.images[0]}
+                                    alt={flatData?.id?.toString() || "no-image"}
+                                    width={130}
+                                    height={116}
+                                    className="max-w-[200px] max-h-[200px] h-full w-full"
+                                />
+                            </div>
+                        ) : (
+                            <div className="w-[130px] h-[116px] bg-gray-200 rounded-[12px] flex items-center justify-center p-1">
+                                <span className="text-gray-500 text-center">{t("no_image")}</span>
+                            </div>
+                        )}
                         <div className="flex w-full flex-col justify-between items-start self-stretch">
                             <div className="flex justify-between items-start self-stretch">
                                 <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[24px]">{flatData?.title || ''}</h1>

@@ -937,7 +937,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                 </div>
                             ) : (
                                 <div className="w-[598px] h-[534px] bg-gray-200 rounded-[12px] flex items-center justify-center">
-                                    <span className="text-gray-500">No image available</span>
+                                    <span className="text-gray-500">{t("no_image")}</span>
                                 </div>
                             )
                         ) : activePlan === "Этаж" ? (
@@ -975,7 +975,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                 </div>
                             ) : (
                                 <div className="w-[598px] h-[534px] bg-gray-200 rounded-[12px] flex items-center justify-center">
-                                    <span className="text-gray-500">No image available</span>
+                                    <span className="text-gray-500">{t("no_image")}</span>
                                 </div>
                             )
                         ) : null}

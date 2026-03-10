@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Button, Input } from "@heroui/react";
+import { Button, Input, Select, SelectItem } from "@heroui/react";
 
 export interface CashierScheduleRow {
   documentId: string;
@@ -122,6 +122,15 @@ export default function CashierPayments() {
     });
   }, [activeDeals, filterProject, filterApartment, filterManager]);
 
+  const projectOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const d of activeDeals) {
+      const p = (d.property?.projectName ?? "").trim();
+      if (p) names.add(p);
+    }
+    return Array.from(names).sort();
+  }, [activeDeals]);
+
   const totalPages = Math.max(1, Math.ceil(filteredDeals.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paginatedDeals = useMemo(
@@ -223,16 +232,20 @@ export default function CashierPayments() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("filter_by_project")}</label>
-              <Input
+              <Select
                 size="sm"
-                value={filterProject}
-                onValueChange={(v) => {
-                  setFilterProject(v);
+                selectedKeys={filterProject ? [filterProject] : [""]}
+                onSelectionChange={(keys) => {
+                  const k = Array.from(keys)[0] as string;
+                  setFilterProject(k ?? "");
                   setPage(1);
                 }}
                 placeholder={t("filter_project_placeholder")}
-                classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-9" }}
-              />
+                classNames={{ trigger: "min-h-9 rounded-[10px]" }}
+                items={[{ key: "", label: t("filter_project_placeholder") }, ...projectOptions.map((p) => ({ key: p, label: p }))]}
+              >
+                {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
+              </Select>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("filter_by_apartment")}</label>

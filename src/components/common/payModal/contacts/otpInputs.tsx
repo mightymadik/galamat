@@ -114,9 +114,9 @@ function OtpInputs({
           }}
           classNames={{
             input:
-                `flex justify-center items-center text-center text-[18px] font-medium text-[#282D3C] bg-[#F4F6FB] rounded-[20px] h-[62px]`,
+                "flex justify-center items-center text-center text-[18px] font-medium text-[#282D3C] bg-[#F4F6FB] rounded-[20px] h-[62px]",
             inputWrapper:
-                `p-0 w-full h-[62px]`,
+                "p-0 w-full h-[62px] rounded-[20px] border-2 border-[#2655AF]/25 shadow-sm data-[focus=true]:border-[#2655AF] data-[focus=true]:shadow-[0_0_0_2px_rgba(38,85,175,0.15)] transition-colors transition-shadow",
         }}
         />
       ))}

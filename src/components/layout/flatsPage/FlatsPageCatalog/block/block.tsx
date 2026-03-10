@@ -424,7 +424,7 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
             />
           ) : (
             <div className="w-[216px] h-[193px] bg-gray-200 rounded-[12px] flex items-center justify-center">
-              <span className="text-gray-500">No image</span>
+              <span className="text-gray-500">{t("no_image")}</span>
             </div>
           )}
         </div>

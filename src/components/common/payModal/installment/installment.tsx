@@ -71,6 +71,9 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
     const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin";
     const [galaBonus, setGalaBonus] = useState<string>("0 ₸");
     const [galaBonusAmount, setGalaBonusAmount] = useState<number>(0);
+    const [galaBonusWhen, setGalaBonusWhen] = useState<string | null>(null);
+    const [galaBonusChecked, setGalaBonusChecked] = useState(false);
+    const [galaBonusChecking, setGalaBonusChecking] = useState(false);
     const [managerBonusPhone, setManagerBonusPhone] = useState<string>("");
     const [managerBonusPhoneVerified, setManagerBonusPhoneVerified] = useState<boolean>(false);
     const [bonusPhoneStep, setBonusPhoneStep] = useState<"phone" | "code" | "verified">("phone");
@@ -197,29 +200,59 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
         if (!effectiveBonusPhone) {
             setGalaBonus("0 ₸");
             setGalaBonusAmount(0);
+            setGalaBonusWhen(null);
+            setGalaBonusChecked(false);
+            setGalaBonusChecking(false);
             return;
         }
+        setGalaBonusChecking(true);
+        setGalaBonusChecked(false);
         fetch("/api/galaBonus/check", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ phone: effectiveBonusPhone }),
         })
             .then((res) => res.json())
-            .then((data: { bonus?: string; status?: string } | null) => {
+            .then((data: { bonus?: string; status?: string; when?: string | null } | null) => {
                 if (data?.status === "notFound" || data?.status === "error") {
                     setGalaBonus("0 ₸");
                     setGalaBonusAmount(0);
+                    setGalaBonusWhen(null);
                     return;
                 }
                 const amount = parseBonusAmount(data?.bonus);
                 setGalaBonus(formatPriceDisplay(amount));
                 setGalaBonusAmount(amount);
+                setGalaBonusWhen(data?.when ?? null);
             })
             .catch(() => {
                 setGalaBonus("0 ₸");
                 setGalaBonusAmount(0);
+                setGalaBonusWhen(null);
+            })
+            .finally(() => {
+                setGalaBonusChecking(false);
+                setGalaBonusChecked(true);
             });
     }, [effectiveBonusPhone]);
+
+    const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000; // 60 days (same as wheel lock)
+    const galaWhenMs = galaBonusWhen ? new Date(String(galaBonusWhen).replace(" ", "T")).getTime() : NaN;
+    const galaLocked = Number.isFinite(galaWhenMs) ? (Date.now() - galaWhenMs < TWO_MONTHS_MS) : false;
+    const galaNextSpinAt = galaLocked ? new Date(galaWhenMs + TWO_MONTHS_MS) : null;
+    const galaWhenText = Number.isFinite(galaWhenMs)
+        ? new Date(galaWhenMs).toLocaleString("ru-RU", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+        })
+        : null;
+    const galaNextSpinText = galaNextSpinAt
+        ? galaNextSpinAt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })
+        : null;
 
     useEffect(() => {
         const code = formatPromoInput(promocodeInput);
@@ -367,16 +400,22 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
         <div className="flex flex-col items-start gap-[16px] self-stretch">
             <div className="flex w-full h-full max-h-[168px] p-[16px] flex-col items-start gap-[10px] self-stretch rounded-[32px] bg-[#F4F6FB]">
                 <div className="flex h-full max-h-[168px] justify-between items-center self-stretch gap-[36px]">
-                    <div className="flex p-[10px] flex-col items-start gap-[10px] rounded-[16px] bg-[#FFF]">
-                        <Image
-                            rel="preload"
-                            src={flatData?.images?.[0] || "/img/no-image.svg"}
-                            alt={flatData?.id?.toString() || "no-image"}
-                            width={130}
-                            height={116}
-                            className="max-w-[200px] max-h-[200px] h-full w-full"
-                        />
-                    </div>
+                    {flatData?.images?.[0] ? (
+                        <div className="flex p-[10px] flex-col items-start gap-[10px] rounded-[16px] bg-[#FFF]">
+                            <Image
+                                rel="preload"
+                                src={flatData.images[0]}
+                                alt={flatData?.id?.toString() || "no-image"}
+                                width={130}
+                                height={116}
+                                className="max-w-[200px] max-h-[200px] h-full w-full"
+                            />
+                        </div>
+                    ) : (
+                        <div className="w-[130px] h-[116px] bg-gray-200 rounded-[12px] flex items-center justify-center p-1">
+                            <span className="text-gray-500 text-center">{t("no_image")}</span>
+                        </div>
+                    )}
                     <div className="flex w-full flex-col justify-between items-start self-stretch">
                         <div className="flex justify-between items-start self-stretch">
                             <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[24px]">{flatData?.title || ''}</h1>
@@ -432,9 +471,11 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
                 </div>
             </div>
             <Input
+                type="text"
                 label="Промокод"
                 value={promocodeInput}
                 inputMode="text"
+                autoComplete="off"
                 onValueChange={(v) => setPromocodeInput(formatPromoInput(v))}
                 variant="flat"
                 placeholder=""
@@ -442,20 +483,20 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
                 isInvalid={promocodeResult !== null && !promocodeResult.valid && !!promocodeResult.error}
                 classNames={{
                     base: `w-full bg-[#F4F6FB] rounded-[16px] px-[16px] py-[8px] ${promocodeResult?.valid === false ? "bg-danger-50" : "bg-[#F4F6FB]"}`,
-                    label: "text-[#1E1E1E] text-[14px] opacity-20 leading-[14px] pb-[8px]",
-                    input: "!text-[#2655AF] text-[24px] font-medium leading-[24px] uppercase",
+                    label: "text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70 pb-[8px]",
+                    input: "!text-[#1A3C7E] text-[20px] font-medium leading-[24px] uppercase",
                     inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:!bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
                     innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
                 }}
             />
             {promocodeResult?.valid === false && promocodeResult?.error != null && (
-                <p className="text-danger-500 opacity-80 text-[14px] not-italic font-normal leading-[16px]">
+                <p className="text-danger-500 text-[14px] font-normal leading-[20px] opacity-90">
                     {promocodeResult.error}
                 </p>
             )}
             {isManagerOrAdmin && (
                 <div className="flex flex-col gap-2 w-full">
-                    <span className="!text-[#2655AF] text-[14px] opacity-20 leading-[14px]">{t("client_phone")}</span>
+                    <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">{t("client_phone")}</span>
                     {bonusPhoneStep === "phone" && (
                         <>
                             <Input
@@ -467,7 +508,7 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
                                 ref={withMask("+7 (999) 999-99-99")}
                                 classNames={{
                                     base: "w-full bg-[#F4F6FB] rounded-[16px] px-[16px] py-[8px]",
-                                    input: "!text-[#2655AF] text-[16px] font-medium leading-[24px] uppercase py-2",
+                                    input: "!text-[#1A3C7E] text-[16px] font-medium leading-[24px] py-2",
                                     inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
                                     innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
                                 }}
@@ -475,18 +516,18 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
                             <Button
                                 onPress={sendBonusCode}
                                 isDisabled={!isManagerBonusPhoneValid || isSendingBonusCode}
-                                className="w-full rounded-[12px] bg-[#1A3C7E] text-white"
+                                className="w-full rounded-[12px] bg-[#1A3C7E] text-white text-[14px] font-medium leading-[20px]"
                             >
                                 {isSendingBonusCode ? t("sending") : t("get_code")}
                             </Button>
                             {bonusVerifyError && bonusPhoneStep === "phone" && (
-                                <p className="text-danger-500 text-[12px]">{bonusVerifyError}</p>
+                                <p className="text-danger-500 text-[14px] font-normal leading-[20px]">{bonusVerifyError}</p>
                             )}
                         </>
                     )}
                     {bonusPhoneStep === "code" && (
                         <>
-                            <p className="text-[#122C5E] text-[14px] opacity-80">
+                            <p className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
                                 {t("code_sent_to_whatsapp", { managerBonusPhone: managerBonusPhone })}
                             </p>
                             <div className="flex gap-2">
@@ -501,24 +542,24 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
                                         onKeyDown={(e) => handleBonusCodeKeyDown(i, e)}
                                         ref={(el) => { bonusCodeInputsRef.current[i] = el; }}
                                         classNames={{
-                                            input: "text-center text-[18px] font-medium text-[#282D3C] bg-[#F4F6FB] rounded-[12px] h-[48px]",
+                                            input: "text-center text-[16px] font-medium text-[#1A3C7E] bg-[#F4F6FB] rounded-[12px] h-[48px]",
                                             inputWrapper: "p-0 w-full h-[48px]",
                                         }}
                                     />
                                 ))}
                             </div>
                             {bonusVerifyError && (
-                                <p className="text-danger-500 text-[12px]">{bonusVerifyError}</p>
+                                <p className="text-danger-500 text-[14px] font-normal leading-[20px]">{bonusVerifyError}</p>
                             )}
                             <Button
                                 onPress={verifyBonusCode}
                                 isDisabled={bonusVerificationCode.join("").length !== 4 || isVerifyingBonusCode}
-                                className="w-full rounded-[12px] bg-[#1A3C7E] text-white"
+                                className="w-full rounded-[12px] bg-[#1A3C7E] text-white text-[14px] font-medium leading-[20px]"
                             >
                                 {isVerifyingBonusCode ? t("verification_in_progress") : t("confirm_number")}
                             </Button>
                             {bonusTimeLeft > 0 ? (
-                                <p className="text-[#2655AF] text-[12px] opacity-80">
+                                <p className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
                                     {t("resend_code_in")} {formatBonusTime(bonusTimeLeft)}
                                 </p>
                             ) : (
@@ -534,11 +575,11 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
                     {bonusPhoneStep === "verified" && (
                         <div className="flex items-center justify-between gap-2 rounded-[16px] bg-[#F4F6FB] px-[16px] py-[12px]">
                             <div className="flex flex-row items-start">
-                                <span className="!text-[#2655AF] text-[16px] font-medium">{managerBonusPhone}</span>
+                                <span className="text-[#1A3C7E] text-[16px] font-medium leading-[20px]">{managerBonusPhone}</span>
                             </div>
                             <div className="flex flex-row items-center">
-                                <span className="text-[#0e7c0e] text-[14px]">{t("confirmed")}</span>
-                                <Button onPress={() => { setBonusPhoneStep("phone"); setManagerBonusPhoneVerified(false); setManagerBonusPhone(""); }} size="sm" className="!min-h-0 h-auto !bg-transparent text-[#2655AF]">
+                                <span className="text-[#0e7c0e] text-[14px] font-normal leading-[20px]">{t("confirmed")}</span>
+                                <Button onPress={() => { setBonusPhoneStep("phone"); setManagerBonusPhoneVerified(false); setManagerBonusPhone(""); }} size="sm" className="!min-h-0 h-auto !bg-transparent text-[#2655AF] text-[14px] font-medium">
                                     {t("change")}
                                 </Button>
                             </div>
@@ -549,12 +590,36 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
             <div className="flex p-[16px] items-center gap-[9px] self-stretch rounded-[16px] bg-[#F4F6FB]">
                 <div className="flex justify-between items-center gap-[4.094px] flex-[1_0_0]">
                     <div className="flex flex-col justify-between items-start gap-[8px]">
-                        <span className="overflow-hidden text-[#1E1E1E] text-center overflow-ellipsis text-[14px] not-italic font-normal leading-[14px] opacity-20">
+                        <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">
                             Gala Bonus
                         </span>
-                        <h1 className="overflow-hidden text-[#2655AF] text-center overflow-ellipsis text-[24px] not-italic font-medium leading-[24px]">
+                        <span className="text-[#1A3C7E] text-[20px] font-medium leading-[24px]">
                             {galaBonus}
-                        </h1>
+                        </span>
+                        {galaBonusChecking && (
+                            <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">
+                                {t("gala_bonus_checking")}
+                            </span>
+                        )}
+                        {galaBonusChecked && !galaBonusChecking && (
+                            <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
+                                {galaBonusAmount > 0 ? t("gala_bonus_can_use_in_payment") : t("gala_bonus_not_available")}
+                            </span>
+                        )}
+                        {galaWhenText && (
+                            <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">
+                                {t("gala_bonus_spinned_date")} {galaWhenText}
+                                {galaLocked && galaNextSpinText ? (
+                                    <>
+                                        {". "} {t("gala_bonus_can_spin_again")} {galaNextSpinText}
+                                    </>
+                                ) : (
+                                    <>
+                                        {". "} {t("gala_bonus_can_spin_now")}
+                                    </>
+                                )}
+                            </span>
+                        )}
                     </div>
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
                         <path d="M12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75Z" fill="#1C274C" fillOpacity="0.22" />

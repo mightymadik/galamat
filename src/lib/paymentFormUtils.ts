@@ -4,9 +4,10 @@
 
 export const PROMO_LENGTH = 8;
 
-/** Only A-Z, 0-9, max 8 chars, uppercase */
+/** Allow Latin letters and digits only (A–Z, a–z, 0–9), max 8 chars, uppercase */
 export function formatPromoInput(value: string): string {
-  return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, PROMO_LENGTH);
+  const allowed = value.replace(/[^A-Za-z0-9]/g, "");
+  return allowed.toUpperCase().slice(0, PROMO_LENGTH);
 }
 
 /** Parse bonus string (e.g. "200.00" or "200000") to number */

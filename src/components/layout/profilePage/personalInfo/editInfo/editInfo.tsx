@@ -74,46 +74,50 @@ export default function EditInfo({ docData, userPhone, onClose, onSaved }: EditI
     setLoading(true);
     setError(null);
     try {
-      const checkRes = await fetch("/api/customer/check-doc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: phoneToRequestFormat(trimmedPhone),
-          iin: trimmedIin,
-        }),
-        credentials: "include",
-      });
-      const checkJson = await checkRes.json().catch(() => ({}));
-
-      if (checkRes.ok && checkJson?.found && checkJson?.data) {
-        const d = checkJson.data;
-        const data: DocData = {
-          lastName: d.lastName ?? "",
-          firstName: d.firstName ?? "",
-          middleName: d.middleName ?? "",
-          gender: d.gender ?? "",
-          dateOfBirth: d.dateOfBirth ?? "",
-          docNumber: d.docNumber ?? "",
-          docIssuer: d.docIssuer ?? "",
-          dateOfIssue: d.dateOfIssue ?? "",
-          phone: d.phone ?? trimmedPhone,
-        };
-        setPendingCheckDocData(data);
-        const sendRes = await fetch("/api/auth/send-code", {
+      // Если пользователь нажал «Обновить по биометрии» (docData уже есть), сразу идём в биометрику, не проверяем нашу систему
+      const useBiometricOnly = !!docData;
+      if (!useBiometricOnly) {
+        const checkRes = await fetch("/api/customer/check-doc", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: trimmedPhone }),
+          body: JSON.stringify({
+            phone: phoneToRequestFormat(trimmedPhone),
+            iin: trimmedIin,
+          }),
           credentials: "include",
         });
-        const sendJson = await sendRes.json().catch(() => ({}));
-        if (!sendRes.ok || sendJson?.status !== "ok") {
-          setError(sendJson?.message === "too_many_requests" ? t("too_many_requests") : sendJson?.message ?? t("failed_to_send_code"));
-          setPendingCheckDocData(null);
+        const checkJson = await checkRes.json().catch(() => ({}));
+
+        if (checkRes.ok && checkJson?.found && checkJson?.data) {
+          const d = checkJson.data;
+          const data: DocData = {
+            lastName: d.lastName ?? "",
+            firstName: d.firstName ?? "",
+            middleName: d.middleName ?? "",
+            gender: d.gender ?? "",
+            dateOfBirth: d.dateOfBirth ?? "",
+            docNumber: d.docNumber ?? "",
+            docIssuer: d.docIssuer ?? "",
+            dateOfIssue: d.dateOfIssue ?? "",
+            phone: d.phone ?? trimmedPhone,
+          };
+          setPendingCheckDocData(data);
+          const sendRes = await fetch("/api/auth/send-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: trimmedPhone }),
+            credentials: "include",
+          });
+          const sendJson = await sendRes.json().catch(() => ({}));
+          if (!sendRes.ok || sendJson?.status !== "ok") {
+            setError(sendJson?.message === "too_many_requests" ? t("too_many_requests") : sendJson?.message ?? t("failed_to_send_code"));
+            setPendingCheckDocData(null);
+            return;
+          }
+          setStep("otp_check");
+          setOtpCode("");
           return;
         }
-        setStep("otp_check");
-        setOtpCode("");
-        return;
       }
 
       const res = await fetch("/api/biometric/request", {

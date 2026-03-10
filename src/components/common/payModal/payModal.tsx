@@ -379,6 +379,22 @@ export default function PayModal({ id }: PayModalProps) {
         return stepsMap[stepKey as keyof typeof stepsMap] ?? null;
     };
 
+    const handleCloseDrawer = () => {
+        const dealId = store.getState().pay.dealDocumentId;
+        if (dealId) {
+            fetch(`/api/deals/${dealId}/release`, { method: "POST", credentials: "include" })
+                .then((r) => r.json().catch(() => ({})))
+                .then((data: { released?: boolean }) => {
+                    if (data?.released === true && typeof sessionStorage !== "undefined")
+                        sessionStorage.removeItem(PAY_DEAL_STORAGE_KEY);
+                })
+                .catch(() => {});
+        }
+        dispatch(closePay());
+    };
+
+    const showCloseButton = step !== "sign";
+
     return (
         <Drawer
             isDismissable={false}
@@ -419,14 +435,30 @@ export default function PayModal({ id }: PayModalProps) {
                         )}
 
                         <DrawerHeader className="flex items-start justify-between gap-[32px] self-stretch text-[#122C5E] text-[32px] not-italic font-normal leading-[100%] bg-white p-0">
-                            <div className="flex flex-col items-start gap-[16px] self-stretch">
-                                <div className="flex justify-between items-center self-stretch">
-                                    {step === "payment" && paymentMethod === "full" && t("full_payment")}
-                                    {step === "payment" && paymentMethod === "installment" && t("installment")}
-                                    {step === "payment" && paymentMethod === "deffered" && t("deffered")}
-                                    {step === "payment" && paymentMethod === "hypothec" && t("hypothec")}
-                                    {step === "contacts" && t("personal_information")}
-                                    {step === "sign" && t("sign_contract")}
+                            <div className="flex flex-col items-start gap-[16px] self-stretch flex-1 min-w-0">
+                                <div className="flex justify-between items-center self-stretch gap-3">
+                                    <span className="truncate">
+                                        {step === "payment" && paymentMethod === "full" && t("full_payment")}
+                                        {step === "payment" && paymentMethod === "installment" && t("installment")}
+                                        {step === "payment" && paymentMethod === "deffered" && t("deffered")}
+                                        {step === "payment" && paymentMethod === "hypothec" && t("hypothec")}
+                                        {step === "contacts" && t("personal_information")}
+                                        {step === "sign" && t("sign_contract")}
+                                    </span>
+                                    {showCloseButton && (
+                                        <Button
+                                            isIconOnly
+                                            variant="light"
+                                            size="sm"
+                                            aria-label={t("close")}
+                                            className="shrink-0 text-[#122C5E] min-w-8 w-8 h-8"
+                                            onPress={handleCloseDrawer}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M18 6L6 18M6 6l12 12" />
+                                            </svg>
+                                        </Button>
+                                    )}
                                 </div>
                                 {step === "payment" && (
                                     <div className="flex items-center gap-[4px]">
