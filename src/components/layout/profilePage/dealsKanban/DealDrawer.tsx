@@ -158,6 +158,8 @@ export default function DealDrawer({
     };
 
     const isReserve = data?.deal?.dealStatus === "Бронь";
+    const canRenewOrTerminate =
+        data?.deal?.dealStatus === "Оплачено" || data?.deal?.dealStatus === "Договор подписан";
     const stepsOrder: RenewalStep[] = ["contacts", "cost", "sign"];
     const terminationStepsOrder: TerminationStep[] = ["bank", "sign"];
     const currentRenewalIndex = renewalStep ? stepsOrder.indexOf(renewalStep) : -1;
@@ -478,15 +480,17 @@ export default function DealDrawer({
                                     Отменить бронь
                                 </Button>
                             )}
-                            <Button
-                                variant="flat"
-                                className="w-full justify-center text-white bg-[#1A3C7E]"
-                                onPress={() => data && setRenewalStep("contacts")}
-                                isDisabled={!!actionLoading}
-                            >
-                                Переоформление
-                            </Button>
-                            {!isReserve && (
+                            {canRenewOrTerminate && (
+                                <Button
+                                    variant="flat"
+                                    className="w-full justify-center text-white bg-[#1A3C7E]"
+                                    onPress={() => data && setRenewalStep("contacts")}
+                                    isDisabled={!!actionLoading}
+                                >
+                                    Переоформление
+                                </Button>
+                            )}
+                            {!isReserve && canRenewOrTerminate && (
                                 <Button
                                     color="danger"
                                     variant="bordered"

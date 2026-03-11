@@ -624,7 +624,7 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                     <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">{t("deferred_payment_conditions")}</h1>
                 </div>
                 <p className="text-[#000] text-[14px] not-italic font-normal leading-[20px] opacity-80">
-                    {t("deffered_until")} {formattedValidTo || t("end_date")}
+                    {t("deffered_until")} {formattedValidTo}
                 </p>
                 {options.length > 0 && (
                     <div className="flex flex-col gap-2 self-stretch">

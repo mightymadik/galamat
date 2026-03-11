@@ -15,11 +15,13 @@ function safeEqualHex(aHex: string, bHex: string) {
 
 export async function POST(req: Request) {
   try {
-    const { phone, code, deviceId } = await req.json().catch(() => ({}));
+    const { phone, code, deviceId, confirmOnly } = await req.json().catch(() => ({}));
 
     if (!phone || !code) {
       return Response.json({ status: "error", message: "phone and code are required" }, { status: 400 });
     }
+
+    const onlyConfirm = confirmOnly === true || confirmOnly === "true";
 
     const normalizedPhone = normalizePhone(phone);
     if (!isValidKzPhoneE164(normalizedPhone)) {
@@ -105,6 +107,10 @@ export async function POST(req: Request) {
       { data: { confirmedAt: new Date().toISOString() } },
       { headers }
     );
+
+    if (onlyConfirm) {
+      return Response.json({ status: "ok" });
+    }
 
     // 4) update customer (✅ по documentId!)
     await strapiAxios.put(

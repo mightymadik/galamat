@@ -347,7 +347,10 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                                 if (data.signed && data.signedAt) {
                                     setDoodocsSignedAt(data.signedAt);
                                 } else if (!res.ok) {
-                                    setSignError(data?.error ?? data?.detail ?? "Ошибка проверки статуса");
+                                    const err = data?.error ?? data?.detail ?? "Ошибка проверки статуса";
+                                    setSignError(
+                                        err === "doodocs_unavailable" ? t("doodocs_unavailable") : err
+                                    );
                                 } else {
                                     setSignError(t("both_sides_must_sign"));
                                 }

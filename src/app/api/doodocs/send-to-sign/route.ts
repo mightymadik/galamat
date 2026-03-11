@@ -247,10 +247,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "error", message: "unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const { fileUrl, contractName, projectDocumentId } = body as {
+  const { fileUrl, contractName, projectDocumentId, dealDocumentId, phone: bodyPhone } = body as {
     fileUrl?: string;
     contractName?: string;
     projectDocumentId?: string;
+    dealDocumentId?: string;
+    phone?: string;
   };
 
   if (!fileUrl || typeof fileUrl !== "string" || !fileUrl.startsWith("http"))
@@ -273,22 +275,42 @@ export async function POST(req: Request) {
         const base = getStrapiBaseUrl().replace(/\/api\/?$/, "").replace(/\/$/, "");
         const headers = getStrapiHeaders();
 
-        const customerUrl =
-          `${base}/api/customers` +
-          `?filters[id][$eq]=${payload.sub}` +
-          `&pagination[pageSize]=1`;
-        const customerRes = await strapiAxios.get(customerUrl, { headers });
-        const customerItem: any = (customerRes.data as any)?.data?.[0];
-        if (!customerItem?.id) {
+        let customerItem: any;
+        if (dealDocumentId && typeof dealDocumentId === "string") {
+          try {
+            const dealRes = await strapiAxios.get(
+              `${base}/api/deals?filters[documentId][$eq]=${encodeURIComponent(dealDocumentId)}&pagination[pageSize]=1&populate[customer]=true`,
+              { headers }
+            );
+            const dealList = (dealRes.data as any)?.data ?? [];
+            const deal = dealList[0];
+            const dealCustomer = deal?.customer ?? (deal as any)?.attributes?.customer?.data ?? (deal as any)?.attributes?.customer;
+            if (dealCustomer?.id ?? dealCustomer?.documentId) customerItem = dealCustomer;
+          } catch {
+            // ignore
+          }
+        }
+        if (!customerItem?.id && !customerItem?.documentId) {
+          const customerRes = await strapiAxios.get(
+            `${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1`,
+            { headers }
+          );
+          customerItem = (customerRes.data as any)?.data?.[0];
+        }
+        if (!customerItem?.id && !customerItem?.documentId) {
           send({ step: "error", message: "customer_not_found" });
           controller.close();
           return;
         }
 
         const attrs = customerItem?.attributes ?? customerItem;
-        const email = (attrs.email ?? customerItem.email ?? "").trim() || undefined;
-        const iin = formatIin(attrs.iin ?? customerItem.iin);
-        const phone = toE164(attrs.phone ?? customerItem.phone);
+        let email = (attrs.email ?? customerItem.email ?? "").trim() || undefined;
+        let iin = formatIin(attrs.iin ?? customerItem.iin);
+        const phoneForWhatsApp =
+          typeof bodyPhone === "string" && bodyPhone.trim()
+            ? toE164(bodyPhone.trim())
+            : toE164(attrs.phone ?? customerItem.phone);
+        const phone = phoneForWhatsApp;
 
         if (!iin || iin.length !== 12) {
           send({ step: "error", message: "customer_iin_invalid" });

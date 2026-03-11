@@ -66,8 +66,13 @@ export async function POST(req: Request) {
     }
     const dealDocId = deal?.documentId ?? (deal as any)?.attributes?.documentId ?? dealDocumentId;
 
-    const manager = deal?.manager ?? (deal as any)?.attributes?.manager;
-    const managerDocId = manager?.documentId ?? (manager as any)?.id ?? null;
+    // Менеджер — только из связи deal.manager (никогда не из deal.customer). Strapi v4 отдаёт связь как { data: { documentId, id } }.
+    const managerRel = deal?.manager ?? (deal as any)?.attributes?.manager;
+    const managerData = managerRel?.data ?? managerRel;
+    const managerDocId =
+      (managerData?.documentId ?? managerData?.id ?? managerRel?.documentId ?? (managerRel as any)?.id) != null
+        ? String(managerData?.documentId ?? managerData?.id ?? managerRel?.documentId ?? (managerRel as any)?.id)
+        : null;
 
     let agreementNumberForPdf = "";
     try {
@@ -189,9 +194,14 @@ export async function POST(req: Request) {
     });
   } catch (e: any) {
     console.error("signing/check-status error:", e);
-    return NextResponse.json(
-      { error: e?.message ?? "server_error" },
-      { status: 500 }
-    );
+    const cause = e?.cause ?? e;
+    const isNetwork =
+      cause?.code === "ENOTFOUND" ||
+      cause?.code === "ECONNREFUSED" ||
+      cause?.code === "ETIMEDOUT" ||
+      e?.message === "fetch failed";
+    const errorCode = isNetwork ? "doodocs_unavailable" : (e?.message ?? "server_error");
+    const status = isNetwork ? 503 : 500;
+    return NextResponse.json({ error: errorCode }, { status });
   }
 }

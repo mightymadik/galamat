@@ -3,6 +3,7 @@ import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiSer
 import { normalizePhone, isValidKzPhoneE164 } from "@/lib/authOtp";
 
 const BIOMETRIC_BASE = "https://kyc.biometric.kz/api/v1/backend/e-document/online-access";
+const BIOMETRIC_TIMEOUT_MS = 25_000;
 
 /** Customer fields we can fill from biometric response (matches Strapi customer schema). IIN as string to preserve leading zero. */
 interface BiometricCustomerFields {
@@ -170,16 +171,41 @@ export async function POST(req: Request) {
       );
     }
 
-    const res = await fetch(`${BIOMETRIC_BASE}/approve/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", accept: "application/json" },
-      body: JSON.stringify({
-        backend_session_id: String(backend_session_id).trim(),
-        code: String(code).trim(),
-        file: Boolean(file),
-        file_type: file_type || "pdf",
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), BIOMETRIC_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(`${BIOMETRIC_BASE}/approve/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          backend_session_id: String(backend_session_id).trim(),
+          code: String(code).trim(),
+          file: Boolean(file),
+          file_type: file_type || "pdf",
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(timeoutId);
+      const isAbort = fetchErr?.name === "AbortError";
+      const isNetwork =
+        fetchErr?.code === "ECONNREFUSED" ||
+        fetchErr?.code === "ETIMEDOUT" ||
+        fetchErr?.code === "ENOTFOUND" ||
+        fetchErr?.message?.includes("fetch failed");
+      const message = isAbort
+        ? "biometric_service_timeout"
+        : isNetwork
+          ? "biometric_service_unavailable"
+          : "server_error";
+      console.error("Biometric approve: external request failed", fetchErr?.message ?? fetchErr);
+      return NextResponse.json(
+        { status: "error", message },
+        { status: 502 }
+      );
+    }
+    clearTimeout(timeoutId);
 
     const data = await res.json().catch(() => ({}));
 

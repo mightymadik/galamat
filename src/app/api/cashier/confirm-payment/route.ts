@@ -107,12 +107,14 @@ export async function POST(request: NextRequest) {
       { headers }
     );
     const schedules: any[] = (schedulesRes.data as any)?.data ?? [];
-    const pending = schedules.filter((s: any) => (s?.paymentStatus ?? s?.attributes?.paymentStatus) === "Ожидание");
+    const pendingOrOverdue = schedules.filter(
+      (s: any) => ((v) => v === "Ожидание" || v === "Просрочено")(s?.paymentStatus ?? s?.attributes?.paymentStatus)
+    );
     const targetSchedule = paymentScheduleDocumentId
       ? schedules.find((s: any) => (s?.documentId ?? s?.id) === paymentScheduleDocumentId)
-      : pending[0];
+      : pendingOrOverdue[0];
     if (!targetSchedule) {
-      return NextResponse.json({ error: "Нет позиции графика для оплаты (Ожидание)" }, { status: 400 });
+      return NextResponse.json({ error: "Нет позиции графика для оплаты (Ожидание или Просрочено)" }, { status: 400 });
     }
 
     const targetDocId = targetSchedule?.documentId ?? targetSchedule?.id;
@@ -127,7 +129,9 @@ export async function POST(request: NextRequest) {
     let remainder = amount - targetAmount;
     const targetIndex = Number(targetSchedule?.index ?? targetSchedule?.attributes?.index ?? 0);
     const nextSchedules = schedules.filter(
-      (s: any) => (s?.paymentStatus ?? s?.attributes?.paymentStatus) === "Ожидание" && (Number(s?.index ?? s?.attributes?.index) > targetIndex)
+      (s: any) =>
+        ((v) => v === "Ожидание" || v === "Просрочено")(s?.paymentStatus ?? s?.attributes?.paymentStatus) &&
+        Number(s?.index ?? s?.attributes?.index) > targetIndex
     );
 
     for (const next of nextSchedules) {

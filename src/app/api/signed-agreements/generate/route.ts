@@ -673,7 +673,25 @@ export async function POST(req: Request) {
           : `${base.replace(/\/api\/?$/, "").replace(/\/$/, "")}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`
         : null;
 
-    // 8) Create signed-agreement (при наличии dealDocumentId привязываем к сделке для ПДБ «подписать на месте»)
+    // Менеджер сделки — только из связи deal.manager (никогда не customer). Strapi v4: manager может быть { data: { documentId } }.
+    let managerDocId: string | null = null;
+    if (dealDocumentId) {
+      try {
+        const dealMgrRes = await strapiAxios.get(
+          `${base}/api/deals/${dealDocumentId}?populate[manager]=true`,
+          { headers }
+        );
+        const dealMgr: any = (dealMgrRes.data as any)?.data ?? dealMgrRes.data;
+        const managerRel = dealMgr?.manager ?? dealMgr?.attributes?.manager;
+        const managerData = managerRel?.data ?? managerRel;
+        const id = managerData?.documentId ?? managerData?.id ?? managerRel?.documentId ?? (managerRel as any)?.id;
+        if (id != null) managerDocId = String(id);
+      } catch {
+        // ignore
+      }
+    }
+
+    // 8) Create signed-agreement (при наличии dealDocumentId привязываем к сделке и менеджеру сделки)
     await strapiAxios.post(
       `${base}/api/signed-agreements`,
       {
@@ -682,6 +700,7 @@ export async function POST(req: Request) {
           signedAgreement: fileId,
           agreementType: agreementType as "Квартиры" | "Коммерция" | "Паркинг" | "Кладовка",
           ...(dealDocumentId && { deal: { connect: [dealDocumentId] } }),
+          ...(managerDocId && { manager: { connect: [managerDocId] } }),
         },
       },
       { headers }

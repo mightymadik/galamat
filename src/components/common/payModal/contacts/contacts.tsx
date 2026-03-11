@@ -69,10 +69,9 @@ function parseBiometricResponse(data: any): DocData {
   const owner = common?.docOwner ?? {};
   const issuer = common?.docIssuer ?? {};
   const extra = data?.extra ?? {};
-  const t = useTranslations();
   const genderRaw = (data?.gender ?? "").toString().toLowerCase();
   const gender =
-    genderRaw === "male" ? t("male") : genderRaw === "female" ? t("female") : data?.gender ?? "";
+    genderRaw === "male" ? "male" : genderRaw === "female" ? "female" : (data?.gender ?? "");
 
   return {
     lastName: owner?.lastName ?? "",
@@ -418,7 +417,7 @@ export default function Contacts({
       const res = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: raw, code }),
+        body: JSON.stringify({ phone: raw, code, confirmOnly: true }),
         credentials: "include",
       });
       const json = await res.json().catch(() => ({}));
@@ -458,6 +457,7 @@ export default function Contacts({
       const res = await fetch("/api/biometric/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           backend_session_id: backendSessionId,
           code: otpCode.trim(),
@@ -469,7 +469,14 @@ export default function Contacts({
       const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(json?.message ?? t("error_confirming_code"));
+        const msg = json?.message;
+        const translated =
+          msg === "biometric_service_timeout"
+            ? t("biometric_service_timeout")
+            : msg === "biometric_service_unavailable"
+              ? t("biometric_service_unavailable")
+              : msg ?? t("error_confirming_code");
+        setError(translated);
         return;
       }
       if (json?.data) {
@@ -506,6 +513,8 @@ export default function Contacts({
       let effectiveDealId: string | undefined = dealDocumentId ?? undefined;
       // Записываем данные клиента и привязываем к сделке только после биометрики и ввода почты/адреса
       if (dealDocumentId && docData) {
+        const genderForApi =
+          docData.gender === "male" ? "Мужской" : docData.gender === "female" ? "Женский" : docData.gender || undefined;
         const attachRes = await fetch(`/api/deals/${dealDocumentId}/attach-customer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -516,7 +525,7 @@ export default function Contacts({
             lastName: docData.lastName,
             firstName: docData.firstName,
             middleName: docData.middleName,
-            gender: docData.gender,
+            gender: genderForApi,
             dateOfBirth: docData.dateOfBirth,
             docNumber: docData.docNumber,
             docIssuer: docData.docIssuer,
@@ -679,7 +688,16 @@ export default function Contacts({
                   <Row label={t("last_name")} value={docData.lastName} />
                   <Row label={t("first_name")} value={docData.firstName} />
                   <Row label={t("middle_name")} value={docData.middleName} />
-                  <Row label={t("gender")} value={docData.gender} />
+                  <Row
+                    label={t("gender")}
+                    value={
+                      docData.gender === "male"
+                        ? t("male")
+                        : docData.gender === "female"
+                          ? t("female")
+                          : docData.gender
+                    }
+                  />
                   <Row label={t("date_of_birth")} value={docData.dateOfBirth} />
                   <Row label={t("doc_number")} value={docData.docNumber} />
                   <Row label={t("doc_issuer")} value={docData.docIssuer} />
