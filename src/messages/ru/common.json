@@ -432,7 +432,6 @@
   "queue_tab_attendance": "Явка",
   "queue_tab_data": "Данные",
   "queue_waiting_time": "Время ожидания",
-
   "stats_period": "Период",
   "stats_export_report": "Выгрузить отчет",
   "stats_tickets_qr": "Талонов выдано клиентам через QR-код",
@@ -453,5 +452,6 @@
   "stats_max": "Максимум",
   "stats_avg": "Среднее",
   "stats_min": "Минимальное",
-  "no_image": "Нет изображения"
+  "no_image": "Нет изображения",
+  "document_signed": "Договор подписан"
 }

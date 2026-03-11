@@ -9,14 +9,7 @@ export type DeskItem = { key: string; label: string };
 
 export const MAX_DESKS = 30;
 
-const DEFAULT_DESKS: DeskItem[] = [
-  { key: "desk_1", label: "Окно 1" },
-  { key: "desk_2", label: "Окно 2" },
-  { key: "desk_3", label: "Окно 3" },
-  { key: "desk_4", label: "Окно 4" },
-  { key: "desk_5", label: "Окно 5" },
-];
-
+/** Список окон приходит только из API (counters менеджера). Начальное состояние — пусто. */
 export interface QueueProfileState {
   status: QueueProfileStatus;
   phase: QueueProfilePhase;
@@ -45,9 +38,9 @@ const initialState: QueueProfileState = {
   pendingStatus: null,
   isStatusModalOpen: false,
   isHistoryOpen: false,
-  selectedDesk: "desk_1",
-  desks: DEFAULT_DESKS,
-  nextDeskId: 6,
+  selectedDesk: "",
+  desks: [],
+  nextDeskId: 1,
   isDeskModalOpen: false,
 };
 
@@ -124,6 +117,20 @@ const queueProfileSlice = createSlice({
     setHistoryOpen: (state, action: PayloadAction<boolean>) => {
       state.isHistoryOpen = action.payload;
     },
+    /** Синхронизация из API очереди: статус, список окон, выбранное окно */
+    setProfileFromApi: (
+      state,
+      action: PayloadAction<{
+        status: QueueProfileStatus;
+        desks: DeskItem[];
+        selectedDesk: string;
+      }>
+    ) => {
+      const { status, desks, selectedDesk } = action.payload;
+      state.status = status;
+      state.desks = desks;
+      state.selectedDesk = selectedDesk || (desks[0]?.key ?? "");
+    },
   },
 });
 
@@ -141,6 +148,7 @@ export const {
   setWaitingElapsed,
   toggleHistory,
   setHistoryOpen,
+  setProfileFromApi,
 } = queueProfileSlice.actions;
 
 export default queueProfileSlice.reducer;

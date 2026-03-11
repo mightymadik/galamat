@@ -14,7 +14,7 @@ import ServiceProfile from "../serviceProfile/serviceProfile";
 import DealsKanban from "../dealsKanban/DealsKanban";
 import AgreementsList from "../agreementsList/AgreementsList";
 import CashierPayments from "../cashierPayments/CashierPayments";
-import QueueProfile from "../queueProfile/queueProfile";
+import { QueueProfile } from "../queueProfile";
 import StatsProfile from "../statsProfile/statsProfile";
 
 type MenuButtonProps = {

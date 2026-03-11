@@ -435,7 +435,6 @@
   "queue_tab_attendance": "Келу",
   "queue_tab_data": "Деректер",
   "queue_waiting_time": "Күту уақыты",
-
   "stats_period": "Кезең",
   "stats_export_report": "Есепті жүктеу",
   "stats_tickets_qr": "QR-код арқылы клиенттерге берілген талондар",
@@ -456,5 +455,6 @@
   "stats_max": "Максимум",
   "stats_avg": "Орташа",
   "stats_min": "Минималды",
-  "no_image": "Сурет жоқ"
+  "no_image": "Сурет жоқ",
+  "document_signed": "Шартқа қол қойылды"
 }
