@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { Button } from "@heroui/react";
 import type { DealFull } from "./types";
+import { useTranslations } from "next-intl";
 
 function formatSignedAt(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -45,6 +46,7 @@ export function TerminationSignStep({
   planImage: string | null;
   onComplete: () => void;
 }) {
+  const t = useTranslations();
   const [sendingToSign, setSendingToSign] = useState(false);
   const [sentToSign, setSentToSign] = useState(false);
   const [signUrl, setSignUrl] = useState<string | null>(null);
@@ -177,7 +179,10 @@ export function TerminationSignStep({
             <div className="relative w-[130px] h-[116px] rounded-2xl bg-white overflow-hidden shrink-0">
               <Image src={planImage} alt="Планировка" fill className="object-cover" unoptimized />
             </div>
-          ) : null}
+          ) :
+            <div className="w-[130px] h-[116px] bg-gray-200 rounded-[12px] flex items-center justify-center p-1">
+              <span className="text-gray-500 text-center">{t("no_image")}</span>
+            </div>}
           <div className="flex flex-1 flex-col justify-between items-start min-w-0">
             <div className="flex justify-between items-center self-stretch">
               <h1 className="text-[#000] text-xl font-medium leading-6 truncate">{prop?.projectName ?? "—"}</h1>

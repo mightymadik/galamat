@@ -9,6 +9,7 @@ import { RenewalCostStep } from "./RenewalCostStep";
 import { RenewalSignStep } from "./RenewalSignStep";
 import { TerminationBankStep } from "./TerminationBankStep";
 import { TerminationSignStep } from "./TerminationSignStep";
+import { useTranslations } from "next-intl";
 
 function formatPrice(input: unknown): string {
     if (input == null) return "—";
@@ -54,6 +55,7 @@ export default function DealDrawer({
     onClose: () => void;
     onUpdated?: () => void;
 }) {
+    const t = useTranslations();
     const [data, setData] = useState<DealFull | null>(null);
     const [planImage, setPlanImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -176,6 +178,23 @@ export default function DealDrawer({
         setTerminationBank(null);
     };
 
+    const canGoBackInRenewal = renewalStep != null && renewalStep !== "sign";
+    const canGoBackInTermination = terminationStep != null && terminationStep !== "sign";
+    const handleRenewalBack = () => {
+        if (!renewalStep) return;
+        if (renewalStep === "cost") {
+            setRenewalStep("contacts");
+            return;
+        }
+        // contacts -> back to deal drawer
+        exitRenewal();
+    };
+    const handleTerminationBack = () => {
+        if (!terminationStep) return;
+        // bank -> back to deal drawer
+        exitTermination();
+    };
+
     return (
         <Drawer
             isOpen
@@ -202,11 +221,37 @@ export default function DealDrawer({
                         <DrawerHeader className="flex items-start justify-between gap-[32px] self-stretch text-[#122C5E] text-[32px] not-italic font-normal leading-[100%] bg-white p-0">
                             <div className="flex flex-col items-start gap-[16px] self-stretch flex-1 min-w-0">
                                 <div className="flex justify-between items-center self-stretch gap-4">
-                                    <span>
-                                        {renewalStep === "contacts" && "Данные нового клиента"}
-                                        {renewalStep === "cost" && "Стоимость договора"}
-                                        {renewalStep === "sign" && "Подписать договор переоформления"}
-                                    </span>
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        {canGoBackInRenewal && (
+                                            <Button
+                                                isIconOnly
+                                                variant="light"
+                                                size="sm"
+                                                aria-label="Назад"
+                                                className="shrink-0 text-[#122C5E] min-w-8 w-8 h-8"
+                                                onPress={handleRenewalBack}
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    width="24"
+                                                    height="24"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                >
+                                                    <path d="M15 18l-6-6 6-6" />
+                                                </svg>
+                                            </Button>
+                                        )}
+                                        <span className="truncate">
+                                            {renewalStep === "contacts" && "Данные нового клиента"}
+                                            {renewalStep === "cost" && "Стоимость договора"}
+                                            {renewalStep === "sign" && "Подписать договор переоформления"}
+                                        </span>
+                                    </div>
                                     <Button
                                         size="sm"
                                         variant="light"
@@ -264,10 +309,36 @@ export default function DealDrawer({
                         <DrawerHeader className="flex items-start justify-between gap-[32px] self-stretch text-[#122C5E] text-[32px] not-italic font-normal leading-[100%] bg-white p-0">
                             <div className="flex flex-col items-start gap-[16px] self-stretch flex-1 min-w-0">
                                 <div className="flex justify-between items-center self-stretch gap-4">
-                                    <span>
-                                        {terminationStep === "bank" && "Реквизиты клиента для возврата"}
-                                        {terminationStep === "sign" && "Подписать договор расторжения"}
-                                    </span>
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        {canGoBackInTermination && (
+                                            <Button
+                                                isIconOnly
+                                                variant="light"
+                                                size="sm"
+                                                aria-label="Назад"
+                                                className="shrink-0 text-[#122C5E] min-w-8 w-8 h-8"
+                                                onPress={handleTerminationBack}
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    width="24"
+                                                    height="24"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                >
+                                                    <path d="M15 18l-6-6 6-6" />
+                                                </svg>
+                                            </Button>
+                                        )}
+                                        <span className="truncate">
+                                            {terminationStep === "bank" && "Реквизиты клиента для возврата"}
+                                            {terminationStep === "sign" && "Подписать договор расторжения"}
+                                        </span>
+                                    </div>
                                     <Button
                                         size="sm"
                                         variant="light"
@@ -329,184 +400,185 @@ export default function DealDrawer({
                             </div>
                         </DrawerHeader>
 
-                <DrawerBody className="p-0 overflow-y-auto">
-                    {loading ? (
-                        <div className="flex items-center justify-center flex-1 py-12">
-                            <p className="text-[#122C5E] opacity-50">Загрузка...</p>
-                        </div>
-                    ) : error || !data ? (
-                        <div className="flex flex-col gap-4">
-                            <p className="text-red-600 text-[14px] not-italic font-normal">{error ?? "Нет данных"}</p>
-                            <Button className="self-start" onPress={onClose}>Закрыть</Button>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col gap-[32px]">
-                            {/* Секция 1: Квартира с планировкой */}
+                        <DrawerBody className="p-0 overflow-y-auto">
+                            {loading ? (
+                                <div className="flex items-center justify-center flex-1 py-12">
+                                    <p className="text-[#122C5E] opacity-50">Загрузка...</p>
+                                </div>
+                            ) : error || !data ? (
+                                <div className="flex flex-col gap-4">
+                                    <p className="text-red-600 text-[14px] not-italic font-normal">{error ?? "Нет данных"}</p>
+                                    <Button className="self-start" onPress={onClose}>Закрыть</Button>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-[32px]">
+                                    {/* Секция 1: Квартира с планировкой */}
+                                    <section className="flex flex-col gap-[16px] self-stretch">
+                                        <div className="flex p-[16px] flex-col items-start gap-[10px] self-stretch rounded-[32px] bg-[#F4F6FB]">
+                                            <div className="flex w-full gap-4 items-center self-stretch">
+                                                {planImage ? (
+                                                    <div className="flex p-[10px] flex-col items-start gap-[10px] rounded-[16px] bg-[#FFF]">
+                                                        <Image
+                                                            rel="preload"
+                                                            src={planImage}
+                                                            alt="Планировка"
+                                                            width={130}
+                                                            height={116}
+                                                            className="max-w-[200px] max-h-[200px] h-full w-full"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-[130px] h-[116px] bg-gray-200 rounded-[12px] flex items-center justify-center p-1">
+                                                        <span className="text-gray-500 text-center">{t("no_image")}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-1 flex-col justify-between items-start self-stretch">
+                                                    <div className="flex w-full justify-between items-center self-stretch">
+                                                        <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[24px]">{data.deal.property?.projectName ?? "—"}</h1>
+                                                        <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px] opacity-30">№{data.deal.property?.apartmentNumber ?? "-"}</p>
+                                                    </div>
+                                                    <div className="flex w-full justify-between items-center self-stretch">
+                                                        <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.property?.room ?? "—"} комнатная</p>
+                                                        <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.property?.totalArea ?? "—"} м²</p>
+                                                    </div>
+                                                    <div className="flex w-full justify-between items-center self-stretch">
+                                                        <p className="text-[#2655AF] text-[16px] not-italic font-normal leading-[16px]">{formatPrice(data.deal.dealPrice)}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* Секция 2: Сделка */}
+                                    <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
+                                        <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Сделка</h3>
+                                        <div className="flex flex-col gap-[8px] text-[14px] not-italic font-normal text-[#122C5E] w-full">
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Статус:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.dealStatus}</span>
+                                            </div>
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Способ оплаты:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.paymentMethod ?? "—"}</span>
+                                            </div>
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Сумма:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPrice(data.deal.dealPrice)}</span>
+                                            </div>
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Первоначальный взнос:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPrice(data.deal.downPayment)}</span>
+                                            </div>
+                                            {data.deal.expiresAt && (
+                                                <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Действует до:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatDate(data.deal.expiresAt)}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+                                    {/* Секция 3: Клиент */}
+                                    <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
+                                        <h4 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Клиент</h4>
+                                        <div className="flex flex-col gap-[8px] text-[14px] not-italic font-normal text-[#122C5E] w-full">
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Имя:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.customer?.name ?? "—"}</span>
+                                            </div>
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Фамилия:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.customer?.surname ?? "—"}</span>
+                                            </div>
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Телефон:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.customer?.phone ?? "—"}</span>
+                                            </div>
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Email:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.customer?.email ?? "—"}</span>
+                                            </div>
+                                            <div className="flex px-[0] py-[8px] justify-between items-center gap-3 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Договор:</span>
+                                                <Button
+                                                    size="sm"
+                                                    variant="flat"
+                                                    color="primary"
+                                                    className="shrink-0"
+                                                    isLoading={agreementDownloadLoading}
+                                                    isDisabled={agreementDownloadLoading}
+                                                    onPress={handleDownloadAgreement}
+                                                >
+                                                    Скачать договор
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* Секция 4: График платежей */}
+                                    <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
+                                        <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">График платежей</h3>
+                                        {data.paymentSchedules.length === 0 ? (
+                                            <p className="text-[#122C5E] opacity-50 text-[14px]">Нет записей</p>
+                                        ) : (
+                                            <div className="overflow-x-auto -mx-0 w-full">
+                                                <table className="w-full text-[14px] text-[#122C5E]">
+                                                    <thead>
+                                                        <tr className="border-b border-[#122C5E]/20 text-left">
+                                                            <th className="py-2 pr-2 font-normal opacity-70">№</th>
+                                                            <th className="py-2 pr-2 font-normal opacity-70">Дата</th>
+                                                            <th className="py-2 font-normal opacity-70">Сумма</th>
+                                                            <th className="py-2 pl-2 font-normal opacity-70">Статус</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {data.paymentSchedules.map((row, i) => (
+                                                            <tr key={i} className="border-b border-[#122C5E]/10">
+                                                                <td className="py-2 pr-2">{row.index}</td>
+                                                                <td className="py-2 pr-2">{formatDate(row.dueDate)}</td>
+                                                                <td className="py-2">{formatPrice(row.amount)}</td>
+                                                                <td className="py-2 pl-2">{row.paymentStatus}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </section>
+                                </div>
+                            )}
+                        </DrawerBody>
+                        <DrawerFooter className="flex flex-col p-2 bg-transparent">
                             <section className="flex flex-col gap-[16px] self-stretch">
-                                {planImage ? (
-                                    <div className="flex p-[16px] flex-col items-start gap-[10px] self-stretch rounded-[32px] bg-[#F4F6FB]">
-                                        <div className="flex w-full gap-4 items-center self-stretch">
-                                            <div className="flex w-[150px] p-[10px] flex-col items-start gap-[10px] rounded-[16px] position-relative bg-white rounded-4">
-                                                <Image
-                                                    src={planImage}
-                                                    alt="Планировка"
-                                                    fill
-                                                    className="!relative"
-                                                    unoptimized
-                                                />
-                                            </div>
-                                            <div className="flex flex-1 flex-col justify-between items-start self-stretch">
-                                                <div className="flex w-full justify-between items-center self-stretch">
-                                                    <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[24px]">{data.deal.property?.projectName ?? "—"}</h1>
-                                                    <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px] opacity-30">№{data.deal.property?.apartmentNumber ?? "-"}</p>
-                                                </div>
-                                                <div className="flex w-full justify-between items-center self-stretch">
-                                                    <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.property?.room ?? "—"} комнатная</p>
-                                                    <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.property?.totalArea ?? "—"} м²</p>
-                                                </div>
-                                                <div className="flex w-full justify-between items-center self-stretch">
-                                                    <p className="text-[#2655AF] text-[16px] not-italic font-normal leading-[16px]">{formatPrice(data.deal.dealPrice)}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex w-[150px] p-[10px] flex-col items-start gap-[10px] rounded-[16px] position-relative bg-white rounded-4">
-                                        <span className="text-[#122C5E] opacity-50 text-sm">Нет планировки</span>
-                                    </div>
-                                )}
-                            </section>
-
-                            {/* Секция 2: Сделка */}
-                            <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
-                                <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Сделка</h3>
-                                <div className="flex flex-col gap-[8px] text-[14px] not-italic font-normal text-[#122C5E] w-full">
-                                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Статус:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.dealStatus}</span>
-                                    </div>
-                                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Способ оплаты:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.paymentMethod ?? "—"}</span>
-                                    </div>
-                                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Сумма:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPrice(data.deal.dealPrice)}</span>
-                                    </div>
-                                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Первоначальный взнос:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPrice(data.deal.downPayment)}</span>
-                                    </div>
-                                    {data.deal.expiresAt && (
-                                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Действует до:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatDate(data.deal.expiresAt)}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </section>
-                            {/* Секция 3: Клиент */}
-                            <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
-                                <h4 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Клиент</h4>
-                                <div className="flex flex-col gap-[8px] text-[14px] not-italic font-normal text-[#122C5E] w-full">
-                                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Имя:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.customer?.name ?? "—"}</span>
-                                    </div>
-                                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Фамилия:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.customer?.surname ?? "—"}</span>
-                                    </div>
-                                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Телефон:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.customer?.phone ?? "—"}</span>
-                                    </div>
-                                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Email:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.customer?.email ?? "—"}</span>
-                                    </div>
-                                    <div className="flex px-[0] py-[8px] justify-between items-center gap-3 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Договор:</span>
+                                <div className="flex flex-col gap-[10px] self-stretch">
+                                    {isReserve && (
                                         <Button
-                                            size="sm"
                                             variant="flat"
-                                            color="primary"
-                                            className="shrink-0"
-                                            isLoading={agreementDownloadLoading}
-                                            isDisabled={agreementDownloadLoading}
-                                            onPress={handleDownloadAgreement}
+                                            className="w-full justify-center text-white bg-[#F04800]"
+                                            onPress={handleRelease}
+                                            isLoading={actionLoading === "release"}
+                                            isDisabled={!!actionLoading}
                                         >
-                                            Скачать договор
+                                            Отменить бронь
                                         </Button>
-                                    </div>
+                                    )}
+                                    {canRenewOrTerminate && (
+                                        <Button
+                                            variant="flat"
+                                            className="w-full justify-center text-white bg-[#1A3C7E]"
+                                            onPress={() => data && setRenewalStep("contacts")}
+                                            isDisabled={!!actionLoading}
+                                        >
+                                            Переоформление
+                                        </Button>
+                                    )}
+                                    {!isReserve && canRenewOrTerminate && (
+                                        <Button
+                                            color="danger"
+                                            variant="bordered"
+                                            className="w-full justify-center text-white bg-[#DB1D31]"
+                                            onPress={() => data && setTerminationStep("bank")}
+                                            isDisabled={!!actionLoading}
+                                        >
+                                            Расторжение
+                                        </Button>
+                                    )}
+                                    <Button variant="light" className="w-full justify-center text-[#122C5E]" onPress={onClose}>
+                                        Закрыть
+                                    </Button>
                                 </div>
                             </section>
-
-                            {/* Секция 4: График платежей */}
-                            <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
-                                <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">График платежей</h3>
-                                {data.paymentSchedules.length === 0 ? (
-                                    <p className="text-[#122C5E] opacity-50 text-[14px]">Нет записей</p>
-                                ) : (
-                                    <div className="overflow-x-auto -mx-0 w-full">
-                                        <table className="w-full text-[14px] text-[#122C5E]">
-                                            <thead>
-                                                <tr className="border-b border-[#122C5E]/20 text-left">
-                                                    <th className="py-2 pr-2 font-normal opacity-70">№</th>
-                                                    <th className="py-2 pr-2 font-normal opacity-70">Дата</th>
-                                                    <th className="py-2 font-normal opacity-70">Сумма</th>
-                                                    <th className="py-2 pl-2 font-normal opacity-70">Статус</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {data.paymentSchedules.map((row, i) => (
-                                                    <tr key={i} className="border-b border-[#122C5E]/10">
-                                                        <td className="py-2 pr-2">{row.index}</td>
-                                                        <td className="py-2 pr-2">{formatDate(row.dueDate)}</td>
-                                                        <td className="py-2">{formatPrice(row.amount)}</td>
-                                                        <td className="py-2 pl-2">{row.paymentStatus}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </section>
-                        </div>
-                    )}
-                </DrawerBody>
-                <DrawerFooter className="flex flex-col p-2 bg-transparent">
-                    <section className="flex flex-col gap-[16px] self-stretch">
-                        <div className="flex flex-col gap-[10px] self-stretch">
-                            {isReserve && (
-                                <Button
-                                    variant="flat"
-                                    className="w-full justify-center text-white bg-[#F04800]"
-                                    onPress={handleRelease}
-                                    isLoading={actionLoading === "release"}
-                                    isDisabled={!!actionLoading}
-                                >
-                                    Отменить бронь
-                                </Button>
-                            )}
-                            {canRenewOrTerminate && (
-                                <Button
-                                    variant="flat"
-                                    className="w-full justify-center text-white bg-[#1A3C7E]"
-                                    onPress={() => data && setRenewalStep("contacts")}
-                                    isDisabled={!!actionLoading}
-                                >
-                                    Переоформление
-                                </Button>
-                            )}
-                            {!isReserve && canRenewOrTerminate && (
-                                <Button
-                                    color="danger"
-                                    variant="bordered"
-                                    className="w-full justify-center text-white bg-[#DB1D31]"
-                                    onPress={() => data && setTerminationStep("bank")}
-                                    isDisabled={!!actionLoading}
-                                >
-                                    Расторжение
-                                </Button>
-                            )}
-                            <Button variant="light" className="w-full justify-center text-[#122C5E]" onPress={onClose}>
-                                Закрыть
-                            </Button>
-                        </div>
-                    </section>
-                </DrawerFooter>
+                        </DrawerFooter>
                     </>
                 )}
             </DrawerContent>

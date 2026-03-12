@@ -38,18 +38,17 @@ export function RenewalCostStep({
         Укажите стоимость договора.
       </p>
       <Input
-        label="Стоимость договора"
         placeholder="0"
         value={rawSum}
         onValueChange={(v) => setRawSum(formatAmountInput(v ?? ""))}
         variant="flat"
         classNames={{
-          base: "w-full bg-[#F4F6FB] rounded-[16px] px-2 py-0",
-          label: "text-[#2655AF] text-sm opacity-80",
-          input: "text-[#2655AF] text-xl font-medium",
+          base: "w-full bg-[#F4F6FB] rounded-[16px] p-2",
+          label: "!text-[#1A3C7E] text-sm opacity-80",
+          input: "!text-[#1A3C7E] text-xl font-medium",
           inputWrapper: "bg-transparent shadow-none hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
         }}
-        endContent={<span className="text-[#2655AF] text-base">₸</span>}
+        endContent={<span className="text-[#1A3C7E] text-base">₸</span>}
       />
       {error && <p className="text-red-600 text-sm">{error}</p>}
       <Button

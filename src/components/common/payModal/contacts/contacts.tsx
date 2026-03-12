@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
@@ -139,7 +139,7 @@ export default function Contacts({
 
   const [step, setStep] = useState<BiometricStep>("form");
   const [iin, setIin] = useState("");
-  const [phone, setPhone] = useState(user?.phone ?? "");
+  const [phone, setPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [backendSessionId, setBackendSessionId] = useState<string | null>(null);
   const [docData, setDocData] = useState<DocData | null>(null);
@@ -173,6 +173,15 @@ export default function Contacts({
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [pendingCheckDocData, setPendingCheckDocData] = useState<DocData | null>(null);
   const requestDocDataInFlightRef = useRef(false);
+
+  useEffect(() => {
+    // Менеджер/админ вводит номер клиента — не подставляем номер из профиля менеджера.
+    if (isManagerOrAdmin) {
+      setPhone("");
+      return;
+    }
+    setPhone(user?.phone ?? "");
+  }, [isManagerOrAdmin, user?.phone]);
 
   const fetchAddressSuggestions = useCallback(async (query: string) => {
     const q = query.trim();

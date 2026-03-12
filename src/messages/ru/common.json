@@ -191,7 +191,7 @@
   "one_payment_without_overpayment_and_interest": "Один платеж без переплат и процентов",
   "select_initial_payment_amount": "Выберите сумму первоначального взноса",
   "initial_payment": "Первоначальный взнос",
-  "monthly_payment_until": "Ежемесячный платёж до",
+  "monthly_payment_until": "Ежемесячный платёж до ",
   "deffered": "Отложенный платеж",
   "remainder_of_payment_until": "Остаток платежа до",
   "remainder_of_payment": "Остаток платежа",

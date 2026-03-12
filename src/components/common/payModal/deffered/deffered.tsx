@@ -91,8 +91,7 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
         code?: string;
         error?: string;
     } | null>(null);
-    const defaultCalendarDateRef = useRef(today(getLocalTimeZone()));
-    const [paymentDayDate, setPaymentDayDate] = useState<DateValue | null>(() => defaultCalendarDateRef.current);
+    const [paymentDayDate, setPaymentDayDate] = useState<DateValue | null>(null);
 
     const effectiveBonusPhone = isManagerOrAdmin
         ? (managerBonusPhoneVerified && managerBonusPhone.trim() ? managerBonusPhone.trim() : null)
@@ -339,17 +338,37 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
     const formatScheduleDate = (d: Date) =>
         d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
     const todayStr = formatScheduleDate(new Date());
-    const paymentDayOfMonth = paymentDayDate?.day ?? new Date().getDate();
-    const calendarValue = paymentDayDate ?? defaultCalendarDateRef.current;
+    const now = today(getLocalTimeZone());
+    const lastDayOfCurrentMonth = new Date(now.year, now.month, 0).getDate();
+    const selectedDay = paymentDayDate?.day ?? now.day;
+    const rawDay = Math.min(Math.max(1, selectedDay), lastDayOfCurrentMonth);
+    const calendarValue = new CalendarDate(now.year, now.month, rawDay);
     const onPaymentDayChange = useCallback((v: DateValue | null) => {
         if (!v) return;
-        const prev = paymentDayDate ?? defaultCalendarDateRef.current;
-        if (prev.day === v.day && prev.month === v.month && prev.year === v.year) return;
         setPaymentDayDate(v);
-    }, [paymentDayDate]);
+    }, []);
     const usedGalaBonusAmount = galaBonusAmount > 0
         ? Math.min(galaBonusAmount, Math.max(0, totalPriceBeforeDiscounts - promocodeDiscount))
         : 0;
+
+    const programEndDate = (() => {
+        if (validToDate && !Number.isNaN(validToDate.getTime())) {
+            return new Date(validToDate.getFullYear(), validToDate.getMonth(), validToDate.getDate());
+        }
+        const d = new Date();
+        d.setFullYear(d.getFullYear() + 1);
+        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        return new Date(d.getFullYear(), d.getMonth(), Math.min(now.day, lastDay));
+    })();
+    const programEndCalendarDate = new CalendarDate(
+        programEndDate.getFullYear(),
+        programEndDate.getMonth() + 1,
+        programEndDate.getDate()
+    );
+
+    const calendarValueClamped =
+        calendarValue.compare(programEndCalendarDate) > 0 ? programEndCalendarDate : calendarValue;
+    const paymentDayOfMonth = calendarValueClamped.day;
 
     const remainderDueDate = (() => {
         if (!validToDate || Number.isNaN(validToDate.getTime())) {
@@ -364,11 +383,6 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
         return new Date(validToDate.getFullYear(), validToDate.getMonth(), day);
     })();
     const remainderDueDateStr = formatScheduleDate(remainderDueDate);
-    const paymentProgramEndDate = new CalendarDate(
-        remainderDueDate.getFullYear(),
-        remainderDueDate.getMonth() + 1,
-        remainderDueDate.getDate()
-    );
 
     const handleNext = () => {
         const payload: AgreementPayload = {
@@ -664,7 +678,7 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                             <PopoverTrigger>
                                 <Button className="flex h-[24px] pl-[8px] pr-[10px] py-[0] justify-center items-center gap-[4px] rounded-[32px] bg-[#4F6FBF]">
                                     <span className="text-[#FFF] text-[14px] not-italic font-medium leading-[14px]">
-                                        {paymentDayDate ? `${paymentDayDate.day} ${t("day_number")}` : `${t("select_payment_day")}`}
+                                        {`${paymentDayOfMonth} ${t("day_number")}`}
                                     </span>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="8" height="5" viewBox="0 0 8 5" fill="none">
                                         <path d="M7.07288 0.174964C7.285 -0.0582623 7.6289 -0.0583806 7.84096 0.174964C8.05298 0.408436 8.05305 0.787476 7.84096 1.0209L4.38405 4.82499C4.17196 5.05835 3.82808 5.05832 3.61597 4.82499L0.159062 1.0209C-0.0530408 0.787461 -0.0530006 0.408433 0.159062 0.174964C0.371121 -0.0583805 0.71502 -0.0582623 0.927146 0.174964L4.00001 3.55696L7.07288 0.174964Z" fill="white" />
@@ -674,9 +688,9 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                             <PopoverContent className="p-0">
                                 <Calendar
                                     aria-label={t("payment_day_description")}
-                                    value={calendarValue}
+                                    value={calendarValueClamped}
                                     onChange={onPaymentDayChange}
-                                    maxValue={paymentProgramEndDate}
+                                    maxValue={programEndCalendarDate}
                                     classNames={{
                                         header: "disabled",
                                         prevButton: "opacity-0 pointer-events-none",
@@ -685,6 +699,9 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                                         gridBody: "bg-[#F4F6FB]",
                                     }}
                                 />
+                                <p className="text-[#122C5E] text-[12px] opacity-70 px-2 pb-2">
+                                    {t("deffered_until")} {formatScheduleDate(programEndDate)}
+                                </p>
                             </PopoverContent>
                         </Popover>
                     </div>

@@ -75,15 +75,28 @@ export function monthsBetween(from: Date, to: Date): number {
   return Math.max(1, m);
 }
 
-/** true if condition has no validFrom or validFrom (date) is today or in the past */
-export function isPaymentConditionValidToday(c: { validFrom?: string | null }): boolean {
-  if (c.validFrom == null || String(c.validFrom).trim() === "") return true;
-  const from = new Date(String(c.validFrom).replace(" ", "T"));
-  if (Number.isNaN(from.getTime())) return true;
+/** true if condition is valid today: validFrom <= today and (no validTo or today <= validTo) */
+export function isPaymentConditionValidToday(c: { validFrom?: string | null; validTo?: string | null }): boolean {
   const today = new Date();
-  from.setHours(0, 0, 0, 0);
   today.setHours(0, 0, 0, 0);
-  return from.getTime() <= today.getTime();
+
+  if (c.validFrom != null && String(c.validFrom).trim() !== "") {
+    const from = new Date(String(c.validFrom).replace(" ", "T"));
+    if (!Number.isNaN(from.getTime())) {
+      from.setHours(0, 0, 0, 0);
+      if (from.getTime() > today.getTime()) return false;
+    }
+  }
+
+  if (c.validTo != null && String(c.validTo).trim() !== "") {
+    const to = new Date(String(c.validTo).replace(" ", "T"));
+    if (!Number.isNaN(to.getTime())) {
+      to.setHours(0, 0, 0, 0);
+      if (today.getTime() > to.getTime()) return false;
+    }
+  }
+
+  return true;
 }
 
 /** Format validTo date string to "dd.mm.yyyy" for display */

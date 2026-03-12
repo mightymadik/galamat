@@ -394,6 +394,12 @@ export default function PayModal({ id }: PayModalProps) {
     };
 
     const showCloseButton = step !== "sign";
+    const canGoBack = step === "contacts";
+    const handleGoBack = () => {
+        if (step === "contacts") {
+            dispatch(setStep("payment"));
+        }
+    };
 
     return (
         <Drawer
@@ -437,14 +443,40 @@ export default function PayModal({ id }: PayModalProps) {
                         <DrawerHeader className="flex items-start justify-between gap-[32px] self-stretch text-[#122C5E] text-[32px] not-italic font-normal leading-[100%] bg-white p-0">
                             <div className="flex flex-col items-start gap-[16px] self-stretch flex-1 min-w-0">
                                 <div className="flex justify-between items-center self-stretch gap-3">
-                                    <span className="truncate">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        {canGoBack && (
+                                            <Button
+                                                isIconOnly
+                                                variant="light"
+                                                size="sm"
+                                                aria-label={t("back")}
+                                                className="shrink-0 text-[#122C5E] min-w-8 w-8 h-8"
+                                                onPress={handleGoBack}
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    width="24"
+                                                    height="24"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                >
+                                                    <path d="M15 18l-6-6 6-6" />
+                                                </svg>
+                                            </Button>
+                                        )}
+                                        <span className="truncate">
                                         {step === "payment" && paymentMethod === "full" && t("full_payment")}
                                         {step === "payment" && paymentMethod === "installment" && t("installment")}
                                         {step === "payment" && paymentMethod === "deffered" && t("deffered")}
                                         {step === "payment" && paymentMethod === "hypothec" && t("hypothec")}
                                         {step === "contacts" && t("personal_information")}
                                         {step === "sign" && t("sign_contract")}
-                                    </span>
+                                        </span>
+                                    </div>
                                     {showCloseButton && (
                                         <Button
                                             isIconOnly

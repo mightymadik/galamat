@@ -13,6 +13,19 @@ export function TerminationBankStep({
   const [customerBank, setCustomerBank] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const normalizeBik = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  const normalizeIik = (v: string) => {
+    const raw = v.toUpperCase()
+      .replace(/^KZ\s*/i, "")
+      .trim();
+    if (!raw) return "";
+    return `KZ${raw}`;
+  };
+  const normalizeBankTyping = (v: string) => {
+    const raw = v.replace(/^АО\s*/i, "");
+    return `АО ${raw}`;
+  };
+
   const handleNext = () => {
     const iik = (customerIIK ?? "").trim();
     const bik = (customerBIK ?? "").trim();
@@ -43,7 +56,7 @@ export function TerminationBankStep({
         <Input
           placeholder="KZXXXXXXXXXXXXXXXXXX"
           value={customerIIK}
-          onValueChange={setCustomerIIK}
+          onValueChange={(v) => setCustomerIIK(normalizeIik(v))}
           variant="flat"
           maxLength={20}
           classNames={{
@@ -59,12 +72,12 @@ export function TerminationBankStep({
         <Input
           placeholder="KZKOKZKX"
           value={customerBIK}
-          onValueChange={setCustomerBIK}
+          onValueChange={(v) => setCustomerBIK(normalizeBik(v))}
           variant="flat"
           classNames={{
             base: "w-full bg-[#F4F6FB] rounded-[16px] p-2",
-            label: "text-[#2655AF] text-sm opacity-80",
-            input: "text-[#2655AF] text-xl font-medium",
+            label: "!text-[#1A3C7E] text-sm opacity-80",
+            input: "!text-[#1A3C7E] text-xl font-medium",
             inputWrapper: "bg-transparent shadow-none hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
           }}
         />
@@ -72,15 +85,15 @@ export function TerminationBankStep({
       <div className="flex flex-col gap-2 w-full">
         <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70 px-1">Банк</span>
         <Input
-          label="Банк"
-          placeholder="АО «Банк»"
+          placeholder="АО Банк"
           value={customerBank}
-          onValueChange={setCustomerBank}
+          onValueChange={(v) => setCustomerBank(normalizeBankTyping(v))}
           variant="flat"
+          inputMode="text"
           classNames={{
-            base: "w-full bg-[#F4F6FB] rounded-[16px] px-2 py-0",
-            label: "text-[#2655AF] text-sm opacity-80",
-            input: "text-[#2655AF] text-xl font-medium",
+            base: "w-full bg-[#F4F6FB] rounded-[16px] p-2",
+            label: "!text-[#1A3C7E] text-sm opacity-80",
+            input: "!text-[#1A3C7E] text-xl font-medium",
             inputWrapper: "bg-transparent shadow-none hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
           }}
         />

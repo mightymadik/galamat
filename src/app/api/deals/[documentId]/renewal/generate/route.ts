@@ -134,15 +134,18 @@ export async function POST(
       agreementItem?.project?.developer ??
       agreementItem?.attributes?.project?.data?.developer ??
       agreementItem?.attributes?.project?.developer;
-    const developerName = (dev?.name ?? dev?.attributes?.name ?? "Застройщик").trim() || "Застройщик";
-    const bin = String(dev?.bin ?? dev?.attributes?.bin ?? "").replace(/\D/g, "").padStart(12, "0").slice(-12);
-    const developerAddressRus = dev?.addressRus ?? dev?.attributes?.addressRus ?? "";
-    const developerAddressKz = dev?.addressKz ?? dev?.attributes?.addressKz ?? "";
-    const iik = dev?.iik ?? dev?.attributes?.iik ?? "";
-    const bank = dev?.bank ?? dev?.attributes?.bank ?? "";
-    const bik = dev?.bik ?? dev?.attributes?.bik ?? "";
-    const kbe = dev?.kbe ?? dev?.attributes?.kbe ?? "";
-    const developerPhoneNumber = dev?.phoneNumber ?? dev?.attributes?.phoneNumber ?? "";
+    const devData = (dev as any)?.data ?? dev;
+    const devAttrs = devData?.attributes ?? devData;
+
+    const developerName = String(devAttrs?.name ?? "Застройщик").trim() || "Застройщик";
+    const bin = String(devAttrs?.bin ?? "").replace(/\D/g, "").padStart(12, "0").slice(-12);
+    const developerAddressRus = devAttrs?.addressRus ?? "";
+    const developerAddressKz = devAttrs?.addressKz ?? "";
+    const iik = devAttrs?.iik ?? "";
+    const bank = devAttrs?.bank ?? "";
+    const bik = devAttrs?.bik ?? "";
+    const kbe = devAttrs?.kbe ?? "";
+    const developerPhoneNumber = devAttrs?.phoneNumber ?? "";
 
     const house = propData?.house ?? propData?.attributes?.house ?? "";
     const apartmentNumber = propData?.apartmentNumber ?? propData?.attributes?.apartmentNumber ?? "";
@@ -185,7 +188,7 @@ export async function POST(
     const currentClientName = currentCustomerName;
     const currentClientAddress = currentCustomerAddress;
 
-    const confidantRel = dev?.confidant ?? dev?.attributes?.confidant;
+    const confidantRel = devAttrs?.confidant;
     const confidantData = (confidantRel as any)?.data ?? confidantRel;
     const confidantAttrs = confidantData?.attributes ?? confidantData;
     const confidant =
@@ -231,6 +234,7 @@ export async function POST(
       totalSumWords,
       developerName,
       bin,
+      developerBIN: bin,
       developerAddressRus,
       developerAddressKz,
       iik,
