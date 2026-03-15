@@ -108,10 +108,19 @@ export function formatValidToDate(validTo: string | null | undefined): string {
     : d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+/** Один фильтр правила (как на бэкенде). */
+export interface PaymentRuleFilter {
+  field?: string;
+  operator?: string;
+  value?: unknown;
+}
+
 /** Option item for installment/deferred selector (has downPayment for % label). raise can be number or string from API. */
 export interface PaymentOption {
   downPayment?: string | null;
   raise?: number | string | null;
+  /** Правило попадания квартиры в это условие (для выбора условия по атрибутам квартиры). */
+  paymentRule?: { filters?: PaymentRuleFilter[] };
 }
 
 /** Payment condition with optional paymentCondition array */
@@ -153,16 +162,151 @@ export function isActivePaymentStatus(c: { paymentStatus?: string } | undefined)
   return s === "active" || s === "активный";
 }
 
-/** Скидка за полную оплату из условий (Полная оплата / Full, raise = сумма скидки в ₸) */
+/** Поля, по которым сравнение делаем числовое (в т.ч. "44,6" с бэка → 44.6). */
+const NUMERIC_FILTER_FIELDS = new Set([
+  "totalArea",
+  "floor",
+  "entrance",
+  "room",
+  "apartmentNumber",
+  "house",
+  "riseRow",
+]);
+
+function parseFilterNumber(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const s = String(v).trim().replace(",", ".");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Проверяет, подходит ли квартира под фильтры условия. Пустые фильтры = подходит любая квартира; иначе все фильтры должны совпасть строго. */
+export function matchFlatToConditionFilters(
+  flatAttrs: Record<string, unknown> | undefined,
+  filters: PaymentRuleFilter[] | undefined
+): boolean {
+  if (!flatAttrs) return false;
+  if (!filters?.length) return true;
+  for (const f of filters) {
+    if (!f.field) continue;
+    const flatVal = flatAttrs[f.field];
+    const condVal = f.value;
+    const op = (f.operator || "$eq") as string;
+    const isNumeric = NUMERIC_FILTER_FIELDS.has(f.field);
+    let match = false;
+
+    if (isNumeric) {
+      const flatNum = parseFilterNumber(flatVal);
+      const condNum = parseFilterNumber(condVal);
+      if (condNum === null) {
+        match = flatNum === null;
+      } else if (flatNum === null) {
+        match = false;
+      } else {
+        const eps = 0.001;
+        switch (op) {
+          case "$eq":
+            match = Math.abs(flatNum - condNum) < eps;
+            break;
+          case "$ne":
+            match = Math.abs(flatNum - condNum) >= eps;
+            break;
+          case "$gte":
+            match = flatNum >= condNum - eps;
+            break;
+          case "$gt":
+            match = flatNum > condNum + eps;
+            break;
+          case "$lte":
+            match = flatNum <= condNum + eps;
+            break;
+          case "$lt":
+            match = flatNum < condNum - eps;
+            break;
+          default:
+            match = Math.abs(flatNum - condNum) < eps;
+        }
+      }
+    } else {
+      const flatStr = String(flatVal ?? "").trim();
+      const condStr = String(condVal ?? "").trim();
+      if (op === "$eq") match = flatStr === condStr;
+      else if (op === "$ne") match = flatStr !== condStr;
+      else match = flatStr === condStr;
+    }
+    if (!match) return false;
+  }
+  return true;
+}
+
+const filterCount = (opt: PaymentOption) => (opt.paymentRule?.filters ?? []).filter((f) => f.field).length;
+
+/** Все условия (options), под которые квартира подходит: строго по фильтрам; условия без фильтров подходят всем. Если ни одно с фильтрами не подошло — только варианты без фильтров; если и таких нет — пустой массив (не показываем неподходящие). */
+export function getMatchingOptions<T extends PaymentOption>(
+  options: T[],
+  flatAttrs: Record<string, unknown> | undefined
+): T[] {
+  if (!options.length) return [];
+  if (!flatAttrs) return options;
+  const sorted = [...options].sort((a, b) => filterCount(b as PaymentOption) - filterCount(a as PaymentOption));
+  const matching = sorted.filter((opt) =>
+    matchFlatToConditionFilters(flatAttrs, (opt as PaymentOption).paymentRule?.filters)
+  );
+  if (matching.length > 0) return matching;
+  const noFilterOptions = sorted.filter((opt) => filterCount(opt as PaymentOption) === 0);
+  return noFilterOptions;
+}
+
+/** Первое условие (option), под которое подходит квартира по фильтрам; при отсутствии совпадений — вариант без фильтров или первый в списке. */
+export function getMatchingOption<T extends PaymentOption>(
+  options: T[],
+  flatAttrs: Record<string, unknown> | undefined
+): T | undefined {
+  if (!options.length) return undefined;
+  if (!flatAttrs) return options[0];
+  const matching = getMatchingOptions(options, flatAttrs);
+  return matching[0];
+}
+
+/**
+ * Интерпретация значения скидки по полной оплате (raise):
+ * - 1–100: процент от стоимости → discount = basePrice * (value / 100)
+ * - 101–50_000: за м² → discount = value * totalArea
+ * - 50_001 и выше: от стоимости (уже в ₸) → discount = value
+ */
+export function resolveFullPaymentDiscountValue(
+  rawValue: number,
+  basePrice: number,
+  totalArea: number
+): number {
+  if (rawValue <= 0 || !Number.isFinite(rawValue)) return 0;
+  if (rawValue >= 1 && rawValue <= 100) {
+    return basePrice > 0 ? Math.round((basePrice * rawValue) / 100) : 0;
+  }
+  if (rawValue >= 101 && rawValue <= 50_000) {
+    return totalArea > 0 ? Math.round(rawValue * totalArea) : 0;
+  }
+  if (rawValue >= 50_001) {
+    return Math.round(rawValue);
+  }
+  return 0;
+}
+
+/** Скидка за полную оплату из условий (Полная оплата / Full). Условие выбирается по совпадению квартиры с фильтрами; raise: 1–100 %; 101–50_000 ₸/м²; 50_001+ ₸ от стоимости. */
 export function getFullPaymentDiscountFromConditions(
-  paymentConditions: PaymentConditionWithOptions[] | undefined
+  paymentConditions: PaymentConditionWithOptions[] | undefined,
+  basePrice: number,
+  totalArea: number,
+  flatAttrs?: Record<string, unknown>
 ): number {
   if (!paymentConditions?.length) return 0;
   const full = paymentConditions.find((c) => isPaymentMethod(c, "full") && isActivePaymentStatus(c));
-  const options = full?.paymentCondition || [];
-  const first = options[0];
-  if (!first?.raise) return 0;
-  return Number(first.raise) || 0;
+  const options = (full?.paymentCondition || []) as PaymentOption[];
+  const option = getMatchingOption(options, flatAttrs);
+  if (!option?.raise) return 0;
+  const raw = parseRaise(option.raise);
+  return resolveFullPaymentDiscountValue(raw, basePrice, totalArea);
 }
 
 /** Число из raise (API может вернуть строку) */
@@ -187,7 +331,8 @@ export function getInstallmentPreview(
   paymentConditions: PaymentConditionWithOptions[] | undefined,
   selectedOptionIndex: number,
   baseFullPrice: number,
-  totalArea: number
+  totalArea: number,
+  flatAttrs?: Record<string, unknown>
 ): InstallmentPreview {
   const conditions = (paymentConditions || []).filter(
     (c) =>
@@ -197,10 +342,11 @@ export function getInstallmentPreview(
   );
   const options = conditions
     .flatMap((c) => c.paymentCondition || [])
-    .filter((o) => o?.downPayment != null && o?.downPayment !== "");
+    .filter((o) => o?.downPayment != null && o?.downPayment !== "") as PaymentOption[];
   const validTo = conditions[0]?.validTo;
   const validToFormatted = formatValidToDate(validTo);
-  const selected = options[Math.min(selectedOptionIndex, Math.max(0, options.length - 1))] ?? options[0];
+  const optionList = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
+  const selected = optionList[Math.min(selectedOptionIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
   const raisePerM2 = parseRaise(selected?.raise);
   const fullPrice = baseFullPrice + raisePerM2 * totalArea;
   const firstDownPct = selected
@@ -212,7 +358,7 @@ export function getInstallmentPreview(
   const months = validToDate && validToDate > now ? monthsBetween(now, validToDate) : 1;
   const monthlyPayment = fullPrice > 0 ? Math.round((fullPrice - firstDown) / months) : 0;
   return {
-    options,
+    options: optionList,
     validToFormatted,
     fullPrice,
     firstDownPct,
@@ -235,7 +381,8 @@ export function getDefferedPreview(
   paymentConditions: PaymentConditionWithOptions[] | undefined,
   selectedOptionIndex: number,
   baseFullPrice: number,
-  totalArea: number
+  totalArea: number,
+  flatAttrs?: Record<string, unknown>
 ): DefferedPreview {
   const conditions = (paymentConditions || []).filter(
     (c) =>
@@ -245,10 +392,11 @@ export function getDefferedPreview(
   );
   const options = conditions
     .flatMap((c) => c.paymentCondition || [])
-    .filter((o) => o?.downPayment != null && o?.downPayment !== "");
+    .filter((o) => o?.downPayment != null && o?.downPayment !== "") as PaymentOption[];
   const validTo = conditions[0]?.validTo;
   const validToFormatted = formatValidToDate(validTo);
-  const selected = options[Math.min(selectedOptionIndex, Math.max(0, options.length - 1))] ?? options[0];
+  const optionList = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
+  const selected = optionList[Math.min(selectedOptionIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
   const raisePerM2 = parseRaise(selected?.raise);
   const fullPrice = baseFullPrice + raisePerM2 * totalArea;
   const firstDownPct = selected
@@ -257,7 +405,7 @@ export function getDefferedPreview(
   const firstDown = fullPrice > 0 ? Math.round((fullPrice * firstDownPct) / 100) : 0;
   const remainder = Math.max(0, fullPrice - firstDown);
   return {
-    options,
+    options: optionList,
     validToFormatted,
     fullPrice,
     firstDownPct,

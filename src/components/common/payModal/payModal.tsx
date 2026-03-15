@@ -199,8 +199,9 @@ const adaptFlat = (flat: FlatType): ComponentFlat => {
                 : typeof flat.price === "number"
                     ? flat.price + (flat.fullPaymentDiscount ?? 0)
                     : undefined,
-        totalArea: typeof flat.area === "number" ? flat.area : undefined,
+        totalArea: (flat as { totalArea?: number }).totalArea ?? (typeof flat.area === "number" ? flat.area : undefined),
         projectDocumentId: flat.projectDocumentId,
+        floorGroup: (flat as { floorGroup?: string }).floorGroup,
     };
 };
 

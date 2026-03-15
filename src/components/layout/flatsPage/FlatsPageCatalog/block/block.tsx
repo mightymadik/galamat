@@ -319,7 +319,7 @@ export default function Block({ sortKey = "lowestPrice", filterParams = {}, onTo
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[24px] w-full animate-fadeIn">
         {sortedFlats.map((flat, index) => (
           <div
-            key={flat.id || index}
+            key={`flat-${flat.documentId ?? flat.id}-${index}`}
             className="animate-fadeIn"
             style={{
               animationDelay: `${Math.min(index * 50, 300)}ms`,
@@ -405,7 +405,7 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
         </div>
 
         {/* Изображение */}
-        <div className="relative h-[205px] flex flex-col justify-center items-center gap-[8px] self-stretch w-full">
+        <div className="relative h-[205px] w-full flex flex-col justify-center items-center gap-[8px] self-stretch min-h-0 overflow-hidden rounded-[12px]">
           <div
             className="absolute left-0 top-0 h-full w-1/2 z-10 cursor-pointer"
             onMouseEnter={() => handleHover("left")}
@@ -416,15 +416,17 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
           ></div>
 
           {flat.images && flat.images.length > 0 && flat.images[activeIndex] ? (
-            <Image
-              src={flat.images[activeIndex]}
-              alt={flat.title}
-              width={216}
-              height={193}
-              className="transition-all duration-500"
-            />
+            <div className="relative w-full h-full min-w-0 min-h-0 flex items-center justify-center">
+              <Image
+                src={flat.images[activeIndex]}
+                alt={flat.title}
+                width={216}
+                height={193}
+                className="transition-all duration-500 object-contain max-h-full max-w-full w-auto h-auto"
+              />
+            </div>
           ) : (
-            <div className="w-[216px] h-[193px] bg-gray-200 rounded-[12px] flex items-center justify-center">
+            <div className="w-full h-full min-h-[193px] bg-gray-200 rounded-[12px] flex items-center justify-center">
               <span className="text-gray-500">No image</span>
             </div>
           )}

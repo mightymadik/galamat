@@ -320,17 +320,29 @@ export default function FullPayment({ flatData, activeButton, onNext, isSubmitti
             .finally(() => setPromocodeApplying(false));
     }, [promocodeInput, flatData?.projectDocumentId, flatData?.apartmentNumber, flatData?.house, flatData?.section, flatData?.entrance, flatData?.floor, flatData?.room]);
 
-    const conditionDiscount = getFullPaymentDiscountFromConditions(flatData?.paymentConditions as any);
     const basePrice = (flatData as { fullPriceBeforeDiscount?: number } | null)?.fullPriceBeforeDiscount
         ?? parsePriceString(flatData?.originalPrice)
         ?? parsePriceString(flatData?.price);
+    const totalArea = (flatData as { totalArea?: number } | null)?.totalArea ?? 0;
+    const flatAttrs: Record<string, unknown> | undefined = flatData
+        ? {
+            room: (flatData as Record<string, unknown>).room,
+            totalArea: (flatData as Record<string, unknown>).totalArea,
+            house: (flatData as Record<string, unknown>).house,
+            section: (flatData as Record<string, unknown>).section,
+            entrance: (flatData as Record<string, unknown>).entrance,
+            floor: (flatData as Record<string, unknown>).floor,
+            floorGroup: (flatData as Record<string, unknown>).floorGroup,
+            apartmentNumber: (flatData as Record<string, unknown>).apartmentNumber,
+        }
+        : undefined;
+    const conditionDiscount = getFullPaymentDiscountFromConditions(flatData?.paymentConditions as any, basePrice ?? 0, totalArea, flatAttrs);
     const basePriceM2 = formatPriceDisplay(parsePriceString(flatData?.priceM2));
     const flatPriceNumber = Math.max(0, basePrice - conditionDiscount);
     const promocodeDiscount = promocodeResult?.valid && promocodeResult?.value != null ? Number(promocodeResult.value) : 0;
     const totalWithBonus = Math.max(0, flatPriceNumber - galaBonusAmount - promocodeDiscount);
     const totalPriceDisplay = formatPriceDisplay(totalWithBonus);
 
-    const totalArea = (flatData as { totalArea?: number } | null)?.totalArea ?? 0;
     const totalSumM2 = totalArea > 0 ? totalWithBonus / totalArea : 0;
     const totalSumM2Display = formatPriceDisplay(Math.round(totalSumM2)) + "/м²";
     const todayStr = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });

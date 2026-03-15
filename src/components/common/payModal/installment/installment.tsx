@@ -21,6 +21,7 @@ import {
     isPaymentMethod,
     isActivePaymentStatus,
     parseRaise,
+    getMatchingOptions,
 } from "@/lib/paymentFormUtils";
 import { withMask } from "use-mask-input";
 import type { DateValue } from "@react-types/calendar";
@@ -312,7 +313,22 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
             : parsePrice(flatData?.originalPrice) ?? parsePrice(flatData?.price);
 
     const installmentConditions = (flatData?.paymentConditions || []).filter((c) => isPaymentMethod(c as any, "installment") && isActivePaymentStatus(c as any) && isPaymentConditionValidToday(c));
-    const options = installmentConditions.flatMap((c) => c.paymentCondition || []).filter((o) => o?.downPayment != null && o?.downPayment !== "");
+    const allOptions = installmentConditions.flatMap((c) => c.paymentCondition || []).filter((o) => o?.downPayment != null && o?.downPayment !== "");
+    const flatAttrs = flatData
+        ? {
+            room: flatData.room,
+            totalArea: flatData.totalArea,
+            house: flatData.house,
+            section: flatData.section,
+            entrance: flatData.entrance,
+            floor: flatData.floor,
+            floorGroup: flatData.floorGroup,
+            apartmentNumber: flatData.apartmentNumber,
+        }
+        : undefined;
+    const options = flatAttrs && allOptions.length > 0
+        ? getMatchingOptions(allOptions as Parameters<typeof getMatchingOptions>[0], flatAttrs)
+        : allOptions;
 
     const validToStr = installmentConditions[0]?.validTo ?? undefined;
     const validToDate = validToStr ? new Date(validToStr.replace(" ", "T")) : null;
@@ -320,7 +336,7 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
     const monthsCount = validToDate && validToDate > now ? monthsBetween(now, validToDate) : 1;
 
     const [selectedPvIndex, setSelectedPvIndex] = useState(0);
-    const selectedOption = options[selectedPvIndex] ?? options[0];
+    const selectedOption = options[Math.min(selectedPvIndex, options.length - 1)] ?? options[0];
     const defaultDownPercent = 30;
     const downPercent = selectedOption ? parseDownPaymentPercent(selectedOption.downPayment) || defaultDownPercent : defaultDownPercent;
     const raisePerM2 = parseRaise(selectedOption?.raise);

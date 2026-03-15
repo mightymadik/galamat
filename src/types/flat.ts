@@ -32,6 +32,10 @@ export interface Flat {
     paymentConditions?: PaymentConditionForFlat[];
     /** Project documentId for promocode validation */
     projectDocumentId?: string;
+    /** Площадь м² (для фильтров условий оплаты и расчёта надбавки за м²) */
+    totalArea?: number;
+    /** Группа этажей (для фильтров условий оплаты) */
+    floorGroup?: string;
 }
 
 export interface PaymentConditionForFlat {
@@ -40,7 +44,11 @@ export interface PaymentConditionForFlat {
     paymentStatus?: string;
     validFrom?: string | null;
     validTo?: string | null;
-    paymentCondition?: { downPayment?: string | null; raise?: number | string | null }[];
+    paymentCondition?: {
+        downPayment?: string | null;
+        raise?: number | string | null;
+        paymentRule?: { filters?: { field?: string; operator?: string; value?: unknown }[] };
+    }[];
 }
 
 export interface FlatsFilterParams {

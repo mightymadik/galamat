@@ -43,6 +43,7 @@ interface FlatDetail {
     room: string;
     area: string;
     floor: string;
+    floorGroup?: string;
     section: string;
     entrance: string;
     complexDueDate: string;
@@ -74,6 +75,7 @@ type PropertyDetailApi = Partial<{
     room: number;
     totalArea: number;
     floor: number;
+    floorGroup?: string;
     section: string;
     entrance: number;
     propertyStatus: string;
@@ -94,7 +96,18 @@ type PropertyDetailApi = Partial<{
 function adaptPropertyDetail(api: PropertyDetailApi): { flatDetail: FlatDetail; originalFlat: FlatType } {
     const address = api.complexAddress || [api.district, api.projectName].filter(Boolean).join(", ") || "";
     const basePrice = api.priceCheckmate ?? 0;
-    const discountAmount = getFullPaymentDiscountFromConditions(api.paymentConditions as any);
+    const totalArea = api.totalArea ?? 0;
+    const flatAttrs = {
+        room: api.room,
+        totalArea: api.totalArea,
+        house: api.house,
+        section: api.section,
+        entrance: api.entrance,
+        floor: api.floor,
+        floorGroup: (api as Record<string, unknown>).floorGroup,
+        apartmentNumber: api.apartmentNumber,
+    };
+    const discountAmount = getFullPaymentDiscountFromConditions(api.paymentConditions as any, basePrice, totalArea, flatAttrs);
     const discountPercent = discountAmount > 0 && basePrice > 0 ? Math.round((discountAmount / basePrice) * 100) : undefined;
     const displayPrice = discountAmount > 0 ? Math.max(0, basePrice - discountAmount) : basePrice;
     const priceStr = formatPriceDisplay(displayPrice);
@@ -116,6 +129,7 @@ function adaptPropertyDetail(api: PropertyDetailApi): { flatDetail: FlatDetail; 
         room: String(api.room ?? "0"),
         area: `${(api.totalArea ?? 0).toFixed(1)} м²`,
         floor: String(api.floor ?? "0"),
+        floorGroup: (api as Record<string, unknown>).floorGroup as string | undefined,
         section: String(api.section ?? "0"),
         entrance: String(api.entrance ?? "0"),
         complexDueDate: api.complexDueDate ?? "",
@@ -157,6 +171,8 @@ function adaptPropertyDetail(api: PropertyDetailApi): { flatDetail: FlatDetail; 
         paymentConditions: api.paymentConditions,
         fullPriceBeforeDiscount: basePrice > 0 ? basePrice : undefined,
         projectDocumentId: api.projectDocumentId,
+        totalArea: api.totalArea ?? undefined,
+        floorGroup: (api as Record<string, unknown>).floorGroup as string | undefined,
     };
 
     return { flatDetail, originalFlat };
@@ -755,13 +771,26 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
     const baseFullPrice = flat?.fullPriceBeforeDiscount ?? 0;
     const basePriceM2 = flat?.priceM2 ?? 0;
     const totalArea = flat?.totalArea ?? 0;
+    const flatAttrs = useMemo(() => {
+        if (!flat) return undefined;
+        const areaNum = flat.totalArea ?? (typeof flat.area === "number" ? flat.area : parseFloat(String(flat.area).replace(/[^\d.,]/g, "").replace(",", ".")) || undefined);
+        return {
+            room: flat.room,
+            totalArea: areaNum,
+            section: flat.section,
+            entrance: flat.entrance,
+            floor: flat.floor,
+            floorGroup: flat.floorGroup,
+            apartmentNumber: flat.apartmentNumber,
+        };
+    }, [flat?.room, flat?.totalArea, flat?.area, flat?.section, flat?.entrance, flat?.floor, flat?.floorGroup, flat?.apartmentNumber]);
     const installmentPreview = useMemo(
-        () => getInstallmentPreview(flat?.paymentConditions ?? [], selectedInstallmentPvIndex, baseFullPrice, totalArea),
-        [flat?.paymentConditions, selectedInstallmentPvIndex, baseFullPrice, totalArea]
+        () => getInstallmentPreview(flat?.paymentConditions ?? [], selectedInstallmentPvIndex, baseFullPrice, totalArea, flatAttrs),
+        [flat?.paymentConditions, selectedInstallmentPvIndex, baseFullPrice, totalArea, flatAttrs]
     );
     const defferedPreview = useMemo(
-        () => getDefferedPreview(flat?.paymentConditions ?? [], selectedDefferedPvIndex, baseFullPrice, totalArea),
-        [flat?.paymentConditions, selectedDefferedPvIndex, baseFullPrice, totalArea]
+        () => getDefferedPreview(flat?.paymentConditions ?? [], selectedDefferedPvIndex, baseFullPrice, totalArea, flatAttrs),
+        [flat?.paymentConditions, selectedDefferedPvIndex, baseFullPrice, totalArea, flatAttrs]
     );
 
     /** Actual total price and price per m² for the selected payment type */
@@ -771,8 +800,9 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         const formatM2 = (amount: number) => `${formatPriceDisplay(amount)}/м²`;
         switch (activeButton) {
             case "full": {
-                const fullDiscount = getFullPaymentDiscountFromConditions(flat.paymentConditions as any);
                 const base = flat.fullPriceBeforeDiscount ?? parsePriceString(flat.originalPrice) ?? parsePriceString(flat.price) ?? 0;
+                const area = totalArea || 1;
+                const fullDiscount = getFullPaymentDiscountFromConditions(flat.paymentConditions as any, base, area, flatAttrs);
                 const mainNum = Math.max(0, base - fullDiscount);
                 return {
                     main: formatPriceDisplay(mainNum),
@@ -805,7 +835,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                     priceM2: basePriceM2,
                 };
         }
-    }, [flat, activeButton, totalArea, installmentPreview.fullPrice, defferedPreview.fullPrice]);
+    }, [flat, activeButton, totalArea, installmentPreview.fullPrice, defferedPreview.fullPrice, flatAttrs]);
 
     /** Квартира недоступна для бронирования, если продажа закрыта или статус не «свободно» */
     const isUnavailable =

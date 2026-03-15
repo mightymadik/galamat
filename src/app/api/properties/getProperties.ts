@@ -285,12 +285,12 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       };
     }
 
-    // Без пагинации: забираем страницы для шахматки с лимитом (защита от перегрузки)
-    const MAX_CHESSBOARD_FLATS = 500;
+    // Без пагинации: забираем все страницы для шахматки (все квартиры ЖК, без искусственного лимита)
     const allProperties: any[] = [];
     let currentPage = 1;
     const strapiPageSize = 100;
     let totalExpected = 0;
+    const MAX_PAGES = 200; // защита от бесконечного цикла (до 20 000 квартир на один ЖК)
 
     while (true) {
       const paginationParams = {
@@ -315,11 +315,10 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       if (pagination?.total != null) totalExpected = Number(pagination.total);
       const totalPages = pagination?.pageCount ?? 1;
 
-      if (allProperties.length >= MAX_CHESSBOARD_FLATS) break;
       if (totalExpected > 0 && allProperties.length >= totalExpected) break;
       if (currentPage >= totalPages) break;
       currentPage++;
-      if (currentPage > 1000) break;
+      if (currentPage > MAX_PAGES) break;
     }
 
     if (allProperties.length === 0) {
@@ -525,6 +524,7 @@ function mapPaymentConditions(raw: any): PaymentConditionForFlat[] {
         ? c.paymentCondition.map((pc: any) => ({
           downPayment: pc?.downPayment ?? null,
           raise: pc?.raise != null ? Number(pc.raise) : null,
+          paymentRule: pc?.paymentRule ?? undefined,
         }))
         : undefined,
     }));
@@ -590,7 +590,7 @@ export async function getPropertyByDocumentId(documentId: string | number): Prom
           path: "/api/payment-conditions",
           params: {
             "filters[properties][documentId][$eq]": docId,
-            "filters[paymentStatus][$eq]": "Active",
+            "filters[paymentStatus][$eq]": "Активный",
             "populate[paymentCondition]": "*",
           },
         },
