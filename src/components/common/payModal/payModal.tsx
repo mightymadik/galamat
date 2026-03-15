@@ -15,6 +15,7 @@ import Installment from "./installment/installment";
 import Deffered from "./deffered/deffered";
 import Hypothec from "./hypothec/hypothec";
 import Contacts from "./contacts/contacts";
+import ContractNumber from "./contractNumber/contractNumber";
 import Sign from "./sign/sign";
 
 interface PayModalProps {
@@ -214,7 +215,7 @@ export default function PayModal({ id }: PayModalProps) {
     const [paymentConfirmLoading, setPaymentConfirmLoading] = useState(false);
     const [paymentConfirmError, setPaymentConfirmError] = useState<string | null>(null);
     const [flatData, setFlat] = useState<ComponentFlat | null>(null);
-    const stepsOrder = ['payment', 'contacts', 'sign'];
+    const stepsOrder = ['payment', 'contacts', 'contractNumber', 'sign'];
     const currentIndex = stepsOrder.indexOf(step);
 
     useEffect(() => {
@@ -361,6 +362,15 @@ export default function PayModal({ id }: PayModalProps) {
                     flatData={flatData}
                     agreementPayload={agreementPayload}
                     dealDocumentId={dealDocumentId}
+                    onNext={() => dispatch(setStep("contractNumber"))}
+                />
+            ),
+
+            contractNumber: (
+                <ContractNumber
+                    flatData={flatData}
+                    agreementPayload={agreementPayload}
+                    dealDocumentId={dealDocumentId}
                     onNext={() => dispatch(setStep("sign"))}
                 />
             ),
@@ -394,10 +404,12 @@ export default function PayModal({ id }: PayModalProps) {
     };
 
     const showCloseButton = step !== "sign";
-    const canGoBack = step === "contacts";
+    const canGoBack = step === "contacts" || step === "contractNumber";
     const handleGoBack = () => {
         if (step === "contacts") {
             dispatch(setStep("payment"));
+        } else if (step === "contractNumber") {
+            dispatch(setStep("contacts"));
         }
     };
 
@@ -474,6 +486,7 @@ export default function PayModal({ id }: PayModalProps) {
                                         {step === "payment" && paymentMethod === "deffered" && t("deffered")}
                                         {step === "payment" && paymentMethod === "hypothec" && t("hypothec")}
                                         {step === "contacts" && t("personal_information")}
+                                        {step === "contractNumber" && t("contract_number")}
                                         {step === "sign" && t("sign_contract")}
                                         </span>
                                     </div>

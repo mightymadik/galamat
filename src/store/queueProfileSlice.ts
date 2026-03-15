@@ -25,6 +25,8 @@ export interface QueueProfileState {
   desks: DeskItem[];
   /** Счётчик для генерации уникальных ключей новых окон */
   nextDeskId: number;
+  /** ID филиала менеджера (для создания новых окон) */
+  branchId: string;
   /** Модал выбора окна: открывается ТОЛЬКО при переходе unavailable → available */
   isDeskModalOpen: boolean;
 }
@@ -41,6 +43,7 @@ const initialState: QueueProfileState = {
   selectedDesk: "",
   desks: [],
   nextDeskId: 1,
+  branchId: "",
   isDeskModalOpen: false,
 };
 
@@ -117,19 +120,21 @@ const queueProfileSlice = createSlice({
     setHistoryOpen: (state, action: PayloadAction<boolean>) => {
       state.isHistoryOpen = action.payload;
     },
-    /** Синхронизация из API очереди: статус, список окон, выбранное окно */
+    /** Синхронизация из API очереди: статус, список окон, выбранное окно, branchId */
     setProfileFromApi: (
       state,
       action: PayloadAction<{
         status: QueueProfileStatus;
         desks: DeskItem[];
         selectedDesk: string;
+        branchId?: string;
       }>
     ) => {
-      const { status, desks, selectedDesk } = action.payload;
+      const { status, desks, selectedDesk, branchId } = action.payload;
       state.status = status;
       state.desks = desks;
       state.selectedDesk = selectedDesk || (desks[0]?.key ?? "");
+      if (branchId !== undefined) state.branchId = branchId;
     },
   },
 });

@@ -7,7 +7,7 @@ import { Input } from "@heroui/input";
 import Link from "next/link";
 import { Autocomplete, AutocompleteItem, Checkbox } from "@heroui/react";
 import type { RootState } from "@/store";
-import { setAgreementFileUrl, setAgreementTemplateType, setAgreementNumber, setDealDocumentId } from "@/store/paySlice";
+import { setDealDocumentId } from "@/store/paySlice";
 import { withMask } from "use-mask-input";
 import { isValidKzPhoneE164, normalizePhone } from "@/lib/authOtp";
 import OtpInputs from "./otpInputs";
@@ -553,36 +553,7 @@ export default function Contacts({
           effectiveDealId = attachJson.dealDocumentId;
         }
       }
-      // Генерация договора: нужны agreementPayload и (projectDocumentId в flatData или dealDocumentId — бэкенд возьмёт проект из сделки)
-      if (agreementPayload && (flatData?.projectDocumentId || effectiveDealId)) {
-        const genRes = await fetch("/api/signed-agreements/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            flatData: flatData ?? undefined,
-            agreementPayload,
-            templateType: flatData?.hasDdu !== false ? "ddu" : "pdb",
-            dealDocumentId: effectiveDealId,
-          }),
-          credentials: "include",
-        });
-        const genJson = await genRes.json().catch(() => ({}));
-        if (!genRes.ok) {
-          const errMsg = genJson?.detail ?? genJson?.message ?? genJson?.error ?? t("error_generating_agreement");
-          setError(errMsg);
-          setLoading(false);
-          return;
-        }
-        if (genJson?.fileUrl) {
-          dispatch(setAgreementFileUrl(genJson.fileUrl));
-        }
-        if (genJson?.templateType === "pdb" || genJson?.templateType === "ddu") {
-          dispatch(setAgreementTemplateType(genJson.templateType));
-        }
-        if (genJson?.agreementNumber != null) {
-          dispatch(setAgreementNumber(genJson.agreementNumber));
-        }
-      }
+      // Переход на шаг «Номер договора» — генерация договора выполняется там с введённым номером
       onNext();
     } catch {
       setError(t("network_error"));

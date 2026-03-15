@@ -147,7 +147,9 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
                 setFilterMetadata(metadata);
                 setIsMetadataLoaded(true);
                 // Устанавливаем общее количество из метаданных только если актуальное количество не передано
-                if (totalCount === undefined) {
+                // и мы НЕ на странице проекта: там количество подставит эффект с запросом по фильтру (project)
+                const isProjectPage = initialFilterParams?.project != null;
+                if (totalCount === undefined && !isProjectPage) {
                     setTotalProjects(metadata.totalCount || 0);
                 }
                 setIsLoadingMetadata(false);
@@ -374,11 +376,23 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         }
     }, [buildFilterParams, onFilterChange]);
 
-    // When onSubmit is provided (project page): fetch filtered count for the submit button
+    // Ключ запроса: при любом изменении фильтров (проект, ползунки, комнаты и т.д.) эффект перезапустится
+    const paramsForCount = buildFilterParams();
+    const projectForCount = paramsForCount.project ?? initialFilterParams?.project ?? null;
+    const countRequestKey =
+        onSubmit && projectForCount != null
+            ? JSON.stringify({ ...paramsForCount, project: projectForCount })
+            : "";
+
+    // Когда передан onSubmit (страница проекта): запрашиваем количество по текущим фильтрам для кнопки.
+    // Не ждём filterMetadata — запрос идёт сразу при наличии проекта. Ключ countRequestKey гарантирует рефетч при смене любого фильтра.
     useEffect(() => {
-        if (!onSubmit || !filterMetadata) return;
+        if (!onSubmit || !countRequestKey) return;
 
         const params = buildFilterParams();
+        const project = params.project ?? initialFilterParams?.project ?? null;
+        if (project == null) return;
+
         const sp = new URLSearchParams();
         if (params.priceRange) sp.set("priceRange", params.priceRange.join(","));
         if (params.pricePerM2Range) sp.set("pricePerM2Range", params.pricePerM2Range.join(","));
@@ -386,7 +400,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         if (params.entranceRange) sp.set("entranceRange", params.entranceRange.join(","));
         if (params.roomCount?.length) sp.set("roomCount", params.roomCount.join(","));
         if (params.district) sp.set("district", params.district);
-        if (params.project) sp.set("project", params.project);
+        sp.set("project", String(project).trim());
         if (params.tags?.length) sp.set("tags", params.tags.join(","));
         sp.set("page", "1");
         sp.set("pageSize", "1");
@@ -400,15 +414,13 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
                     response?.meta?.total ??
                     response?.meta?.pagination?.total ??
                     (Array.isArray(response?.data) ? response.data.length : undefined);
-                // Fallback to metadata total when filtered count is 0 (e.g. project name mismatch)
-                const fallback = filterMetadata?.totalCount ?? 0;
-                setTotalProjects(total != null && total > 0 ? total : fallback);
+                setTotalProjects(total != null && total > 0 ? total : 0);
             })
             .catch(() => {
-                if (!ac.signal.aborted) setTotalProjects(filterMetadata?.totalCount ?? 0);
+                if (!ac.signal.aborted) setTotalProjects(0);
             });
         return () => ac.abort();
-    }, [onSubmit, filterMetadata, buildFilterParams]);
+    }, [onSubmit, countRequestKey, buildFilterParams, initialFilterParams?.project]);
 
     const handleSubmit = React.useCallback(() => {
         if (onSubmit) {

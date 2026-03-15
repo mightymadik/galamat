@@ -28,6 +28,7 @@ import { StatusChangeModal, DeskSelectionModal } from "./modals";
 import {
   getManagerProfile,
   getCounters,
+  createCounter,
   setManagerStatus,
   setManagerCurrentCounter,
   toBackendStatus,
@@ -49,6 +50,9 @@ export default function QueueProfile() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [draftDesk, setDraftDesk] = useState("");
   const [newDeskName, setNewDeskName] = useState("");
+  const [queueAccessDenied, setQueueAccessDenied] = useState(false);
+  const [addDeskLoading, setAddDeskLoading] = useState(false);
+  const [addDeskError, setAddDeskError] = useState<string | null>(null);
 
   const dispatch = useAppDispatch();
   const {
@@ -60,16 +64,24 @@ export default function QueueProfile() {
     isHistoryOpen,
     selectedDesk,
     desks,
+    branchId,
     isDeskModalOpen,
     pendingStatus,
   } = useAppSelector((s) => s.queueProfile);
 
   const isWaitingForNext = status === "available" && phase === "waitingForNext";
   const isWithClient = status === "available" && phase === "withClient";
+  const user = useAppSelector((s) => s.auth.user);
+  const canAddDesks = user?.role === "admin";
 
   // Загрузка: профиль менеджера (me) → branchId, статус, currentCounterId; список всех окон по branchId (/counters)
   useEffect(() => {
+    setQueueAccessDenied(false);
     getManagerProfile().then(async (profileRes) => {
+      if (profileRes.status === 403 || profileRes.error === "forbidden") {
+        setQueueAccessDenied(true);
+        return;
+      }
       if (!profileRes.data) return;
       const { status: backendStatus, branch, currentCounterId } = profileRes.data;
       const branchId = branch?.id;
@@ -77,9 +89,12 @@ export default function QueueProfile() {
       if (branchId) {
         const countersRes = await getCounters(branchId);
         if (countersRes.data?.length) {
-          desks = countersRes.data.map((c) => ({
-            key: c.id,
-            label: (c.code as string) || c.id,
+          const availableCounters = countersRes.data.filter(
+            (c) => (c.status ?? "available") === "available"
+          );
+          desks = availableCounters.map((c) => ({
+            key: (c.documentId ?? c.id) as string,
+            label: (c.name as string) || (c.code as string) || String(c.id),
           }));
         }
       }
@@ -92,6 +107,7 @@ export default function QueueProfile() {
           status: backendStatusToUi(backendStatus),
           desks,
           selectedDesk: chosenDesk,
+          branchId: branchId ?? "",
         })
       );
     });
@@ -101,6 +117,7 @@ export default function QueueProfile() {
     if (isDeskModalOpen) {
       setDraftDesk(selectedDesk);
       setNewDeskName("");
+      setAddDeskError(null);
     }
   }, [isDeskModalOpen, selectedDesk]);
 
@@ -122,11 +139,26 @@ export default function QueueProfile() {
     dispatch(requestStatusChange(key));
   };
 
-  const handleAddDesk = () => {
+  const handleAddDesk = async () => {
     const trimmed = newDeskName.trim();
-    if (!trimmed || desks.length >= MAX_DESKS) return;
-    const key = `desk_custom_${Date.now()}`;
-    dispatch(addDesk({ key, label: trimmed }));
+    if (!trimmed || desks.length >= MAX_DESKS || !branchId) return;
+    setAddDeskError(null);
+    setAddDeskLoading(true);
+    const nextNumber = desks.length + 1;
+    const res = await createCounter({
+      branchId,
+      name: trimmed,
+      number: nextNumber,
+      code: `WINDOW_${nextNumber}`,
+    });
+    setAddDeskLoading(false);
+    if (res.error || !res.data) {
+      setAddDeskError(res.error ?? "Не удалось создать окно");
+      return;
+    }
+    const key = (res.data.documentId ?? res.data.id?.toString() ?? `desk_${Date.now()}`) as string;
+    const label = res.data.name ?? trimmed;
+    dispatch(addDesk({ key, label }));
     setDraftDesk(key);
     setNewDeskName("");
   };
@@ -164,6 +196,21 @@ export default function QueueProfile() {
     const statusRes = await setManagerStatus("AVAILABLE");
     if (statusRes.ok) dispatch(confirmDeskAndGoOnline(draftDesk));
   }, [draftDesk, dispatch]);
+
+  if (queueAccessDenied) {
+    return (
+      <div className="wrapper h-full flex flex-col gap-[32px]">
+        <div className="rounded-[24px] border border-[rgba(19,44,94,0.12)] bg-[#F4F6FB] p-8 text-center">
+          <p className="text-[#1A3C7E] text-[18px] font-medium">
+            Доступ только для менеджеров и администраторов
+          </p>
+          <p className="mt-2 text-[rgba(7,7,31,0.48)] text-[14px]">
+            Войдите под учётной записью с ролью «Менеджер» или «Администратор».
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="wrapper h-full flex flex-col gap-[32px]">
@@ -229,6 +276,9 @@ export default function QueueProfile() {
         draftDesk={draftDesk}
         newDeskName={newDeskName}
         desks={desks}
+        canAddDesks={canAddDesks}
+        addDeskLoading={addDeskLoading}
+        addDeskError={addDeskError}
         onDraftDeskChange={setDraftDesk}
         onNewDeskNameChange={setNewDeskName}
         onAddDesk={handleAddDesk}

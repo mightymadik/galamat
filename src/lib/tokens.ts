@@ -9,7 +9,12 @@ export function hashRefreshToken(token: string): string {
   return crypto.createHash("sha256").update(`${token}:${salt}`).digest("hex");
 }
 
-export function createAccessToken(payload: { sub: number; role?: string }) {
+export function createAccessToken(payload: {
+  sub: number;
+  role?: string;
+  /** Strapi documentId — используется queue-backend как userId менеджера */
+  documentId?: string;
+}) {
   // npm i jsonwebtoken
   const jwt = require("jsonwebtoken");
   const secret = process.env.ACCESS_TOKEN_SECRET;

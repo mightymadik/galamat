@@ -27,7 +27,7 @@ export async function POST() {
       `?filters[refreshTokenHash][$eq]=${encodeURIComponent(refreshHash)}` +
       `&filters[revokedAt][$null]=true` +
       `&filters[expiresAt][$gt]=${encodeURIComponent(nowIso)}` +
-      `&populate[user][fields][0]=id&populate[user][fields][1]=role` +
+      `&populate[user][fields][0]=id&populate[user][fields][1]=documentId&populate[user][fields][2]=role` +
       `&pagination[pageSize]=1`;
 
     const res = await strapiAxios.get(findUrl, { headers });
@@ -52,6 +52,7 @@ export async function POST() {
     // user тоже плоский объект, как в твоём otp populate
     const userObj: any = session?.user ?? null;
     const userId: number | null = userObj?.id ?? null;
+    const userDocumentId: string | undefined = userObj?.documentId ?? undefined;
     const role: string = String(userObj?.role ?? "customer");
 
     if (!userId || !sessionDocId) {
@@ -77,8 +78,12 @@ export async function POST() {
       { headers }
     );
 
-    // set new cookies
-    const accessToken = createAccessToken({ sub: userId, role });
+    // set new cookies (documentId для queue-backend /auth/manager/me)
+    const accessToken = createAccessToken({
+      sub: userId,
+      role,
+      documentId: userDocumentId,
+    });
     const accessExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     cookieStore.set("access_token", accessToken, {

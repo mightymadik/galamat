@@ -191,12 +191,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "error", message: "unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { flatData, agreementPayload, templateType, dealDocumentId } = body as {
+    const { flatData, agreementPayload, templateType, dealDocumentId, ddunum } = body as {
       flatData?: FlatDataPayload | null;
       agreementPayload?: AgreementPayload | null;
       templateType?: "pdb" | "ddu";
       /** Если передан — берём данные клиента из сделки (после биометрики) */
       dealDocumentId?: string | null;
+      /** Номер договора в ДДУ — подставляется в шаблон как {ddunum} */
+      ddunum?: string | null;
     };
 
     if (!agreementPayload)
@@ -525,6 +527,7 @@ export async function POST(req: Request) {
     }
     const planUrl = resolvePlanUrl(base, flatData?.plan ?? planFromProperty);
     const replaceData: Record<string, unknown> = {
+      ddunum: (ddunum != null && String(ddunum).trim() !== "") ? String(ddunum).trim() : agreementNumber,
       agreementNumber,
       currentDate,
       agreementType: agreementType as "Квартиры" | "Коммерция" | "Паркинг" | "Кладовка",

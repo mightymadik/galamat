@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-const QUEUE_API_URL = process.env.QUEUE_API_URL || "http://localhost:3001";
+const QUEUE_API_URL = process.env.QUEUE_API_URL;
 
 /**
  * PUT /api/queue/manager/current-counter
@@ -37,7 +37,7 @@ export async function PUT(request: NextRequest) {
   if (!managerId) return NextResponse.json({ error: "manager_id_required" }, { status: 400 });
 
   try {
-    const res = await fetch(`${QUEUE_API_URL}/api/auth/manager/current-counter`, {
+    const res = await fetch(`${QUEUE_API_URL}/api/auth/manager/set-counter`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

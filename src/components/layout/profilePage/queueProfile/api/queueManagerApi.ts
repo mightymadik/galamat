@@ -81,8 +81,15 @@ export async function setManagerCurrentCounter(counterId: string): Promise<{
   };
 }
 
-/** Элемент списка окон (из GET /counters) */
-export type CounterItem = { id: string; code?: string; [key: string]: unknown };
+/** Элемент списка окон (из GET /counters). id — documentId окна, status — available | busy */
+export type CounterItem = {
+  id: string;
+  documentId?: string;
+  code?: string;
+  name?: string;
+  status?: "available" | "busy";
+  [key: string]: unknown;
+};
 
 /**
  * Список всех окон филиала. branchId обязателен (из /auth/manager/me → branch.id).
@@ -104,6 +111,46 @@ export async function getCounters(branchId: string): Promise<{
   }
   const list = (json as { data?: CounterItem[] })?.data ?? [];
   return { data: list, status: res.status };
+}
+
+/** Ответ создания окна в Strapi */
+export type CreateCounterResponse = {
+  documentId?: string;
+  id?: number;
+  name?: string;
+  code?: string;
+};
+
+/**
+ * Создать окно в Strapi (POST /api/counters). Только для admin.
+ * Возвращает созданный документ (documentId — ключ для очереди).
+ */
+export async function createCounter(params: {
+  branchId: string;
+  name: string;
+  number?: number;
+  code?: string;
+}): Promise<{ data?: CreateCounterResponse; error?: string; status: number }> {
+  const res = await fetch("/api/queue/counters", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: params.name.trim(),
+      branchId: params.branchId,
+      number: params.number,
+      code: params.code,
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return {
+      error: (json as { error?: string })?.error ?? "queue_error",
+      status: res.status,
+    };
+  }
+  const data = (json as { data?: CreateCounterResponse })?.data;
+  return { data, status: res.status };
 }
 
 /** Map UI status to backend enum */

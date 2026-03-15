@@ -134,9 +134,9 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       params["filters[project][district][$eq]"] = filters.district;
     }
 
-    // Фильтр по ЖК (projectName)
+    // Фильтр по ЖК (projectName); trim чтобы "Gala Next " совпадал с "Gala Next"
     if (filters?.project && filters.project !== "Все") {
-      params["filters[project][projectName][$eq]"] = filters.project;
+      params["filters[project][projectName][$eq]"] = filters.project.trim();
     }
 
     // Фильтр по id (например для избранного)

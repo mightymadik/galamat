@@ -19,6 +19,9 @@ export type DeskSelectionModalProps = {
   draftDesk: string;
   newDeskName: string;
   desks: DeskItem[];
+  canAddDesks: boolean;
+  addDeskLoading?: boolean;
+  addDeskError?: string | null;
   onDraftDeskChange: (key: string) => void;
   onNewDeskNameChange: (value: string) => void;
   onAddDesk: () => void;
@@ -31,6 +34,9 @@ export default function DeskSelectionModal({
   draftDesk,
   newDeskName,
   desks,
+  canAddDesks,
+  addDeskLoading = false,
+  addDeskError = null,
   onDraftDeskChange,
   onNewDeskNameChange,
   onAddDesk,
@@ -82,62 +88,69 @@ export default function DeskSelectionModal({
               <SelectItem key={desk.key}>{desk.label}</SelectItem>
             ))}
           </Select>
-
-          <div className="flex flex-col gap-[8px]">
-            <div className="flex items-center justify-between">
-              <span className="text-[#282D3C] text-[14px] font-medium leading-[normal]">
-                Добавить окно
-              </span>
-              <span
-                className={`text-[12px] font-normal ${atMaxDesks ? "text-[#DB1D31]" : "text-[rgba(7,7,31,0.40)]"}`}
-              >
-                {desks.length} / {MAX_DESKS}
-              </span>
-            </div>
-            <div className="flex items-center gap-[8px]">
-              <Input
-                placeholder="Название окна"
-                value={newDeskName}
-                onValueChange={onNewDeskNameChange}
-                isDisabled={atMaxDesks}
-                maxLength={40}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") onAddDesk();
-                }}
-                classNames={{
-                  base: "flex-1",
-                  input: "text-[#1A3C7E] text-[14px]",
-                  inputWrapper:
-                    "rounded-[12px] border border-[rgba(19,44,94,0.24)] bg-[#F4F6FB]",
-                }}
-              />
-              <Button
-                isDisabled={!newDeskName.trim() || atMaxDesks}
-                onPress={onAddDesk}
-                className="rounded-[12px] bg-[#1A3C7E] text-white h-[40px] min-w-[40px] px-[14px] disabled:opacity-40"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 16 16"
-                  fill="none"
+          {canAddDesks && (
+            <div className="flex flex-col gap-[8px]">
+              <div className="flex items-center justify-between">
+                <span className="text-[#282D3C] text-[14px] font-medium leading-[normal]">
+                  Добавить окно
+                </span>
+                <span
+                  className={`text-[12px] font-normal ${atMaxDesks ? "text-[#DB1D31]" : "text-[rgba(7,7,31,0.40)]"}`}
                 >
-                  <path
-                    d="M8 2.667v10.666M2.667 8h10.666"
-                    stroke="#fff"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </Button>
+                  {desks.length} / {MAX_DESKS}
+                </span>
+              </div>
+              <div className="flex items-center gap-[8px]">
+                <Input
+                  placeholder="Название окна"
+                  value={newDeskName}
+                  onValueChange={onNewDeskNameChange}
+                  isDisabled={atMaxDesks || addDeskLoading}
+                  maxLength={40}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") onAddDesk();
+                  }}
+                  classNames={{
+                    base: "flex-1",
+                    input: "text-[#1A3C7E] text-[14px]",
+                    inputWrapper:
+                      "rounded-[12px] border border-[rgba(19,44,94,0.24)] bg-[#F4F6FB]",
+                  }}
+                />
+                <Button
+                  isDisabled={!newDeskName.trim() || atMaxDesks || addDeskLoading}
+                  isLoading={addDeskLoading}
+                  onPress={onAddDesk}
+                  className="rounded-[12px] bg-[#1A3C7E] text-white h-[40px] min-w-[40px] px-[14px] disabled:opacity-40"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                  >
+                    <path
+                      d="M8 2.667v10.666M2.667 8h10.666"
+                      stroke="#fff"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </Button>
+              </div>
+              {addDeskError && (
+                <p className="text-[#DB1D31] text-[12px] font-normal">
+                  {addDeskError}
+                </p>
+              )}
+              {atMaxDesks && (
+                <p className="text-[#DB1D31] text-[12px] font-normal">
+                  Достигнут максимум ({MAX_DESKS} окон)
+                </p>
+              )}
             </div>
-            {atMaxDesks && (
-              <p className="text-[#DB1D31] text-[12px] font-normal">
-                Достигнут максимум ({MAX_DESKS} окон)
-              </p>
-            )}
-          </div>
+          )}
         </ModalBody>
         <ModalFooter>
           <Button

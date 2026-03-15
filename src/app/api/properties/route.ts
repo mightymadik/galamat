@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getProperties, getPropertyFiltersMetadata, PropertyFilters } from "../properties/getProperties";
+import { getDistrictProjectLocaleMapping, resolveToCurrentLocale } from "../projectCatalog/filterOptions/localeMapping";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,43 +14,49 @@ export async function GET(request: NextRequest) {
       console.log("[flats API] GET metadata=true → totalCount:", metadata?.totalCount, "priceRange:", metadata?.priceRange);
       return NextResponse.json(metadata);
     }
-    
-    // Парсим фильтры из query параметров
+
+    const baseFilter = "";
+    const availabilityFilter = "filters[propertyStatus][$eq]=свободно&filters[saleStatus][$eq]=открыто&";
+    const localeMaps = await getDistrictProjectLocaleMapping(baseFilter, availabilityFilter);
+
+    // Парсим фильтры из query параметров; district/project приводим к текущей локали (чтобы при смене КК→РУ данные находились)
     const filters: PropertyFilters = {};
-    
+
     if (searchParams.has("priceRange")) {
       const [min, max] = searchParams.get("priceRange")!.split(",").map(Number);
       filters.priceRange = [min, max];
     }
-    
+
     if (searchParams.has("pricePerM2Range")) {
       const [min, max] = searchParams.get("pricePerM2Range")!.split(",").map(Number);
       filters.pricePerM2Range = [min, max];
     }
-    
+
     if (searchParams.has("areaRange")) {
       const [min, max] = searchParams.get("areaRange")!.split(",").map(Number);
       filters.areaRange = [min, max];
     }
-    
+
     if (searchParams.has("entranceRange")) {
       const [min, max] = searchParams.get("entranceRange")!.split(",").map(Number);
       filters.entranceRange = [min, max];
     }
-    
+
     if (searchParams.has("roomCount")) {
       const v = searchParams.get("roomCount")!;
       filters.roomCount = v.includes(",") ? v.split(",").map(s => s.trim()).filter(Boolean) : v;
     }
-    
+
     if (searchParams.has("district")) {
-      filters.district = searchParams.get("district")!;
+      const raw = searchParams.get("district")!.trim();
+      filters.district = resolveToCurrentLocale(raw, locale, localeMaps, "district");
     }
-    
+
     if (searchParams.has("project")) {
-      filters.project = searchParams.get("project")!;
+      const raw = searchParams.get("project")!.trim();
+      filters.project = resolveToCurrentLocale(raw, locale, localeMaps, "project");
     }
-    
+
     if (searchParams.has("tags")) {
       filters.tags = searchParams.get("tags")!.split(",");
     }

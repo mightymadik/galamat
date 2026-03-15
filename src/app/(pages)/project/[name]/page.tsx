@@ -78,7 +78,7 @@ export default async function Page({ params }: { params: { name: string }; }) {
                 <HeroSection projectSlug={projectHero} />
             </div>
             <div className="py-[0px] lg:py-[64px]">
-                <ProjectPageFlatsFilter initialProject={projectHero.complexName} />
+                <ProjectPageFlatsFilter initialProject={projectHero.complexName?.trim()} />
             </div>
             <AboutProject projectSlug={projectAbout ?? undefined} />
             <GenPlan projectSlug={projectGenPlan ?? undefined} />

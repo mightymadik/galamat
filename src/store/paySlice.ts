@@ -4,7 +4,7 @@ import type { AgreementPayload } from "@/types/agreement";
 
 interface PayState {
   isOpen: boolean;
-  step: "reserve" | "payment" | "contacts" | "sign";
+  step: "reserve" | "payment" | "contacts" | "contractNumber" | "sign";
   flat: Flat | null;
   paymentMethod: string | null;
   /** Сделка, созданная при старте брони (менеджер/админ) — documentId для последующих шагов */
@@ -41,7 +41,7 @@ const paySlice = createSlice({
         flat: Flat;
         paymentMethod: string;
         /** Для менеджера/админа: открыть на шаге "бронь", сделка уже создана */
-        step?: "reserve" | "payment" | "contacts" | "sign";
+        step?: "reserve" | "payment" | "contacts" | "contractNumber" | "sign";
         dealDocumentId?: string | null;
       }>
     ) => {
@@ -75,7 +75,7 @@ const paySlice = createSlice({
 
     setStep: (
       state,
-      action: PayloadAction<"payment" | "contacts" | "sign">
+      action: PayloadAction<"payment" | "contacts" | "contractNumber" | "sign">
     ) => {
       state.step = action.payload;
     },

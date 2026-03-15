@@ -137,7 +137,7 @@ export default function HeaderClient({ data }: { data: HeaderItem[] }) {
                     </Link>
                     <div className="navigation flex justify-end items-center gap-[4px] lg:gap-[0]">
                         <div className="navigationContainer flex items-center">
-                            <div className="navigationButtons flex items-center">
+                            <div className="navigationButtons hidden md:flex items-center">
                                 <Dropdown>
                                     <DropdownTrigger>
                                         <Button
@@ -204,7 +204,7 @@ export default function HeaderClient({ data }: { data: HeaderItem[] }) {
                                             </clipPath>
                                         </defs>
                                     </svg>
-                                    <p className="transition-all duration-300">Недвижимость</p>
+                                    <p className="transition-all duration-300">{t("nav_real_estate")}</p>
                                 </Link>
                             </div>
                             <ul className="navigationLinks hidden lg:!flex h-8 justify-center items-center flex" ref={containerRef}>
@@ -259,12 +259,14 @@ export default function HeaderClient({ data }: { data: HeaderItem[] }) {
                                         listbox: "langListbox",
                                         popoverContent: "langPopover",
                                         label: "langLabel",
+                                        selectorIcon: "end-0",
                                     }}
                                     aria-labelledby="Выбор языка"
                                 >
                                     {langs.map((lang) => (
                                         <SelectItem
                                             key={lang.key}
+                                            hideSelectedIcon
                                             classNames={{
                                                 title: "text-[13px]",
                                             }}

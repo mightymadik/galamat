@@ -182,9 +182,13 @@ export async function POST(req: Request) {
       sessionId = jwtCreateRes.data?.data?.id ?? jwtCreateRes.data?.data?.documentId ?? null;
     }
 
-    // 6) access token cookie (7 days)
+    // 6) access token cookie (7 days). documentId нужен для queue-backend (GET /auth/manager/me)
     const role = String(customerItem.role || "customer");
-    const accessToken = createAccessToken({ sub: customerId, role });
+    const accessToken = createAccessToken({
+      sub: customerId,
+      role,
+      documentId: customerDocId,
+    });
     const accessExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const cookieStore = await cookies();

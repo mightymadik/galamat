@@ -8,12 +8,8 @@ export class ApiError extends Error {
   }
 }
 
-function handleUnauthorized(status: number) {
-  if (status !== 401 || typeof window === "undefined") return;
-  const path = window.location.pathname;
-  const isRoot = path === "/" || path === "/ru" || path === "/kk";
-  if (isRoot) return;
-  window.location.assign("/");
+function handleUnauthorized(_status: number) {
+  // Не сбрасываем на главную при 401 — пользователь остаётся на текущей странице
 }
 
 export async function apiPost<T>(url: string, body?: any): Promise<T> {
