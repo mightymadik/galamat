@@ -50,7 +50,7 @@ function adaptProperty(property: any): ComponentFlat {
         tags: property.tags || [],
         images: property.images || [],
         room: property.room?.toString() || "0",
-        area: `${property.totalArea?.toFixed(1) || 0} м²`,
+        area: `${property.totalArea ?? 0} м²`,
         floor: property.floor?.toString() || "0",
         section: property.section || "",
         entrance: property.entrance?.toString() || "0",

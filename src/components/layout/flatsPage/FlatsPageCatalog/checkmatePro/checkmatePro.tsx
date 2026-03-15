@@ -81,7 +81,7 @@ const adaptProperty = (property: any): ComponentFlat => {
         tags: property.tags || [],
         images: property.images || [],
         room: property.room?.toString() || "0",
-        area: `${(Number.isFinite(totalArea) ? totalArea : 0).toFixed(1)} м²`,
+        area: `${Number.isFinite(totalArea) ? totalArea : 0} м²`,
         floor: String(toSafeNumber(property.floor) || 0),
         section: section || "0",
         entrance: property.entrance?.toString() || "0",

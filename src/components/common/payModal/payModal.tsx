@@ -121,7 +121,7 @@ function adaptPropertyToComponentFlat(api: PropertyDetailApi): ComponentFlat {
         tags: api.tags ?? [],
         images,
         room: String(api.room ?? "0"),
-        area: `${(api.totalArea ?? 0).toFixed(1)} м²`,
+        area: `${api.totalArea ?? 0} м²`,
         floor: String(api.floor ?? "0"),
         section: String(api.section ?? "0"),
         entrance: String(api.entrance ?? "0"),

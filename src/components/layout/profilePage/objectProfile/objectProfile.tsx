@@ -206,7 +206,7 @@ export default function ObjectProfile() {
             }));
 
             const roomStr = prop?.room != null && prop?.totalArea != null
-                ? `${prop.room}-${roomSuffix} (${Number(prop.totalArea).toLocaleString("ru-RU")} м²)`
+                ? `${prop.room}-${roomSuffix} (${prop.totalArea} м²)`
                 : prop?.room != null ? `${prop.room}-${roomSuffix}` : "—";
             const deadline = prop?.complexDueDate
                 ? (() => {
@@ -223,7 +223,7 @@ export default function ObjectProfile() {
                 [t("entrance"), String(prop?.entrance ?? "—")],
                 [t("floor"), String(prop?.floor ?? "—")],
                 [t("apartment"), prop?.apartmentNumber != null ? `№${prop.apartmentNumber}` : "—"],
-                [t("area"), prop?.totalArea != null ? `${Number(prop.totalArea).toLocaleString("ru-RU")} м²` : "—"],
+                [t("area"), prop?.totalArea != null ? `${prop.totalArea} м²` : "—"],
             ];
 
             const image = prop?.complexHeroImage ?? (prop?.images && prop.images.length > 0 ? prop.images[0] : null) ?? "/img/project.jpg";

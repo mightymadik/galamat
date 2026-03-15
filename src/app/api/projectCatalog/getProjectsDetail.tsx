@@ -301,7 +301,7 @@ export async function getProjectsDetails(
     const flats = Array.from(flatsByRoom.entries())
       .map(([room, data]) => ({
         type: `${room}-комнатная`,
-        area: `${data.minArea.toFixed(1)} м²`,
+        area: `${data.minArea} м²`,
         price: `${data.minPrice.toLocaleString("ru-RU").replace(/\u00A0/g, " ")} ₸`,
       }))
       .sort((a, b) => {
