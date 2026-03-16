@@ -7,7 +7,7 @@ export const DOODOCS_LINK_BASE =
   process.env.DOODOCS_LINK_BASE ?? "https://link.doodocs.kz";
 const DOODOCS_WORKSPACE_ID = process.env.DOODOCS_WORKSPACE_ID;
 const DOODOCS_COMPANY_EMAIL =
-  process.env.DOODOCS_COMPANY_EMAIL ?? "galamat.company@gmail.com";
+  process.env.DOODOCS_COMPANY_EMAIL ?? "info@galahub.kz";
 const WHATSAPP_API_URL =
   process.env.WHATSAPP_API_URL ?? "https://kazinfoteh.org/wasender/sendwamsg";
 const WHATSAPP_API_KEY = process.env.WHATSAPP_API_KEY;

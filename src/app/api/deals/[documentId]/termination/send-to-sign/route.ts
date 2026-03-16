@@ -9,7 +9,7 @@ const DOODOCS_CLIENT_ID = process.env.DOODOCS_CLIENT_ID;
 const DOODOCS_CLIENT_SECRET = process.env.DOODOCS_CLIENT_SECRET;
 const DOODOCS_WORKSPACE_ID = process.env.DOODOCS_WORKSPACE_ID;
 const DOODOCS_LINK_BASE = (process.env.DOODOCS_LINK_BASE ?? "https://doodocs.kz").replace(/\/$/, "");
-const DOODOCS_COMPANY_EMAIL = process.env.DOODOCS_COMPANY_EMAIL ?? "galamat.company@gmail.com";
+const DOODOCS_COMPANY_EMAIL = process.env.DOODOCS_COMPANY_EMAIL ?? "info@galahub.kz";
 
 function formatIin(iin: string | number | null | undefined): string {
   if (iin == null) return "";

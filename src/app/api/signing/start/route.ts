@@ -166,7 +166,7 @@ export async function POST(req: Request) {
       documentId,
       email,
       iin,
-      process.env.DOODOCS_COMPANY_EMAIL ?? "galamat.company@gmail.com",
+      process.env.DOODOCS_COMPANY_EMAIL ?? "info@galahub.kz",
       companyBin
     );
 

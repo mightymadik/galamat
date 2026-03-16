@@ -263,7 +263,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                     return;
                 }
                 const flatData: PropertyDetailApi = await res.json();
-                if (!flatData || typeof flatData !== "object" || flatData.id == null) {
+                if (!flatData || typeof flatData !== "object" || (flatData.id == null && flatData.documentId == null)) {
                     notFound();
                     return;
                 }

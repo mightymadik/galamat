@@ -8,7 +8,7 @@ const DOODOCS_API_URL = (process.env.DOODOCS_API_URL ?? "https://api.doodocs.kz"
 const DOODOCS_CLIENT_ID = process.env.DOODOCS_CLIENT_ID;
 const DOODOCS_CLIENT_SECRET = process.env.DOODOCS_CLIENT_SECRET;
 const DOODOCS_WORKSPACE_ID = process.env.DOODOCS_WORKSPACE_ID;
-const DOODOCS_COMPANY_EMAIL = process.env.DOODOCS_COMPANY_EMAIL ?? "galamat.company@gmail.com";
+const DOODOCS_COMPANY_EMAIL = process.env.DOODOCS_COMPANY_EMAIL ?? "info@galahub.kz";
 
 function formatIin(iin: string | number | null | undefined): string {
   if (iin == null) return "";
@@ -163,7 +163,7 @@ async function createRenewalWorkflowAndLaunch(
                   actor_id: 2,
                   role: "signer_rk",
                   attrs: {
-                    email: "galamat.company@gmail.com",
+                    email: DOODOCS_COMPANY_EMAIL,
                     filter: [{ bin: companyBin, role: "employee-can-sign" }],
                   },
                 },
