@@ -109,7 +109,7 @@ const adaptProperty = (property: any): ComponentFlat => {
     price: formattedPrice,
     priceM2: formattedPriceM2,
     tags: property.tags || [],
-    images: property.images || [],
+    images: [...(property.images || []), ...(property.platformPlanImages || [])],
     room: property.room?.toString() || "0",
     area: `${property.totalArea ?? 0} м²`,
     floor: property.floor?.toString() || "0",
@@ -431,6 +431,20 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
             </div>
           )}
         </div>
+
+        {/* Индикатор фото / планировок */}
+        {flat.images && flat.images.length > 1 && (
+          <div className="flex h-[4px] justify-center items-center gap-[9px] self-stretch">
+            {flat.images.map((_, i) => (
+              <div
+                key={i}
+                className={`h-[4px] rounded-full transition-all duration-200 ${
+                  i === activeIndex ? "w-[26px] bg-[#122C5E]" : "w-[4px] bg-[#E3E3E3]"
+                }`}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Цена и детали */}
         <div className="flex flex-col items-start gap-[12px] self-stretch w-full">
