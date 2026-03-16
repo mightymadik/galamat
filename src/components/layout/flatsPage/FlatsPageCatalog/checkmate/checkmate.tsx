@@ -426,6 +426,7 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange }: Che
                                                                                             onClick={(e) => {
                                                                                                 if (window.innerWidth < 1025) {
                                                                                                     e.preventDefault(); // не переходить по ссылке на мобиле
+                                                                                                    if (flat.available !== "available") return;
                                                                                                     setMobileDrawerFlat(flat);
                                                                                                     handleOpenDrawer(flat);
                                                                                                 }
@@ -508,12 +509,12 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange }: Che
                         </div>
 
                         {/* Кнопка */}
-                        <div className="flex flex-col justify-end items-end gap-[12px] self-stretch">
+                            <div className="flex flex-col justify-end items-end gap-[12px] self-stretch">
                             <Link
                                 href={`/flats/${mobileDrawerFlat.documentId ?? mobileDrawerFlat.id}`}
                                 className="flex text-white h-[44px] p-[13px] justify-center items-center self-stretch rounded-[12px] bg-[#1A3C7E]"
                             >
-                                Купить
+                                Подробнее
                             </Link>
                         </div>
                     </div>
