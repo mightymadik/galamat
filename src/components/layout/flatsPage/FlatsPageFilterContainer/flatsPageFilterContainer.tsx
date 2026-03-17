@@ -10,6 +10,9 @@ import { FlatsFilterParams } from "@/types/flat";
 import { useTranslations } from "next-intl";
 import { FlatsFilterSkeleton, MobileFlatsFilterSkeleton } from "../Parts/flatsFilterSkeleton";
 
+/** Стабильный ключ для "Все" в фильтрах — не зависит от локали, чтобы при смене языка не показывалось "Барлығы" в русском и т.п. */
+const FILTER_VALUE_ALL = "__all__";
+
 interface PropertyFiltersMetadata {
     priceRange: { min: number; max: number };
     pricePerM2Range: { min: number; max: number };
@@ -214,11 +217,11 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
 
-    //Selectors map
+    //Selectors map (district/project храним как FILTER_VALUE_ALL или название; отображение "Все" через t("all"))
     const [selectedValues, setSelectedValues] = useState({
-        district: t("all"),
-        project: t("all"), // ЖК (projectName)
-        view: t("all")  // Add new state for view selection
+        district: FILTER_VALUE_ALL,
+        project: FILTER_VALUE_ALL,
+        view: FILTER_VALUE_ALL,
     });
 
     // Add new state for view dropdown
@@ -229,18 +232,18 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         {
             label: t("select_district"),
             items: [t("all"), ...(filterMetadata?.districts || [])],
-            selected: selectedValues.district,
+            selected: selectedValues.district === FILTER_VALUE_ALL ? t("all") : selectedValues.district,
             onSelect: (val: string) =>
-                setSelectedValues((prev) => ({ ...prev, district: val })),
+                setSelectedValues((prev) => ({ ...prev, district: val === t("all") ? FILTER_VALUE_ALL : val })),
             isOpen: isDistrictDropdownOpen,
             toggleOpen: toggleDistrictDropdown,
         },
         {
             label: t("select_complex"),
             items: [t("all"), ...(filterMetadata?.complexes || [])],
-            selected: selectedValues.project,
+            selected: selectedValues.project === FILTER_VALUE_ALL ? t("all") : selectedValues.project,
             onSelect: (val: string) =>
-                setSelectedValues((prev) => ({ ...prev, project: val })),
+                setSelectedValues((prev) => ({ ...prev, project: val === t("all") ? FILTER_VALUE_ALL : val })),
             isOpen: isComplexDropdownOpen,
             toggleOpen: toggleComplexDropdown,
         },
@@ -345,8 +348,8 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
               : debouncedEntranceValue,
       
           roomCount: selectedRooms.size > 0 ? Array.from(selectedRooms) : undefined,
-          district: selectedValues.district !== t("all") ? selectedValues.district : undefined,
-          project: selectedValues.project !== t("all") ? selectedValues.project : undefined,
+          district: selectedValues.district !== FILTER_VALUE_ALL ? selectedValues.district : undefined,
+          project: selectedValues.project !== FILTER_VALUE_ALL ? selectedValues.project : undefined,
           tags: activeCategory ? [activeCategory] : undefined,
         };
       
@@ -431,7 +434,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
     const handleReset = () => {
         setActiveCategory(null);
         setSelectedRooms(new Set());
-        setSelectedValues({ district: t("all"), project: t("all"), view: t("all") });
+        setSelectedValues({ district: FILTER_VALUE_ALL, project: FILTER_VALUE_ALL, view: FILTER_VALUE_ALL });
         setSelectedKeys(new Set(["Астана"]));
         setSelectedDistrict(new Set([t("all")]));
 

@@ -198,7 +198,7 @@ export const MobileFilter: React.FC<MobileFilterProps> = ({
                     <FiltersActions 
                         totalProjects={totalProjects}
                         onReset={onReset}
-                        onFlat={onClose}
+                        onFlat={handleFlatClick}
                     />
                 )}
             </div>

@@ -44,6 +44,11 @@ export const MobileFlatsFilter: React.FC<MobileFlatsFilterProps> = ({
 }) => {
     const t = useTranslations();
 
+    const handleSubmit = () => {
+        onSubmit?.();
+        onClose();
+    };
+
     return (
         <><div
             className={`mobileFilter overflow-y-auto fixed flex flex-col items-start left-0 bottom-0 w-full bg-white rounded-t-2xl shadow-2xl transform transition-transform duration-500 ease-in-out z-40
@@ -136,7 +141,7 @@ export const MobileFlatsFilter: React.FC<MobileFlatsFilterProps> = ({
                     <FiltersFlatsActions
                         totalProjects={totalProjects}
                         onReset={onReset}
-                        onSubmit={onSubmit}
+                        onSubmit={handleSubmit}
                     />
                 </div>
             </div>

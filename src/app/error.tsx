@@ -1,6 +1,4 @@
 "use client"
-import Link from "next/link"
-import { Button } from "@heroui/button"
 
 export default function Error() {
     return (

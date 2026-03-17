@@ -2,8 +2,8 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
+import { Button } from "@heroui/button"
 import Link from "next/link";
-import { Button } from "@heroui/react";
 import "./menu.scss";
 import "tailwindcss";
 
@@ -76,7 +76,7 @@ export default function Menu() {
         {
             title: t("nav_flats"),
             icon: (
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 26 26" fill="none" className="transition-all duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26" fill="none" className="transition-all duration-300">
                     <path d="M21.75 0.75H3.75C2.09315 0.75 0.75 2.09315 0.75 3.75V21.75C0.75 23.4069 2.09315 24.75 3.75 24.75H21.75C23.4069 24.75 24.75 23.4069 24.75 21.75V3.75C24.75 2.09315 23.4069 0.75 21.75 0.75Z" stroke="#1A3C7E" strokeWidth="1.5" />
                     <path d="M21.75 16.4423H17.5962C15.9393 16.4423 14.5962 17.7854 14.5962 19.4423V21.75C14.5962 23.4068 15.9393 24.75 17.5962 24.75H21.75C23.4069 24.75 24.75 23.4068 24.75 21.75V19.4423C24.75 17.7854 23.4069 16.4423 21.75 16.4423Z" stroke="#1A3C7E" strokeWidth="1.5" />
                     <path d="M10.9038 0.75H21.75C23.4068 0.75 24.75 2.09315 24.75 3.75V8.82693C24.75 10.4838 23.4068 11.8269 21.75 11.8269H16.4423" stroke="#1A3C7E" strokeWidth="1.5" />
@@ -161,6 +161,7 @@ export default function Menu() {
                         </svg></button>
                     </div>
                 </div>
+
                 <div className="drawerNavigation flex !p-4 justify-center items-center">
                     <div className="drawerNavigationItem flex flex-col items-center">
                         <Link onClick={() => setIsDrawerOpen(false)} href="/project" className="flex h-8 justify-center items-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -198,6 +199,19 @@ export default function Menu() {
                     </div>
                 </div>
                 <div className="drawerMenu flex !p-4 flex-col items-start">
+                    <Link onClick={() => setIsDrawerOpen(false)} className="drawerMenuButton flex h-10 items-center self-stretch justify-between p-![0px]" href="/project">
+                        <div className="drawerMenuButtonLogoAndTitle flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M4 5.33325C4 3.44763 4 2.50482 4.58579 1.91904C5.17157 1.33325 6.11438 1.33325 8 1.33325C9.88562 1.33325 10.8284 1.33325 11.4142 1.91904C12 2.50482 12 3.44763 12 5.33325V10.6666C12 12.5522 12 13.495 11.4142 14.0808C10.8284 14.6666 9.88562 14.6666 8 14.6666C6.11438 14.6666 5.17157 14.6666 4.58579 14.0808C4 13.495 4 12.5522 4 10.6666V5.33325Z" stroke="#1C274C" strokeWidth="1.5" />
+                                <path d="M12 13C12.9334 13 13.4001 13 13.7567 12.8183C14.0703 12.6586 14.3252 12.4036 14.485 12.09C14.6667 11.7335 14.6667 11.2668 14.6667 10.3333V5.66667C14.6667 4.73325 14.6667 4.26654 14.485 3.91002C14.3252 3.59641 14.0703 3.34144 13.7567 3.18166C13.4001 3 12.9334 3 12 3" stroke="#1C274C" strokeWidth="1.5" />
+                                <path d="M4.00001 13C3.06659 13 2.59988 13 2.24336 12.8183C1.92976 12.6586 1.67479 12.4036 1.515 12.09C1.33334 11.7335 1.33334 11.2668 1.33334 10.3333V5.66667C1.33334 4.73325 1.33334 4.26654 1.515 3.91002C1.67479 3.59641 1.92976 3.34144 2.24336 3.18166C2.59988 3 3.06659 3 4.00001 3" stroke="#1C274C" strokeWidth="1.5" />
+                            </svg>
+                            <p>{t("nav_projects")}</p>
+                        </div>
+                        <svg className="self-stretch" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M6 3.33325L10 7.99992L6 12.6666" stroke="#1C274C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                    </Link>
                     <Link onClick={() => setIsDrawerOpen(false)} className="drawerMenuButton flex h-10 items-center self-stretch justify-between p-![0px]" href="/why-us">
                         <div className="drawerMenuButtonLogoAndTitle flex items-center gap-1">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
