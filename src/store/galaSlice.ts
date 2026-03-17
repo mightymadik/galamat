@@ -38,14 +38,14 @@ interface GalaState {
 }
 
 const DEFAULT_SEGMENTS: WheelSegment[] = [
-  { label: "180.000 ₸", probability: 0.1 },
-  { label: "70.000 ₸", probability: 0.1 },
-  { label: "100.000 ₸", probability: 0.15 },
-  { label: "80.000 ₸", probability: 0.1 },
-  { label: "120.000 ₸", probability: 0.15 },
+  { label: "200.000 ₸", probability: 0.03 },
+  { label: "70.000 ₸", probability: 0.2 },
+  { label: "100.000 ₸", probability: 0.12 },
+  { label: "80.000 ₸", probability: 0.17 },
+  { label: "120.000 ₸", probability: 0.08 },
   { label: "60.000 ₸", probability: 0.15 },
-  { label: "150.000 ₸", probability: 0.15 },
-  { label: "70.000 ₸", probability: 0.1 },
+  { label: "150.000 ₸", probability: 0.05 },
+  { label: "70.000 ₸", probability: 0.2 },
 ];
 
 const initialState: GalaState = {
