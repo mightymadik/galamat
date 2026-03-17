@@ -25,7 +25,7 @@ export default function MainHeroClient({ heroData }: { heroData: HeroItemData[] 
                     src={item.bg}
                     alt=""
                     fill
-                    className="object-fill object-top"
+                    className="object-cover object-top"
                     sizes="(max-width: 1023px) 90vw, 33vw"
                   />
                 )}
@@ -51,7 +51,7 @@ export default function MainHeroClient({ heroData }: { heroData: HeroItemData[] 
             return (
               <div
                 key={item.id}
-                className={`heroItem relative flex-shrink-0 w-[90vw] h-[512px] rounded-[32px] px-[24px] py-[20px] overflow-hidden flex flex-col
+                className={`heroItem relative flex-shrink-0 rounded-[32px] px-[24px] py-[20px] overflow-hidden flex flex-col
                   ${hasTwoTexts ? "justify-between" : "justify-end"}
                   ${!item.bg ? "bg-gray-200" : ""}`}
               >
@@ -60,8 +60,8 @@ export default function MainHeroClient({ heroData }: { heroData: HeroItemData[] 
                     src={item.bg}
                     alt=""
                     fill
-                    className="object-fill object-top"
-                    sizes="90vw"
+                    className="object-cover object-top"
+                    sizes="(max-width: 1023px) 90vw, 520px"
                   />
                 )}
                 <div className="relative z-10 flex flex-col justify-between w-full h-full">
