@@ -11,7 +11,8 @@ export default function Menu() {
     const t = useTranslations();
     const [activeIndex, setActiveIndex] = useState(0);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [showMenu, setShowMenu] = useState(false);
+    // const [showMenu, setShowMenu] = useState(false);
+    const [showMenu, setShowMenu] = useState(true);
     const [lastScrollY, setLastScrollY] = useState(0);
     const threshold = 50; // порог в пикселях, можно менять
     const router = useRouter();
@@ -36,31 +37,31 @@ export default function Menu() {
         document.body.style.overflow = isDrawerOpen ? "hidden" : "auto";
     }, [isDrawerOpen]);
 
-    // Логика показа/скрытия меню при скролле
-    useEffect(() => {
-        const handleScroll = () => {
-            const currentScrollY = window.scrollY;
+    // // Логика показа/скрытия меню при скролле
+    // useEffect(() => {
+    //     const handleScroll = () => {
+    //         const currentScrollY = window.scrollY;
 
-            if (Math.abs(currentScrollY - lastScrollY) < threshold) {
-                // Если движение меньше порога — игнорируем
-                return;
-            }
+    //         if (Math.abs(currentScrollY - lastScrollY) < threshold) {
+    //             // Если движение меньше порога — игнорируем
+    //             return;
+    //         }
 
-            if (currentScrollY < lastScrollY) {
-                // скролл вверх — показываем меню
-                setShowMenu(true);
-            } else if (currentScrollY > lastScrollY) {
-                // скролл вниз — скрываем меню
-                setShowMenu(false);
-            }
+    //         if (currentScrollY < lastScrollY) {
+    //             // скролл вверх — показываем меню
+    //             setShowMenu(true);
+    //         } else if (currentScrollY > lastScrollY) {
+    //             // скролл вниз — скрываем меню
+    //             setShowMenu(false);
+    //         }
 
-            setLastScrollY(currentScrollY);
-        };
+    //         setLastScrollY(currentScrollY);
+    //     };
 
-        window.addEventListener("scroll", handleScroll);
+    //     window.addEventListener("scroll", handleScroll);
 
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, [lastScrollY]);
+    //     return () => window.removeEventListener("scroll", handleScroll);
+    // }, [lastScrollY]);
     const menuItems = [
         {
             title: t("nav_projects"),
