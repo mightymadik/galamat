@@ -467,5 +467,17 @@
   "stats_avg": "Орташа",
   "stats_min": "Минималды",
   "no_image": "Сурет жоқ",
-  "document_signed": "Шартқа қол қойылды"
+  "document_signed": "Шартқа қол қойылды",
+  "auth_verification_title": "Растаудан өтіңіз",
+  "auth_registration_title": "Тіркелу",
+  "auth_verification_success_title": "Растау сәтті өтті",
+  "auth_phone_prompt": "Растау кодын алу үшін телефон нөмірін енгізіңіз",
+  "auth_sms_consent": "«SMS арқылы құпиясөз алу» батырмасын басу арқылы сіз жеке деректерді өңдеуге және жарнамалық хабарламаларды алуға келісім бересіз",
+  "auth_code_sent_to_whatsapp_on_number": "WhatsApp арқылы код {phone} нөміріне жіберілді",
+  "auth_enter_first_name": "Есіміңізді енгізіңіз",
+  "auth_enter_last_name": "Тегіңізді енгізіңіз",
+  "auth_can_spin_now": "Енді сіз дөңгелекті айналдыра аласыз",
+  "auth_spin_wheel": "Дөңгелекті айналдыру",
+  "auth_login_success": "Сіз сәтті кірдіңіз",
+  "auth_go_to_profile": "Жеке кабинетке өту"
 }

@@ -464,5 +464,17 @@
   "stats_avg": "Среднее",
   "stats_min": "Минимальное",
   "no_image": "Нет изображения",
-  "document_signed": "Договор подписан"
+  "document_signed": "Договор подписан",
+  "auth_verification_title": "Пройдите верификацию",
+  "auth_registration_title": "Регистрация",
+  "auth_verification_success_title": "Верификация пройдена",
+  "auth_phone_prompt": "Введите номер телефона, чтобы получить код подтверждения",
+  "auth_sms_consent": "Нажимая кнопку «Получить SMS с паролем», вы подтверждаете своё согласие на обработку персональных данных и получение рекламных рассылок",
+  "auth_code_sent_to_whatsapp_on_number": "Код был отправлен в WhatsApp на номер {phone}",
+  "auth_enter_first_name": "Введите свое имя",
+  "auth_enter_last_name": "Введите свою фамилию",
+  "auth_can_spin_now": "Теперь вы можете крутить колесо",
+  "auth_spin_wheel": "Крутить колесо",
+  "auth_login_success": "Вы успешно авторизовались",
+  "auth_go_to_profile": "Перейти в личный кабинет"
 }

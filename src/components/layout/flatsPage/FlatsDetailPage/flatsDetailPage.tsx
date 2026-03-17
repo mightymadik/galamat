@@ -615,17 +615,12 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         return dataUrl;
     };
 
-    /** Скачивание PDF: blob + временная ссылка (на HTTP в консоли может быть предупреждение — это нормально). */
-    const downloadPdf = (pdf: import("jspdf").jsPDF, filename: string) => {
+    /** Открытие PDF в новой вкладке (вместо скачивания). */
+    const openPdf = (pdf: import("jspdf").jsPDF) => {
         const blob = pdf.output("blob");
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        window.open(url, "_blank", "noopener,noreferrer");
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
     };
 
     const generatePDF = async () => {
@@ -747,7 +742,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                 pdf.addImage(imgData, "PNG", 0, y, imgWidth, imgHeight);
             }
 
-            downloadPdf(pdf, `flat-${flat.apartmentNumber ?? flat.id}.pdf`);
+            openPdf(pdf);
         } catch (e) {
             console.error(e);
             alert("Ошибка генерации PDF (проверь консоль)");
@@ -964,7 +959,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                     onClick={generatePDF}
                                     disabled={isGeneratingPDF}
                                     className="flex h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center rounded-[22px] bg-[#FFF] text-[#FFF] text-[15px] not-italic font-medium leading-[20px] disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Скачать PDF"
+                                    title="Открыть PDF"
                                 >
                                     {isGeneratingPDF ? (
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1C274C]"></div>
@@ -1117,7 +1112,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                     onClick={generatePDF}
                                     disabled={isGeneratingPDF}
                                     className="flex h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center rounded-[22px] bg-[#FFF] text-[#FFF] text-[15px] not-italic font-medium leading-[20px] disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Скачать PDF"
+                                    title="Открыть PDF"
                                 >
                                     {isGeneratingPDF ? (
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1C274C]"></div>

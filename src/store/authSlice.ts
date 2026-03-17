@@ -34,7 +34,9 @@ interface AuthState {
 const initialState: AuthState = {
   isOpen: false,
   step: "phone",
-  isRegistered: true,
+  // "registered" here comes from /send-code and means "customer existed before".
+  // Defaulting to false avoids skipping registration step on fresh state.
+  isRegistered: false,
 
   isSendingCode: false,
   sendCodeError: null,
@@ -62,7 +64,7 @@ const authSlice = createSlice({
       state.phone = "";
       state.firstName = "";
       state.lastName = "";
-      state.isRegistered = true;
+      state.isRegistered = false;
 
       state.sendCodeError = null;
       state.isSendingCode = false;
@@ -75,7 +77,7 @@ const authSlice = createSlice({
     changeNumber: (state) => {
       state.step = "phone";
       state.phone = "";
-      state.isRegistered = true;
+      state.isRegistered = false;
       state.sendCodeError = null;
       state.isSendingCode = false;
     },
@@ -146,8 +148,14 @@ const authSlice = createSlice({
         state.verifyError = null;
         state.attemptsLeft = null;
 
-        // новый/старый решай по isRegistered из send-code
-        state.step = state.isRegistered ? "successDefault" : "registration";
+        const hasProfileName =
+          typeof action.payload.user?.name === "string" && action.payload.user.name.trim() !== "";
+        const hasProfileSurname =
+          typeof action.payload.user?.surname === "string" && action.payload.user.surname.trim() !== "";
+
+        // If profile is incomplete, force registration step (collect name/surname),
+        // regardless of whether a customer record existed before.
+        state.step = hasProfileName && hasProfileSurname ? "successDefault" : "registration";
       })
       .addCase(verifyAuthCode.rejected, (state, action) => {
         state.isVerifyingCode = false;

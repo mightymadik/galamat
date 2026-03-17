@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { sendAuthCode } from "@/store/authThunks";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
 import { handleSpin } from "@/store/galaSlice";
@@ -14,6 +15,7 @@ import { verifyAuthCode, registerAuth } from "@/store/authThunks";
 export default function AuthModal() {
     const router = useRouter();
     const pathname = usePathname();
+    const t = useTranslations();
     const dispatch = useDispatch();
     const { isOpen, step, phone, firstName, lastName, isRegistered, isSendingCode, sendCodeError, otpExpiresInSec, isRegistering, registerError, user } =
         useSelector((state: RootState) => state.auth);
@@ -100,13 +102,13 @@ export default function AuthModal() {
 
     const verifyErrorText =
         verifyError === "invalid_code"
-            ? `Неверный код${typeof attemptsLeft === "number" ? `. Осталось попыток: ${attemptsLeft}` : ""}`
+            ? `${t("wrong_code")}${typeof attemptsLeft === "number" ? `. ${t("attempts_left")}: ${attemptsLeft}` : ""}`
             : verifyError === "code_expired_or_not_found"
-                ? "Код истёк. Запросите новый."
+                ? `${t("code_expired")}. ${t("request_new_code")}.`
                 : verifyError === "too_many_attempts"
-                    ? "Слишком много попыток. Попробуйте позже."
+                    ? `${t("too_many_attempts")}. ${t("try_later")}.`
                     : verifyError
-                        ? "Ошибка проверки кода. Попробуйте ещё раз."
+                        ? `${t("code_verification_error")}. ${t("retry")}.`
                         : null;
 
     const isCodeError = !!verifyError;
@@ -125,11 +127,9 @@ export default function AuthModal() {
                 {() => (
                     <>
                         <DrawerHeader className="flex items-start justify-between gap-[32px] self-stretch text-[#122C5E] text-[32px] not-italic font-normal leading-[100%] bg-white p-0">
-                            {step === "phone" && "Пройдите верификацию"}
-                            {step === "verification" && "Пройдите верификацию"}
-                            {step === "registration" && "Регистрация"}
-                            {step === "successSpin" && "Верификация пройдена"}
-                            {step === "successDefault" && "Верификация пройдена"}
+                            {(step === "phone" || step === "verification") && t("auth_verification_title")}
+                            {step === "registration" && t("auth_registration_title")}
+                            {(step === "successSpin" || step === "successDefault") && t("auth_verification_success_title")}
                             <Button onPress={() => dispatch(closeAuth())} className="!p-0 !min-w-[32px] !w-[32px] !h-[32px] rounded-[16px] bg-[#F4F6FB] flex items-center !justify-center">
                                 ✕
                             </Button>
@@ -140,7 +140,7 @@ export default function AuthModal() {
                             {step === "phone" && (
                                 <div className="flex flex-col items-start gap-[32px] self-stretch">
                                     <div className="flex flex-col gap-[12px] w-full">
-                                        <span>Введите номер телефона, чтобы получить код подтверждения</span>
+                                        <span>{t("auth_phone_prompt")}</span>
                                         <Input
                                             type="tel"
                                             inputMode="numeric"
@@ -159,7 +159,7 @@ export default function AuthModal() {
                                             isDisabled={!isPhoneValid || isSendingCode}
                                             className={`flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] ${isPhoneValid && !isSendingCode ? "bg-[#DB1D31] text-white" : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"}`}
                                         >
-                                            {isSendingCode ? "Отправляем..." : "Получить код"}
+                                            {isSendingCode ? t("sending") : t("get_code")}
                                         </Button>
                                         {sendCodeError && (
                                             <p className="text-[12px] text-red-600">
@@ -167,7 +167,7 @@ export default function AuthModal() {
                                             </p>
                                         )}
                                         <p className="text-[#1E1E1E] text-center text-[12px] not-italic font-normal leading-[100%]">
-                                            Нажимая кнопку «Получить SMS с паролем», вы подтверждаете своё согласие на обработку персональных данных и получение рекламных рассылок
+                                            {t("auth_sms_consent")}
                                         </p>
                                     </div>
                                 </div>
@@ -179,7 +179,7 @@ export default function AuthModal() {
                                     <div className="flex flex-col gap-[12px]">
                                         <div className="flex flex-col items-start gap-[8px] self-stretch">
                                             <span className="text-[#122C5E] text-[16px] not-italic font-normal leading-[16px] opacity-60">
-                                                СМС код был отправлен на WhatsApp на номер
+                                                {t("auth_code_sent_to_whatsapp_on_number", { phone: phone ?? "" })}
                                             </span>
                                             <div className="flex items-end gap-[16px] self-stretch">
                                                 <span className="text-[#122C5E] text-[16px] not-italic font-normal leading-[16px] opacity-60">
@@ -189,7 +189,7 @@ export default function AuthModal() {
                                                     onPress={() => dispatch(changeNumber())}
                                                     className="!p-0 !m-0 !bg-transparent !border-none !rounded-none text-[#1A3C7E] text-[16px] not-italic font-bold leading-[16px] min-h-0 h-auto"
                                                 >
-                                                    Изменить
+                                                    {t("change")}
                                                 </Button>
                                             </div>
                                         </div>
@@ -233,7 +233,7 @@ export default function AuthModal() {
                                                 : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"
                                                 }`}
                                         >
-                                            {isVerifyingCode ? "Проверяем..." : "Подтвердить"}
+                                            {isVerifyingCode ? t("verification_in_progress") : t("confirm")}
                                         </Button>
 
                                         {timeLeft > 0 ? (
@@ -241,20 +241,19 @@ export default function AuthModal() {
                                                 disabled
                                                 className="!p-0 !m-0 !bg-transparent !border-none !rounded-none text-[#1A3C7E] text-[16px] not-italic font-normal leading-[16px] min-h-0 h-auto"
                                             >
-                                                Отправить код еще раз можно через {formatTime(timeLeft)}
+                                                {t("send_code_again_in")} {formatTime(timeLeft)}
                                             </Button>
                                         ) : (
                                             <Button
                                                 onPress={resendCode}
                                                 className="!p-0 !m-0 !bg-transparent !border-none !rounded-none text-[#1A3C7E] text-[16px] not-italic font-bold leading-[16px] min-h-0 h-auto"
                                             >
-                                                Отправить код еще раз
+                                                {t("send_code_again")}
                                             </Button>
                                         )}
 
                                         <p className="text-[#1E1E1E] text-center text-[12px] not-italic font-normal leading-[100%]">
-                                            Нажимая кнопку «Получить SMS с паролем», вы подтверждаете своё согласие
-                                            на обработку персональных данных и получение рекламных рассылок
+                                            {t("auth_sms_consent")}
                                         </p>
                                     </div>
                                 </div>
@@ -271,16 +270,17 @@ export default function AuthModal() {
                                                     <div className="flex flex-col items-start gap-[16px] self-stretch">
                                                         <div className="flex flex-col items-start self-stretch gap-[12px]">
                                                             <p className="text-[#282D3C] text-[16px] not-italic font-normal leading-[20px]">
-                                                                Имя
+                                                                {t("first_name")}
                                                             </p>
                                                             <Input
-                                                                placeholder="Введите свое имя "
+                                                                placeholder={t("auth_enter_first_name")}
                                                                 value={firstName}
                                                                 onChange={(e) => dispatch(setFirstName(e.target.value))}
                                                                 classNames={{
                                                                     input: "flex w-full pt-[11px] pr-[12px] pb-[13px] pl-[16px] rounded-[12px] bg-[#F4F6FB] text-[#282D3C] text-[15px] font-normal leading-[20px]",
                                                                     inputWrapper: "p-0"
                                                                 }}
+                                                                isRequired
                                                             />
                                                         </div>
                                                     </div>
@@ -291,16 +291,18 @@ export default function AuthModal() {
                                                     <div className="flex flex-col items-start gap-[16px] self-stretch">
                                                         <div className="flex flex-col items-start self-stretch gap-[12px]">
                                                             <p className="text-[#282D3C] text-[16px] not-italic font-normal leading-[20px]">
-                                                                Фамилия
+                                                                {t("last_name")}
                                                             </p>
                                                             <Input
-                                                                placeholder="Введите свою фамилию"
+                                                                placeholder={t("auth_enter_last_name")}
                                                                 value={lastName}
                                                                 onChange={(e) => dispatch(setLastName(e.target.value))}
                                                                 classNames={{
                                                                     input: "flex w-full pt-[11px] pr-[12px] pb-[13px] pl-[16px] rounded-[12px] bg-[#F4F6FB] text-[#282D3C] text-[15px] font-normal leading-[20px]",
                                                                     inputWrapper: "p-0"
-                                                                }} />
+                                                                }}
+                                                                isRequired
+                                                            />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -325,7 +327,7 @@ export default function AuthModal() {
                                                     ? "bg-[#DB1D31] text-white"
                                                     : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"}`}
                                             >
-                                                {isRegistering ? "Сохраняем..." : "Завершить"}
+                                                {isRegistering ? t("saving") : t("finish")}
                                             </Button>
                                         </div>
                                     )}
@@ -347,7 +349,7 @@ export default function AuthModal() {
                                                     ? "bg-[#DB1D31] text-white"
                                                     : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"}`}
                                             >
-                                                {isRegistering ? "Сохраняем..." : "Завершить"}
+                                                {isRegistering ? t("saving") : t("finish")}
                                             </Button>
                                         </div>
                                     )}
@@ -361,7 +363,7 @@ export default function AuthModal() {
                                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
                                             <path fillRule="evenodd" clipRule="evenodd" d="M20 10C20 15.5228 15.5228 20 10 20C4.47715 20 0 15.5228 0 10C0 4.47715 4.47715 0 10 0C15.5228 0 20 4.47715 20 10ZM14.0303 6.96967C14.3232 7.26256 14.3232 7.73744 14.0303 8.03033L9.03033 13.0303C8.73744 13.3232 8.26256 13.3232 7.96967 13.0303L5.96967 11.0303C5.67678 10.7374 5.67678 10.2626 5.96967 9.96967C6.26256 9.67678 6.73744 9.67678 7.03033 9.96967L8.5 11.4393L10.7348 9.2045L12.9697 6.96967C13.2626 6.67678 13.7374 6.67678 14.0303 6.96967Z" fill="#26AF2B" />
                                         </svg>
-                                        <span>Теперь вы можете крутить колесо</span>
+                                        <span>{t("auth_can_spin_now")}</span>
                                     </div>
                                     <div className="flex flex-col items-center gap-[16px] self-stretch">
                                         <Button
@@ -371,7 +373,7 @@ export default function AuthModal() {
                                             }}
                                             className={`flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] bg-[#DB1D31] font-medium text-white`}
                                         >
-                                            Крутить колесо
+                                            {t("auth_spin_wheel")}
                                         </Button>
                                     </div>
                                 </div>
@@ -384,7 +386,7 @@ export default function AuthModal() {
                                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
                                             <path fillRule="evenodd" clipRule="evenodd" d="M20 10C20 15.5228 15.5228 20 10 20C4.47715 20 0 15.5228 0 10C0 4.47715 4.47715 0 10 0C15.5228 0 20 4.47715 20 10ZM14.0303 6.96967C14.3232 7.26256 14.3232 7.73744 14.0303 8.03033L9.03033 13.0303C8.73744 13.3232 8.26256 13.3232 7.96967 13.0303L5.96967 11.0303C5.67678 10.7374 5.67678 10.2626 5.96967 9.96967C6.26256 9.67678 6.73744 9.67678 7.03033 9.96967L8.5 11.4393L10.7348 9.2045L12.9697 6.96967C13.2626 6.67678 13.7374 6.67678 14.0303 6.96967Z" fill="#26AF2B" />
                                         </svg>
-                                        <span>Вы успешно авторизовались</span>
+                                        <span>{t("auth_login_success")}</span>
                                     </div>
                                     <div className="flex flex-col items-center gap-[16px] self-stretch">
                                         {pathname === "/gala-bonus" && (
@@ -395,7 +397,7 @@ export default function AuthModal() {
                                                 }}
                                                 className="flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] bg-[#DB1D31] font-medium text-white"
                                             >
-                                                Крутить колесо
+                                                {t("auth_spin_wheel")}
                                             </Button>
                                         )}
                                         <Button
@@ -405,7 +407,7 @@ export default function AuthModal() {
                                             }}
                                             className={`flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] font-medium ${pathname === "/gala-bonus" ? "bg-[#F4F6FB] text-[#1A3C7E]" : "bg-[#DB1D31] text-white"}`}
                                         >
-                                            Перейти в личный кабинет
+                                            {t("auth_go_to_profile")}
                                         </Button>
                                     </div>
                                 </div>
