@@ -203,6 +203,13 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
     const isFavorite = flat != null && favoriteFlatIds.includes(flat.id);
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const user = useSelector((state: RootState) => state.auth.user);
+
+    const pdfCompanyPhone = "+7 (700) 108‒57‒57";
+    // Если PDF генерирует менеджер/админ — показываем его телефон, иначе fallback на общий номер.
+    const pdfManagerPhone =
+        (user?.role === "manager" || user?.role === "admin")
+            ? (user?.phone?.trim() || pdfCompanyPhone)
+            : pdfCompanyPhone;
     /** Есть ли активная сделка по квартире (Бронь/Ожидания оплаты/договора) — решаем по сделкам, не по propertyStatus */
     const [hasActiveDeal, setHasActiveDeal] = useState<boolean | null>(null);
     const canOpenPayModal = (user?.role === "manager" || user?.role === "admin") && hasActiveDeal === false;
@@ -1576,137 +1583,246 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                 </div>
                 <LeaveRequestDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
                 {/* Hidden PDF Layout (must be inside return) */}
-                <div ref={pdfRef} className="pdf-safe-root fixed left-0 top-0 -z-10 opacity-0 pointer-events-none" style={{ width: 794, background: "white" }}>
-                    <div className="flex flex-col gap-6">
-                        <div className="flex justify-between items-center border-b border-black/10 p-6 gap-6">
-                            <img src="/img/Logo.svg" alt="PDF Logo" width={200} height={200} />
-                            <div className="flex flex-row gap-6">
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-black text-sm font-normal leading-6 opacity-50">Телефон</span>
-                                    <span className="text-black text-md font-normal leading-6">+7 (700) 108‒57‒57</span>
+                <div
+                    ref={pdfRef}
+                    className="pdf-safe-root fixed left-0 top-0 -z-10 opacity-0 pointer-events-none text-black"
+                    style={{ width: "794px", background: "#ffffff" }}
+                >
+                    <div className="flex flex-col bg-white">
+                        {/* Header */}
+                        <div className="px-8 pt-8 pb-6 border-b border-black/10">
+                            <div className="flex items-start justify-between gap-8">
+                                <div className="flex flex-col gap-3 max-w-[420px]">
+                                    <img src="/img/Logo.svg" alt="Galamat" width={180} height={60} />
+                                    <div className="max-w-[180px] text-[12px] leading-[18px] text-black/55">
+                                        {flat.address || "—"}
+                                    </div>
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-black text-sm font-normal leading-6 opacity-50">Сайт</span>
-                                    <span className="text-black text-md font-normal leading-6">galamat.kz</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-4 w-full">
-                            <div className="flex w-full border-b border-black/10 p-4">
-                                <div className="w-full flex items-center justify-center">
-                                    {flat.images?.[0] ? (
-                                        <img
-                                            src={flat.images[0]}
-                                            alt="Планировка"
-                                            className="max-w-[360px] w-full h-[240px] object-contain"
-                                            crossOrigin="anonymous"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-[240px] flex items-center justify-center bg-black/5 rounded-lg text-black/40 text-sm">Планировка не загружена</div>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex flex-col gap-4 boderd-l w-full px-8 py-8">
-                                <div className="flex pb-4">
-                                    <span className="text-black text-[24px] font-bold leading-6">{flat.room}-комнатная {flat.area}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-black text-base font-normal leading-6">Жилой комплекс</span>
-                                    <span className="text-black text-base font-normal leading-6">{flat.title}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-black text-base font-normal leading-6">Секция</span>
-                                    <span className="text-black text-base font-normal leading-6">{flat.section}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-black text-base font-normal leading-6">Класс</span>
-                                    <span className="text-black text-base font-normal leading-6">{flat.complexClass}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-black text-base font-normal leading-6">Этаж</span>
-                                    <span className="text-black text-base font-normal leading-6">{flat.floor}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-black text-base font-normal leading-6">Площадь</span>
-                                    <span className="text-black text-base font-normal leading-6">{flat.area}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-black text-base font-normal leading-6">Солнечность</span>
-                                    <span className="text-black text-base font-normal leading-6">{flat.sunshine}</span>
-                                </div>
-                                <div className="flex flex-col gap-2 pt-4">
-                                    <span className="text-black text-base font-normal leading-6">Стоимость</span>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-black text-[26px] font-bold leading-6">{flat.price}</span>
+
+                                <div className="grid grid-cols-3 gap-4 text-[12px] min-w-[320px]">
+                                    <div className="rounded-2xl border border-black/10 bg-[#FAFBFD] px-4 py-3">
+                                        <div className="text-black/45 leading-4 mb-1">Телефон</div>
+                                        <div className="font-semibold text-[11px] leading-5 break-words">
+                                            {pdfCompanyPhone}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-black/10 bg-[#FAFBFD] px-4 py-3">
+                                        <div className="text-black/45 leading-4 mb-1">Менеджер</div>
+                                        <div className="font-semibold text-[11px] leading-5 break-words">
+                                            {pdfManagerPhone || "—"}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-black/10 bg-[#FAFBFD] px-4 py-3">
+                                        <div className="text-black/45 leading-4 mb-1">Сайт</div>
+                                        <div className="font-semibold text-[11px] leading-5">galamat.kz</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div className="flex items-start gap-4 border-t border-black/10 p-6">
-                            {flat.images?.[1] && (
-                                <div className="flex items-center justify-center flex-col gap-2 w-1/2">
-                                    <span className="text-black text-base font-normal leading-6">Этаж</span>
-                                    <img src={flat.images[1]} alt="План этажа" className="max-w-[320px] w-full h-[160px] object-contain" crossOrigin="anonymous" />
+
+                        {/* Body */}
+                        <div className="px-8 py-8 flex flex-col gap-6">
+                            {/* Hero */}
+                            <div className="rounded-[24px] border border-black/10 bg-gradient-to-b from-[#FCFCFD] to-[#F6F8FB] px-6 py-5">
+                                <div className="flex items-start justify-between gap-6">
+                                    <div className="flex flex-col gap-4">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="text-[30px] font-bold leading-[34px] tracking-[-0.02em]">
+                                                {flat.room}-комнатная квартира
+                                            </div>
+                                            <div className="text-[16px] leading-[20px] text-black/60 font-medium">
+                                                Площадь: {flat.area || "—"}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <div className="inline-flex items-center rounded-full text-[12px] leading-4">
+                                                <span className="font-semibold">{flat.title || "—"}</span>
+                                            </div>
+
+                                            {flat.apartmentNumber != null && (
+                                                <div className="inline-flex items-center rounded-full text-[12px] leading-4">
+                                                    <span className="text-black/50 mr-1">№</span>
+                                                    <span className="font-semibold">{flat.apartmentNumber}</span>
+                                                </div>
+                                            )}
+
+                                            {flat.complexDueDate && (
+                                                <div className="inline-flex items-center rounded-full text-[12px] leading-4">
+                                                    <span className="text-black/50 mr-1">Сдача</span>
+                                                    <span className="font-semibold">
+                                                        {formatComplexDueDate(flat.complexDueDate)}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="min-w-[220px] rounded-[20px] bg-white border border-black/10 px-5 py-4 flex flex-col items-end">
+                                        <div className="text-[12px] text-black/50 leading-4 mb-2">Стоимость квартиры</div>
+                                        <div className="text-[32px] font-bold leading-[34px] tracking-[-0.02em] text-right">
+                                            {flat.originalPrice}
+                                        </div>
+                                        <div className="text-[12px] leading-4 text-black/45 mt-2">
+                                            {flat.priceM2}
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
-                            {flat.complexGenPlanImage && (
-                                <div className="flex items-center justify-center flex-col gap-2 w-1/2">
-                                    <span className="text-black text-base font-normal leading-6">Генплан</span>
-                                    <img src={flat.complexGenPlanImage} alt="Генплан" className="max-w-[320px] w-full h-[160px] object-contain rounded-[24px]" crossOrigin="anonymous" />
+                            </div>
+
+                            {/* Main grid */}
+                            <div className="grid grid-cols-2 gap-6">
+                                {/* Plan image */}
+                                <div className="rounded-[24px] border border-black/10 bg-white p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="text-[14px] font-semibold leading-5">Планировка</div>
+                                    </div>
+
+                                    <div className="h-[300px] rounded-[18px] bg-[#FBFBFC] flex items-center justify-center overflow-hidden">
+                                        {flat.images?.[0] ? (
+                                            <img
+                                                src={flat.images[0]}
+                                                alt="Планировка"
+                                                className="max-w-full max-h-full object-contain"
+                                                crossOrigin="anonymous"
+                                            />
+                                        ) : (
+                                            <div className="text-[13px] text-black/35">
+                                                Планировка не загружена
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Details */}
+                                <div className="rounded-[24px] border border-black/10 bg-white p-4">
+                                    <div className="text-[14px] font-semibold leading-5 mb-3">Характеристики</div>
+
+                                    <div className="rounded-[18px] overflow-hidden">
+                                        <div className="flex flex-col text-[13px]">
+                                            {[
+                                                ["Жилой комплекс", flat.title || "—"],
+                                                ["Секция", flat.section || "—"],
+                                                ["Класс", flat.complexClass || "—"],
+                                                ["Этаж", flat.floor || "—"],
+                                                ["Площадь", flat.area || "—"],
+                                                ["Солнечность", flat.sunshine || "—"],
+                                            ].map(([label, value], idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className={`flex items-center justify-between px-4 py-3 ${idx !== 5 ? "border-b border-black/8" : ""
+                                                        } ${idx % 2 === 0 ? "bg-[#FCFCFD]" : "bg-white"}`}
+                                                >
+                                                    <span className="text-black/55">{label}</span>
+                                                    <span className="font-semibold text-right max-w-[180px]">{value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Floor plan + genplan */}
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="rounded-[24px] border border-black/10 bg-white p-4">
+                                    <div className="text-[14px] font-semibold leading-5 mb-3">План этажа</div>
+                                    <div className="h-[210px] rounded-[18px] bg-[#FBFBFC] flex items-center justify-center overflow-hidden">
+                                        {flat.images?.[1] ? (
+                                            <img
+                                                src={flat.images[1]}
+                                                alt="План этажа"
+                                                className="max-w-full max-h-full object-contain"
+                                                crossOrigin="anonymous"
+                                            />
+                                        ) : (
+                                            <div className="text-[13px] text-black/35">Не загружено</div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-[24px] border border-black/10 bg-white p-4">
+                                    <div className="text-[14px] font-semibold leading-5 mb-3">Генплан</div>
+                                    <div className="h-[210px] rounded-[18px] bg-[#FBFBFC] flex items-center justify-center overflow-hidden">
+                                        {flat.complexGenPlanImage ? (
+                                            <img
+                                                src={flat.complexGenPlanImage}
+                                                alt="Генплан"
+                                                className="max-w-full max-h-full object-contain"
+                                                crossOrigin="anonymous"
+                                            />
+                                        ) : (
+                                            <div className="text-[13px] text-black/35">Не загружено</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Installment table */}
+                            {installmentTableData.length > 0 && (
+                                <div className="rounded-[24px] border border-black/10 bg-white p-4 mt-24">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="text-[14px] font-semibold leading-5">Условия оплат</div>
+                                    </div>
+
+                                    <div className="overflow-hidden rounded-[18px]">
+                                        <table className="w-full border-collapse text-[11px]">
+                                            <thead>
+                                                <tr className="bg-[#F6F8FB]">
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-black/70 border-b border-r border-black/10">
+                                                        Условия
+                                                    </th>
+                                                    {installmentTableData.map((col, idx) => (
+                                                        <th
+                                                            key={idx}
+                                                            className="px-3 py-2.5 text-center font-bold text-[#8B0000] border-b border-black/10"
+                                                        >
+                                                            {col.label}%
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {[
+                                                    {
+                                                        label: "Стоимость",
+                                                        render: (col: any) => formatPriceDisplay(col.cost),
+                                                    },
+                                                    {
+                                                        label: "Цена за кв.м.",
+                                                        render: (col: any) =>
+                                                            col.pricePerM2 ? `${formatPriceDisplay(col.pricePerM2)}/м²` : "—",
+                                                    },
+                                                    {
+                                                        label: "Перв. взнос",
+                                                        render: (col: any) => formatPriceDisplay(col.firstPayment),
+                                                    },
+                                                    {
+                                                        label: "Остаток",
+                                                        render: (col: any) => formatPriceDisplay(col.remainder),
+                                                    },
+                                                ].map((row, rowIdx) => (
+                                                    <tr key={rowIdx} className={rowIdx % 2 === 0 ? "bg-white" : "bg-[#FCFCFD]"}>
+                                                        <td className="px-3 py-2.5 font-semibold border-t border-r border-black/10">
+                                                            {row.label}
+                                                        </td>
+                                                        {installmentTableData.map((col, idx) => (
+                                                            <td
+                                                                key={idx}
+                                                                className="px-3 py-2.5 text-center border-t border-black/10"
+                                                            >
+                                                                {row.render(col)}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
                         </div>
-
-                        {installmentTableData.length > 0 && (
-                            <div className="mt-8">
-                                <table className="w-full border-collapse text-[10px]">
-                                    <thead>
-                                        <tr>
-                                            <th className="border border-black/20 px-2 py-1 text-left align-middle bg-[#F5F5F5]">Рассрочка</th>
-                                            {installmentTableData.map((col, idx) => (
-                                                <th key={idx} className="border border-black/20 px-2 py-1 text-center align-middle text-[#8B0000] font-semibold">
-                                                    {col.label}%
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td className="border border-black/20 px-2 py-1 text-left font-semibold">Стоимость</td>
-                                            {installmentTableData.map((col, idx) => (
-                                                <td key={idx} className="border border-black/20 px-2 py-1 text-center">
-                                                    {formatPriceDisplay(col.cost)}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-black/20 px-2 py-1 text-left font-semibold">Цена за кв.м.</td>
-                                            {installmentTableData.map((col, idx) => (
-                                                <td key={idx} className="border border-black/20 px-2 py-1 text-center">
-                                                    {col.pricePerM2 ? `${formatPriceDisplay(col.pricePerM2)}/м²` : "—"}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-black/20 px-2 py-1 text-left font-semibold">Перв. взнос</td>
-                                            {installmentTableData.map((col, idx) => (
-                                                <td key={idx} className="border border-black/20 px-2 py-1 text-center">
-                                                    {formatPriceDisplay(col.firstPayment)}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-black/20 px-2 py-1 text-left font-semibold">Остаток</td>
-                                            {installmentTableData.map((col, idx) => (
-                                                <td key={idx} className="border border-black/20 px-2 py-1 text-center">
-                                                    {formatPriceDisplay(col.remainder)}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
