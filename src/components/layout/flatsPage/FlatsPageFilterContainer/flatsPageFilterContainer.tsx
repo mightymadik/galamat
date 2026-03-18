@@ -114,6 +114,43 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         lastAppliedInitialRef.current = key;
     }, [initialFilterParams]);
 
+    // If URL params were cleared (e.g. navigate to /flats without query),
+    // reset filter UI state back to defaults from metadata.
+    useEffect(() => {
+        if (!filterMetadata) return;
+        if (initialFilterParams && Object.keys(initialFilterParams).length > 0) return;
+
+        // If we previously applied something from URL, and now URL is empty → reset.
+        if (!lastAppliedInitialRef.current) return;
+
+        suppressEmitRef.current = true;
+
+        setActiveCategory(null);
+        setSelectedRooms(new Set());
+        setSelectedValues({ district: FILTER_VALUE_ALL, project: FILTER_VALUE_ALL, view: FILTER_VALUE_ALL });
+        setSelectedKeys(new Set(["Астана"]));
+        setSelectedDistrict(new Set([t("all")]));
+        setSelectedComplex(new Set([t("all")]));
+
+        const nextEntrance: [number, number] = [filterMetadata.entranceRange.min, filterMetadata.entranceRange.max];
+        const nextPrice: [number, number] = [filterMetadata.priceRange.min, filterMetadata.priceRange.max];
+        const nextPpm2: [number, number] = [filterMetadata.pricePerM2Range.min, filterMetadata.pricePerM2Range.max];
+        const nextM2: [number, number] = [filterMetadata.areaRange.min, filterMetadata.areaRange.max];
+
+        setEntranceValue(nextEntrance);
+        setPriceValue(nextPrice);
+        setPricePerM2Value(nextPpm2);
+        setM2Value(nextM2);
+
+        setDebouncedEntranceValue(nextEntrance);
+        setDebouncedPriceValue(nextPrice);
+        setDebouncedPricePerM2Value(nextPpm2);
+        setDebouncedM2Value(nextM2);
+
+        lastAppliedInitialRef.current = "";
+        suppressEmitRef.current = false;
+    }, [initialFilterParams, filterMetadata, t]);
+
 
     // Apply slider values from URL when initialFilterParams changes and metadata is loaded
     useEffect(() => {
