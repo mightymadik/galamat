@@ -36,6 +36,22 @@ export interface ProjectAboutDataItem {
   complexAboutItemsLarge: ProjectAboutLarge[];
 }
 
+/** Строка в тултипе генплана (квартиры по типам и т.п.) */
+export interface GenPlanApartmentPreviewRow {
+  title: string;
+  available?: string;
+  priceFrom?: string;
+  /** Машино-места / кладовые — только подпись слева */
+  planned?: boolean;
+}
+
+/**
+ * Сгруппированные строки с точки генплана: поле `property` в JSON точки (coords).
+ * Пример: [{ "title": "1-комнатные", "available": "3 доступно", "priceFrom": "от 25 млн ₸" }, { "title": "Машино-места", "planned": true }]
+ * Либо: { "title": "...", "count": 3, "minPrice": 25000000 }
+ */
+export type GenPlanPropertyPointGrouped = Record<string, unknown>;
+
 export interface ProjectPropertyPointsDataItem {
   id: number;
   x: number;
@@ -47,6 +63,9 @@ export interface ProjectPropertyPointsDataItem {
   section: string;
   district: string;
   material: string;
+  /** Массив групп с админки (точка property на генплане) */
+  property?: GenPlanPropertyPointGrouped[] | string | null;
+  apartmentPreview?: GenPlanApartmentPreviewRow[];
 }
 
 export interface ProjectAttractionPointsDataItem {

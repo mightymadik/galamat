@@ -161,26 +161,44 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
                 const clamp = (r: { min: number; max: number }, [a, b]: [number, number]) =>
                     [Math.max(r.min, Math.min(r.max, a)), Math.max(r.min, Math.min(r.max, b))] as [number, number];
 
+                let nextPrice = priceValue;
+                let nextPpm2 = pricePerM2Value;
+                let nextM2 = m2Value;
+                let nextEntrance = entranceValue;
+
                 if (initialFilterParams?.priceRange) {
-                    setPriceValue(clamp(metadata.priceRange, initialFilterParams.priceRange));
+                    nextPrice = clamp(metadata.priceRange, initialFilterParams.priceRange);
+                    setPriceValue(nextPrice);
                 } else if (metadata.priceRange.min > 0 && metadata.priceRange.max > 0) {
-                    setPriceValue([metadata.priceRange.min, metadata.priceRange.max]);
+                    nextPrice = [metadata.priceRange.min, metadata.priceRange.max];
+                    setPriceValue(nextPrice);
                 }
                 if (initialFilterParams?.pricePerM2Range) {
-                    setPricePerM2Value(clamp(metadata.pricePerM2Range, initialFilterParams.pricePerM2Range));
+                    nextPpm2 = clamp(metadata.pricePerM2Range, initialFilterParams.pricePerM2Range);
+                    setPricePerM2Value(nextPpm2);
                 } else if (metadata.pricePerM2Range.min > 0 && metadata.pricePerM2Range.max > 0) {
-                    setPricePerM2Value([metadata.pricePerM2Range.min, metadata.pricePerM2Range.max]);
+                    nextPpm2 = [metadata.pricePerM2Range.min, metadata.pricePerM2Range.max];
+                    setPricePerM2Value(nextPpm2);
                 }
                 if (initialFilterParams?.areaRange) {
-                    setM2Value(clamp(metadata.areaRange, initialFilterParams.areaRange));
+                    nextM2 = clamp(metadata.areaRange, initialFilterParams.areaRange);
+                    setM2Value(nextM2);
                 } else if (metadata.areaRange.min > 0 && metadata.areaRange.max > 0) {
-                    setM2Value([metadata.areaRange.min, metadata.areaRange.max]);
+                    nextM2 = [metadata.areaRange.min, metadata.areaRange.max];
+                    setM2Value(nextM2);
                 }
                 if (initialFilterParams?.entranceRange) {
-                    setEntranceValue(clamp(metadata.entranceRange, initialFilterParams.entranceRange));
-                } else if (metadata.entranceRange.min > 0 && metadata.entranceRange.max > 0) {
-                    setEntranceValue([metadata.entranceRange.min, metadata.entranceRange.max]);
+                    nextEntrance = clamp(metadata.entranceRange, initialFilterParams.entranceRange);
+                    setEntranceValue(nextEntrance);
+                } else if (metadata.entranceRange.max >= metadata.entranceRange.min) {
+                    nextEntrance = [metadata.entranceRange.min, metadata.entranceRange.max];
+                    setEntranceValue(nextEntrance);
                 }
+                // Сразу обновляем debounced — иначе 300ms запрос уходит со старыми захардкоженными значениями
+                setDebouncedPriceValue(nextPrice);
+                setDebouncedPricePerM2Value(nextPpm2);
+                setDebouncedM2Value(nextM2);
+                setDebouncedEntranceValue(nextEntrance);
             })
             .catch((error) => {
                 console.error("Error loading filter metadata:", error);

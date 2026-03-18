@@ -1531,7 +1531,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                             )}
                             {flat.address && (
                                 <div className="self-stretch border-b border-black/10 inline-flex justify-between items-center overflow-hidden">
-                                    <div className="justify-start text-color-blue-14 text-base font-normal leading-8">{t("gen_plan_addres")}</div>
+                                    <div className="justify-start text-color-blue-14 text-base font-normal leading-8">{t("gen_plan_address")}</div>
                                     <div className="text-right justify-start text-color-blue-14 text-base font-normal leading-8">{flat.address}</div>
                                 </div>
                             )}

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Select, SelectItem } from "@heroui/select";
 import { createPortal } from "react-dom";
@@ -192,10 +192,14 @@ const PortalTooltip = ({ visible, flat, position, unavailable = false }: {
 interface CheckmateProps {
     filterParams?: FlatsFilterParams;
     onTotalCountChange?: (count: number) => void;
+    onProjectChange?: (project: string | null) => void;
 }
 
-export default function Checkmate({ filterParams = {}, onTotalCountChange }: CheckmateProps) {
+export default function Checkmate({ filterParams = {}, onTotalCountChange, onProjectChange }: CheckmateProps) {
     const t = useTranslations();
+
+    const selectedComplex = filterParams.project ?? null;
+
     const [mobileDrawerFlat, setMobileDrawerFlat] = useState<ComponentFlat | null>(null);
     const [drawerVisible, setDrawerVisible] = useState(false);
     const [flats, setFlats] = useState<ComponentFlat[]>([]);
@@ -203,11 +207,9 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange }: Che
     const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
     const [isClient, setIsClient] = useState(false);
     const [complexes, setComplexes] = useState<string[]>([]);
-    const [selectedComplex, setSelectedComplex] = useState<string | null>(null);
     const [isDesktop, setIsDesktop] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    // Список ЖК загружаем из метаданных; выбор ЖК только вручную в шахматке
     useEffect(() => {
         fetch("/api/properties?metadata=true")
             .then((res) => res.json())
@@ -217,7 +219,6 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange }: Che
             .catch(() => setComplexes([]));
     }, []);
 
-    // Загрузка квартир выбранного ЖК (все этажи/секции для шахматки, без пагинации)
     useEffect(() => {
         if (!selectedComplex) {
             setFlats([]);
@@ -227,8 +228,7 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange }: Che
         const params = new URLSearchParams();
         params.set("project", selectedComplex);
         params.set("light", "1");
-        params.set("allStatuses", "1"); // все квартиры ЖК (включая закрытые) для шахматки
-        // Фильтры в шахматке не отправляем в API — загружаем все квартиры ЖК и красим не подходящие в «Недоступно»
+        params.set("allStatuses", "1");
 
         fetch(`/api/properties?${params.toString()}`)
             .then((res) => res.json())
@@ -285,7 +285,8 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange }: Che
                         selectedKeys={selectedComplex ? [selectedComplex] : []}
                         onSelectionChange={(keys: any) => {
                             const selection = Array.from(keys)[0];
-                            setSelectedComplex((selection as string) || null);
+                            const next = (selection as string) || null;
+                            if (onProjectChange) onProjectChange(next);
                         }}
                     >
                         {complexes.map((title) => (

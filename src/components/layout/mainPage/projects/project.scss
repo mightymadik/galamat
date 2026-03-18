@@ -14,9 +14,14 @@
     grid-template-columns: repeat(1, 1fr 1fr);
     grid-template-rows: auto;
     height: 100%;
+    overflow-x: hidden;
   }
 
-  .projectItem { height: 442px; }
+  /* min-height вместо height — раскрытый блок не уезжает под следующую карточку */
+  .projectItem {
+    min-height: 442px;
+    height: auto;
+  }
 }
 
 @media screen and (max-width: 900px) {
@@ -25,6 +30,9 @@
     flex-direction: column;
   }
 
-  .projectItem { height: 492px; }
+  .projectItem {
+    min-height: 492px;
+    height: auto;
+  }
 }
 

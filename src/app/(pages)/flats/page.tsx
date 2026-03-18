@@ -3,7 +3,7 @@
 import withPreload from "@/components/common/preload/withPreload";
 import FlatsPageFilter from "@/components/layout/flatsPage/FlatsPageFilterContainer/flatsPageFilterContainer";
 import FlatsPageCatalog from "@/components/layout/flatsPage/FlatsPageCatalog/flatsPageCatalog";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatsFilterParams } from "@/types/flat";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -38,6 +38,18 @@ function Page() {
   );
 
   const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
+
+  const handleProjectChange = useCallback((project: string | null) => {
+    setFilterParams((prev) => {
+      const next = { ...prev };
+      if (project) {
+        next.project = project;
+      } else {
+        delete next.project;
+      }
+      return next;
+    });
+  }, []);
 
   // Флаг: какой qs мы сами только что запушили, чтобы не ловить его обратно
   const lastPushedQsRef = useRef<string>("");
@@ -79,7 +91,7 @@ function Page() {
         totalCount={totalCount}
       />
 
-      <FlatsPageCatalog filterParams={filterParams} onTotalCountChange={setTotalCount} />
+      <FlatsPageCatalog filterParams={filterParams} onTotalCountChange={setTotalCount} onProjectChange={handleProjectChange} />
     </div>
   );
 }

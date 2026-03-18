@@ -43,6 +43,7 @@ export async function getProjectGenPlan(projectSlug?: string): Promise<ProjectGe
         section: p.section,
         district: p.district,
         material: p.material,
+        property: p.property ?? undefined,
       }));
 
     const attractionPoints: ProjectAttractionPointsDataItem[] = points

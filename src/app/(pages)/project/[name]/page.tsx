@@ -5,11 +5,10 @@ import GenPlan from "@/components/layout/projectPage/genPlan/genPlan"
 import Plans from "@/components/layout/projectPage/plans/plans"
 import Features from "@/components/layout/projectPage/features/features"
 import ServicesProject from "@/components/layout/projectPage/servicesProject/servicesProject"
-import MapOffices from "@/components/layout/projectPage/mapOffices/mapOffices"
+import ProjectMap from "@/components/layout/mainPage/map/map"
 import OtherProjects from "@/components/layout/projectPage/otherProjects/otherProjects";
 import News from "@/components/layout/mainPage/news/news";
 import ProjectPageFlatsFilter from "@/components/layout/projectPage/projectPageFlatsFilter/projectPageFlatsFilter";
-
 import {
     getProjectHeroes,
     getProjectAbouts,
@@ -29,6 +28,7 @@ import {
 } from "@/types/projectPage";
 import { ProjectDetail } from "@/types/projectCatalog";
 import { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 
 export async function generateMetadata({ params }: { params: { name: string } }): Promise<Metadata> {
     const { name } = await params;
@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: { params: { name: string } })
 
 export default async function Page({ params }: { params: { name: string }; }) {
     const { name } = await params;
-
+    const t = await getTranslations();
     const [
         projectHero,
         projectAbout,
@@ -86,7 +86,12 @@ export default async function Page({ params }: { params: { name: string }; }) {
             <Plans projectSlug={projectPlans ?? undefined} />
             <Features projectSlug={projectFeatures} />
             <ServicesProject projectSlug={projectServices ?? undefined} />
-            <MapOffices />
+            <div className="wrapper w-full lg:h-[600px] flex flex-col items-start gap-[36px]">
+                <h1 className="text-[36px] font-medium text-[#202028] leading-[41.76px]">
+                    {t("location")}
+                </h1>
+                <ProjectMap />
+            </div>
             <News />
             <OtherProjects otherProjectsData={projectOthers ?? undefined} />
         </>

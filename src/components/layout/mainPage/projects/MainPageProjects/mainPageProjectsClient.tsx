@@ -2,7 +2,7 @@
 import "../project.scss";
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { Button } from '@heroui/button'
 import { usePathname } from 'next/navigation';
 import { useTranslations } from "next-intl";
@@ -108,15 +108,30 @@ export default function MainPageProjectsClient({
         displayProjects.map(() => 0)
     );
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+    /** Сохраняем скролл до обновления DOM — иначе мобильный браузер после фокуса на кнопке сам прокручивает экран (особенно 2+ карточка). */
+    const scrollYBeforeExpandRef = useRef<number | null>(null);
 
     // Обновляем activeIndexes при изменении проектов
     useEffect(() => {
         setActiveIndexes(displayProjects.map(() => 0));
     }, [displayProjects]);
 
-    const toggleExpand = (index: number) => {
-        setExpandedIndex(expandedIndex === index ? null : index);
-    };
+    useLayoutEffect(() => {
+        const y = scrollYBeforeExpandRef.current;
+        if (y === null || typeof window === "undefined") return;
+        scrollYBeforeExpandRef.current = null;
+        const restore = () => window.scrollTo(0, y);
+        restore();
+        requestAnimationFrame(restore);
+        setTimeout(restore, 0);
+    }, [expandedIndex]);
+
+    const toggleExpand = useCallback((index: number) => {
+        if (typeof window !== "undefined") {
+            scrollYBeforeExpandRef.current = window.scrollY;
+        }
+        setExpandedIndex((prev) => (prev === index ? null : index));
+    }, []);
 
     const handleMouseMove = (
         e: React.MouseEvent<HTMLDivElement>,
@@ -149,7 +164,9 @@ export default function MainPageProjectsClient({
         activeIndexes,
         handleMouseMove,
         formatQuarter,
-        t
+        t,
+        expandedIndex,
+        toggleExpand,
     }: {
         project: ProjectDetail;
         idx: number;
@@ -157,7 +174,10 @@ export default function MainPageProjectsClient({
         handleMouseMove: (e: React.MouseEvent<HTMLDivElement>, projectIndex: number, imagesCount: number) => void;
         formatQuarter: (date?: string) => string;
         t: ReturnType<typeof useTranslations>;
+        expandedIndex: number | null;
+        toggleExpand: (index: number) => void;
     }) {
+        const isExpanded = expandedIndex === idx;
         const countdown = useCountdown(project.complexHeroPrimaryPromoDate);
         const tags = [
             project.complexClass,
@@ -168,7 +188,7 @@ export default function MainPageProjectsClient({
         return (
             <div
                 key={idx}
-                className="projectItem w-full group flex w-[416px] flex-col items-start flex-shrink-0"
+                className={`projectItem group flex w-full max-w-full flex-col items-start flex-shrink-0 lg:w-auto lg:max-w-none ${isExpanded ? "max-lg:relative max-lg:z-20" : ""}`}
             >
                 <Link
                     href={`/project/${project.projectSlug}`}
@@ -275,11 +295,14 @@ export default function MainPageProjectsClient({
                     </div>
                 </Link>
 
-                {/* <button
-                    className="flex lg:hidden h-[36px] min-w-[36px] justify-center items-center flex-shrink-0 self-stretch rounded-[12px] bg-[#F4F6FB] gap-2 transition-transform duration-300"
+                <button
+                    type="button"
+                    aria-expanded={isExpanded}
+                    className="flex lg:hidden h-[36px] min-w-[36px] px-3 justify-center items-center flex-shrink-0 self-stretch rounded-[12px] bg-[#F4F6FB] gap-2 text-[13px] text-[#282D3C] transition-transform duration-300"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => toggleExpand(idx)}
                 >
-                    {isExpanded ? "Свернуть" : "Развернуть"}
+                    {isExpanded ? t("collapse") : t("expand")}
                     <svg
                         className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""
                             }`}
@@ -297,10 +320,15 @@ export default function MainPageProjectsClient({
                             strokeLinejoin="round"
                         />
                     </svg>
-                </button> */}
+                </button>
                 <div
-                    className={`overflow-hidden w-full transition-all duration-500 ease-in-out max-h-0 opacity-0 group-hover:max-h-[320px] group-hover:opacity-100 ${expandedIndex === idx ? "max-h-[320px] opacity-100 mt-2" : "max-h-0 opacity-0"
-                        }`}
+                    className={[
+                        "w-full transition-all duration-500 ease-in-out overflow-hidden",
+                        isExpanded
+                            ? "max-lg:max-h-[min(55vh,420px)] max-lg:opacity-100 max-lg:mt-2 max-lg:overflow-y-auto max-lg:overscroll-y-contain"
+                            : "max-lg:max-h-0 max-lg:opacity-0 max-lg:mt-0 max-lg:overflow-hidden",
+                        "lg:overflow-hidden lg:max-h-0 lg:opacity-0 lg:mt-0 lg:group-hover:max-h-[min(70vh,720px)] lg:group-hover:opacity-100 lg:group-hover:mt-2",
+                    ].join(" ")}
                     style={{ willChange: "max-height, opacity" }}
                 >
                     <svg className="my-[12px]" xmlns="http://www.w3.org/2000/svg" width="415" height="1" viewBox="0 0 415 1" fill="none">
@@ -309,8 +337,8 @@ export default function MainPageProjectsClient({
 
                     <div className="projectItemSubItemContent flex flex-col items-start gap-[8px] self-stretch">
                         <p className="flex gap-[4px] self-stretch text-[#1E1E1E] text-[12px] font-normal leading-[100%]">
-                            {project.flatsCount || 0} квартир
-                            <span className="text-[rgba(30,_30,_30,_0.37)]"> в продаже</span>
+                            {project.flatsCount || 0} {t("expand_flats")}
+                            <span className="text-[rgba(30,_30,_30,_0.37)]">{t("in_sale")}</span>
                         </p>
 
                         {project.flats && project.flats.length > 0 ? (
@@ -342,7 +370,7 @@ export default function MainPageProjectsClient({
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-[#122C5E] text-[12px] opacity-50">Нет доступных квартир</p>
+                            <p className="text-[#122C5E] text-[12px] opacity-50">{t("no_available_flats")}</p>
                         )}
                     </div>
                 </div>
@@ -395,6 +423,8 @@ export default function MainPageProjectsClient({
                                     handleMouseMove={handleMouseMove}
                                     formatQuarter={formatQuarter}
                                     t={t}
+                                    expandedIndex={expandedIndex}
+                                    toggleExpand={toggleExpand}
                                 />
                             ))
                         ) : (

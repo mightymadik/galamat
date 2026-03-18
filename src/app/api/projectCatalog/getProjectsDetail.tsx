@@ -81,16 +81,8 @@ async function apiGetForRoute(
     }
   });
 
-  // Логируем финальный URL для отладки
-  if (process.env.NODE_ENV === "development") {
-    console.log("Final API URL:", url.toString());
-  }
-
   const headers = { ...getStrapiHeaders(), "Accept-Language": locale };
   try {
-    if (process.env.NODE_ENV === "development") {
-      console.log("API Request URL:", url.toString());
-    }
     const response = await strapiAxios.get(url.toString(), { headers });
     return response.data;
   } catch (err: any) {
@@ -269,18 +261,26 @@ export async function getProjectsDetails(
         .filter(Boolean) as string[]
       : [];
 
-    // Получаем property из проекта
-    const properties = item.project?.property ?? [];
+    // Получаем property из проекта (Strapi может вернуть project как { data } и property как { data: [...] })
+    const project = item.project?.data ?? item.project ?? item.attributes?.project?.data ?? item.attributes?.project;
+    const rawProperties = project?.property ?? [];
+    const properties = Array.isArray(rawProperties)
+      ? rawProperties
+      : (rawProperties?.data ? (Array.isArray(rawProperties.data) ? rawProperties.data : []) : []);
 
     // Группируем по комнатности и находим минимальную площадь и минимальную цену для каждой комнатности
     const flatsByRoom = new Map<number, { minArea: number; minPrice: number }>();
 
     properties.forEach((prop: any) => {
-      if (!prop.room || !prop.totalArea || !prop.priceCheckmate) return;
+      const attrs = prop?.attributes ?? prop;
+      const roomVal = attrs.room ?? prop.room;
+      const areaVal = attrs.totalArea ?? prop.totalArea;
+      const priceVal = attrs.priceCheckmate ?? prop.priceCheckmate;
+      if (!roomVal || !areaVal || !priceVal) return;
 
-      const room = parseInt(prop.room) || 0;
-      const area = parseFloat(prop.totalArea) || 0;
-      const price = parseInt(prop.priceCheckmate) || 0;
+      const room = parseInt(String(roomVal)) || 0;
+      const area = parseFloat(String(areaVal)) || 0;
+      const price = parseInt(String(priceVal)) || 0;
 
       if (room <= 0 || area <= 0 || price <= 0) return;
 

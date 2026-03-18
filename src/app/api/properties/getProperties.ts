@@ -271,7 +271,19 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       const total = pagination?.total ?? propertiesData.length;
       const pageCount = pagination?.pageCount ?? 1;
       if (propertiesData.length === 0 && Object.keys(params).filter((k) => k.startsWith("filters")).length > 0) {
-        console.log("[flats getProperties] pagination: 0 items, applied filters:", Object.keys(params).filter((k) => k.startsWith("filters")));
+        const filterKeys = Object.keys(params).filter((k) => k.startsWith("filters"));
+        console.log("[flats getProperties] pagination: 0 items, applied filters:", filterKeys);
+        if (filters?.project) {
+          console.log("[flats getProperties] project filter value:", JSON.stringify(filters.project));
+        }
+        if (filters?.priceRange || filters?.areaRange || filters?.entranceRange) {
+          console.log("[flats getProperties] ranges:", {
+            priceRange: filters?.priceRange,
+            pricePerM2Range: filters?.pricePerM2Range,
+            areaRange: filters?.areaRange,
+            entranceRange: filters?.entranceRange,
+          });
+        }
       }
 
       return {

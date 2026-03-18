@@ -11,9 +11,10 @@ import { FlatsFilterParams } from "@/types/flat";
 interface CatalogFlatsProps {
     filterParams?: FlatsFilterParams;
     onTotalCountChange?: (count: number) => void;
+    onProjectChange?: (project: string | null) => void;
 }
 
-export default function CatalogFlats({ filterParams = {}, onTotalCountChange }: CatalogFlatsProps) {
+export default function CatalogFlats({ filterParams = {}, onTotalCountChange, onProjectChange }: CatalogFlatsProps) {
     const [viewType, setViewType] = useState("block"); // "block" | "list" | "checkmate" | "checkmatePro"
     const [sortKey, setSortKey] = useState("lowestPrice");
 
@@ -23,8 +24,8 @@ export default function CatalogFlats({ filterParams = {}, onTotalCountChange }: 
                 <SortFlats onViewChange={setViewType} onSortChange={setSortKey} />
                 {viewType === "block" && <Block sortKey={sortKey} filterParams={filterParams} onTotalCountChange={onTotalCountChange} />}
                 {viewType === "list" && <List sortKey={sortKey} filterParams={filterParams} onTotalCountChange={onTotalCountChange} />}
-                {viewType === "checkmate" && <Checkmate filterParams={filterParams} onTotalCountChange={onTotalCountChange} />}
-                {viewType === "checkmatePro" && <CheckmatePro filterParams={filterParams} onTotalCountChange={onTotalCountChange} />}
+                {viewType === "checkmate" && <Checkmate filterParams={filterParams} onTotalCountChange={onTotalCountChange} onProjectChange={onProjectChange} />}
+                {viewType === "checkmatePro" && <CheckmatePro filterParams={filterParams} onTotalCountChange={onTotalCountChange} onProjectChange={onProjectChange} />}
             </div>
         </div>
     );

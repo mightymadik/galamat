@@ -147,19 +147,19 @@ export default function SortFlats({ onViewChange, onSortChange }: SortFlatsProps
             <div className="flex h-full justify-between items-center gap-[12px] lg:gap-[24px] flex-wrap">
                 <div className="flex h-[32px] items-center gap-[4px]">
                     <div className="w-[18.649px] h-[18.649px] rounded-[6.471px] border-[0.791px] border-solid border-[#E5E7EB] bg-[#142A61]"></div>
-                    <span className="text-[#1E1E1E] text-center text-[15.094px] not-italic font-normal leading-[19.32px]">Свободно</span>
+                    <span className="text-[#1E1E1E] text-center [font-size:_clamp(11px,3vw,16px)] not-italic font-normal leading-[19.32px]">Свободно</span>
                 </div>
                 <div className="flex h-[32px] items-center gap-[4px]">
                     <div className="w-[18.649px] h-[18.649px] rounded-[6.471px] border-[0.791px] border-solid border-[#E5E7EB] bg-[#F5A012]"></div>
-                    <span className="text-[#1E1E1E] text-center text-[15.094px] not-italic font-normal leading-[19.32px]">Бронь</span>
+                    <span className="text-[#1E1E1E] text-center [font-size:_clamp(11px,3vw,16px)] not-italic font-normal leading-[19.32px]">Бронь</span>
                 </div>
                 <div className="flex h-[32px] items-center gap-[4px]">
                     <div className="w-[18.649px] h-[18.649px] rounded-[6.471px] border-[0.791px] border-solid border-[#E5E7EB] bg-[#CE2532]"></div>
-                    <span className="text-[#1E1E1E] text-center text-[15.094px] not-italic font-normal leading-[19.32px]">Продано</span>
+                    <span className="text-[#1E1E1E] text-center [font-size:_clamp(11px,3vw,16px)] not-italic font-normal leading-[19.32px]">Продано</span>
                 </div>
                 <div className="flex h-[32px] items-center gap-[4px]">
                     <div className="w-[18.649px] h-[18.649px] rounded-[6.471px] border-[0.791px] border-solid border-[#E5E7EB] bg-[#A7A7A7]"></div>
-                    <span className="text-[#1E1E1E] text-center text-[15.094px] not-italic font-normal leading-[19.32px]">Недоступно</span>
+                    <span className="text-[#1E1E1E] text-center [font-size:_clamp(11px,3vw,16px)] not-italic font-normal leading-[19.32px]">Недоступно</span>
                 </div>
             </div>
             )}

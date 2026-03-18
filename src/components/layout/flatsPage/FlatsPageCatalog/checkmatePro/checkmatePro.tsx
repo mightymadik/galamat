@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Select, SelectItem } from "@heroui/select";
 import { createPortal } from "react-dom";
@@ -168,14 +168,17 @@ const PortalTooltip = ({ visible, flat, position, unavailable = false }: {
 interface CheckmateProProps {
     filterParams?: FlatsFilterParams;
     onTotalCountChange?: (count: number) => void;
+    onProjectChange?: (project: string | null) => void;
 }
 
-export default function CheckmatePro({ filterParams = {}, onTotalCountChange }: CheckmateProProps) {
+export default function CheckmatePro({ filterParams = {}, onTotalCountChange, onProjectChange }: CheckmateProProps) {
     const t = useTranslations();
+
+    const selectedComplex = filterParams.project ?? null;
+
     const [flats, setFlats] = useState<ComponentFlat[]>([]);
     const [isClient, setIsClient] = useState(false);
     const [complexes, setComplexes] = useState<string[]>([]);
-    const [selectedComplex, setSelectedComplex] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [hoveredFlat, setHoveredFlat] = useState<ComponentFlat | null>(null);
     const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
@@ -202,7 +205,7 @@ export default function CheckmatePro({ filterParams = {}, onTotalCountChange }: 
         const params = new URLSearchParams();
         params.set("project", selectedComplex);
         params.set("light", "1");
-        params.set("allStatuses", "1"); // все квартиры ЖК (включая закрытые) для шахматки+
+        params.set("allStatuses", "1");
 
         fetch(`/api/properties?${params.toString()}`)
             .then((res) => res.json())
@@ -246,7 +249,8 @@ export default function CheckmatePro({ filterParams = {}, onTotalCountChange }: 
                         selectedKeys={selectedComplex ? [selectedComplex] : []}
                         onSelectionChange={(keys: any) => {
                             const selection = Array.from(keys)[0];
-                            setSelectedComplex((selection as string) || null);
+                            const next = (selection as string) || null;
+                            if (onProjectChange) onProjectChange(next);
                         }}
                     >
                         {complexes.map((title) => (
@@ -341,17 +345,19 @@ export default function CheckmatePro({ filterParams = {}, onTotalCountChange }: 
                                                                                             setHoveredFlat(null);
                                                                                             setTooltipPosition(null);
                                                                                         }}
-                                                                                        className={`flex h-[72px] w-[100px] px-[9px] py-[8px] flex-col justify-center items-start gap-[8px] rounded-[8px] ${isUnavailableStatus ? "border-[0.791px] border-solid border-[#E5E7EB]" : ""}`}
+                                                                                        className={`flex h-[72px] w-[100px] px-[9px] py-[8px] flex-col justify-start items-start gap-[8px] rounded-[8px] ${isUnavailableStatus ? "border-[0.791px] border-solid border-[#E5E7EB]" : ""}`}
                                                                                         style={{ backgroundColor: bgColor, opacity: matchesFilter ? 1 : 0.5 }}
                                                                                     >
                                                                                         <div className="flex flex-col items-start gap-[4px]">
                                                                                             <span className="text-[#FFF] text-[12px] not-italic font-normal leading-[100%]">{flat.room} {t("rooms_count")}</span>
                                                                                             <span className="text-[#FFF] text-[12px] not-italic font-normal leading-[100%]">{flat.area}</span>
                                                                                         </div>
-                                                                                        <div className="flex flex-col items-start">
-                                                                                            <span className="text-[#FFF] text-[12px] not-italic font-normal leading-[100%]">{flat.price}</span>
-                                                                                            <span className="text-[#FFF] text-[8px] not-italic font-normal leading-[100%]">{flat.priceM2}</span>
-                                                                                        </div>
+                                                                                        {flat.available === "available" && (
+                                                                                            <div className="flex flex-col items-start">
+                                                                                                <span className="text-[#FFF] text-[11px] not-italic font-normal leading-[100%]">{flat.price}</span>
+                                                                                                <span className="text-[#FFF] text-[8px] not-italic font-normal leading-[100%]">{flat.priceM2}</span>
+                                                                                            </div>
+                                                                                        )}
                                                                                     </Link>
                                                                                 );
                                                                             })}
