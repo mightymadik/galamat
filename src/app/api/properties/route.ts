@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     if (searchParams.has("metadata") && searchParams.get("metadata") === "true") {
-      const metadata = await getPropertyFiltersMetadata();
+      const metadata = await getPropertyFiltersMetadata({ onlyAvailable: true });
       return NextResponse.json(metadata);
     }
 

@@ -6,7 +6,7 @@ const BACKEND_URL = process.env.STRAPI_URL?.replace(/\/$/, "") || "";
 
 /** Кэш метаданных фильтров: не грузить все 280 квартир при каждом открытии страницы */
 const METADATA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 минут
-let metadataCache: { data: PropertyFiltersMetadata; expiresAt: number } | null = null;
+let metadataCache: { key: string; data: PropertyFiltersMetadata; expiresAt: number } | null = null;
 
 export interface PropertyFilters {
   priceRange?: [number, number];
@@ -644,10 +644,13 @@ export async function getPropertyById(id: string | number): Promise<PropertyDeta
   }
 }
 
-export async function getPropertyFiltersMetadata(): Promise<PropertyFiltersMetadata> {
+export async function getPropertyFiltersMetadata(options?: { onlyAvailable?: boolean }): Promise<PropertyFiltersMetadata> {
   try {
     const now = Date.now();
-    if (metadataCache && metadataCache.expiresAt > now) {
+    const onlyAvailable = options?.onlyAvailable !== false;
+    const cacheKey = onlyAvailable ? "onlyAvailable" : "all";
+
+    if (metadataCache && metadataCache.key === cacheKey && metadataCache.expiresAt > now) {
       return metadataCache.data;
     }
 
@@ -661,8 +664,14 @@ export async function getPropertyFiltersMetadata(): Promise<PropertyFiltersMetad
 
       "populate[project][fields][0]": "projectName",
       "populate[project][fields][1]": "district",
-      // Без жёстких фильтров по статусу/цене, иначе метаданные пустые → фильтры и каталог без данных
     };
+
+    // Метаданные должны считаться только по реально доступным квартирам:
+    // propertyStatus=свободно и saleStatus=открыто
+    if (onlyAvailable) {
+      params["filters[propertyStatus][$eq]"] = "свободно";
+      params["filters[saleStatus][$eq]"] = "открыто";
+    }
 
     // Получаем все данные с пагинацией
     const allProperties: any[] = [];
@@ -789,7 +798,7 @@ export async function getPropertyFiltersMetadata(): Promise<PropertyFiltersMetad
       totalCount,
     };
     console.log("[flats getPropertyFiltersMetadata] ok → totalCount:", totalCount, "priceRange:", result.priceRange);
-    metadataCache = { data: result, expiresAt: Date.now() + METADATA_CACHE_TTL_MS };
+    metadataCache = { key: cacheKey, data: result, expiresAt: Date.now() + METADATA_CACHE_TTL_MS };
     return result;
   } catch (error) {
     console.error("[flats getPropertyFiltersMetadata] error:", error);
