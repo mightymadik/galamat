@@ -489,5 +489,6 @@
   "no_available_flats": "Нет квартир в продаже",
   "expand_flats": "квартир",
   "in_sale": "в продаже",
-  "location": "Расположение"
+  "location": "Расположение",
+  "manual_data_entry": "Ручной ввод данных"
 }

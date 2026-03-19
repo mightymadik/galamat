@@ -19,6 +19,24 @@ function phoneToRequestFormat(phone: string): string {
   return normalizePhone(phone || "").replace(/^\+/, "");
 }
 
+function normalizeCyrillicNameInput(raw: string): string {
+  const cleaned = String(raw || "")
+    .replace(/[^А-Яа-яЁё -]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/-+/g, "-")
+    .trimStart();
+  if (!cleaned) return "";
+  return cleaned
+    .split(" ")
+    .map((word) =>
+      word
+        .split("-")
+        .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : ""))
+        .join("-")
+    )
+    .join(" ");
+}
+
 const inputClassNames = {
   base: "bg-[#F4F6FB] rounded-[16px] px-[16px] py-[8px]",
   label: "text-[#2655AF] text-[14px] opacity-20 leading-[14px] pb-[8px]",
@@ -162,6 +180,7 @@ export default function Contacts({
   const [docNumber, setDocNumber] = useState("");
   const [docIssuer, setDocIssuer] = useState("");
   const [dateOfIssue, setDateOfIssue] = useState("");
+  const [manualMode, setManualMode] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -322,7 +341,18 @@ export default function Contacts({
       const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(json?.message ?? t("error_requesting_document"));
+        const rawMsg = String(json?.message ?? "");
+        const isBiometricUnavailable =
+          res.status === 503 ||
+          rawMsg === "biometric_service_unavailable" ||
+          rawMsg.toLowerCase().includes("e-document service is not available");
+
+        if (isBiometricUnavailable) {
+          setManualMode(true);
+          setError(t("biometric_service_unavailable"));
+        } else {
+          setError(json?.message ?? t("error_requesting_document"));
+        }
         return;
       }
       if (json?.backend_session_id) {
@@ -507,6 +537,44 @@ export default function Contacts({
 
   const handleNextFromSuccess = async () => {
     setError(null);
+    const currentDocData: DocData | null = manualMode
+      ? {
+        lastName: lastName.trim(),
+        firstName: firstName.trim(),
+        middleName: middleName.trim(),
+        gender: gender.trim(),
+        dateOfBirth: dateOfBirth.trim(),
+        docNumber: docNumber.trim(),
+        docIssuer: (docIssuer.trim() || "МВД РК"),
+        dateOfIssue: dateOfIssue.trim(),
+        phone: effectivePhone,
+        email: contactEmail.trim(),
+        address: contactAddress.trim(),
+      }
+      : docData;
+
+    if (!currentDocData) {
+      setError(t("no_data_in_response"));
+      return;
+    }
+    if (
+      !currentDocData.lastName ||
+      !currentDocData.firstName ||
+      !currentDocData.middleName ||
+      !currentDocData.gender ||
+      !currentDocData.dateOfBirth ||
+      !currentDocData.docNumber ||
+      !currentDocData.docIssuer ||
+      !currentDocData.dateOfIssue
+    ) {
+      setError("Заполните все данные клиента");
+      return;
+    }
+
+    if (manualMode) {
+      setDocData(currentDocData);
+    }
+
     const email = contactEmail.trim();
     const address = contactAddress.trim();
     if (!email) {
@@ -521,24 +589,25 @@ export default function Contacts({
     try {
       let effectiveDealId: string | undefined = dealDocumentId ?? undefined;
       // Записываем данные клиента и привязываем к сделке только после биометрики и ввода почты/адреса
-      if (dealDocumentId && docData) {
+      if (dealDocumentId && currentDocData) {
         const genderForApi =
-          docData.gender === "male" ? "Мужской" : docData.gender === "female" ? "Женский" : docData.gender || undefined;
+          currentDocData.gender === "male" ? "Мужской" : currentDocData.gender === "female" ? "Женский" : currentDocData.gender || undefined;
         const attachRes = await fetch(`/api/deals/${dealDocumentId}/attach-customer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             phone: phoneToRequestFormat(effectivePhone),
+            iin: normalizedIin,
             email,
             address,
-            lastName: docData.lastName,
-            firstName: docData.firstName,
-            middleName: docData.middleName,
+            lastName: currentDocData.lastName,
+            firstName: currentDocData.firstName,
+            middleName: currentDocData.middleName,
             gender: genderForApi,
-            dateOfBirth: docData.dateOfBirth,
-            docNumber: docData.docNumber,
-            docIssuer: docData.docIssuer,
-            dateOfIssue: docData.dateOfIssue,
+            dateOfBirth: currentDocData.dateOfBirth,
+            docNumber: currentDocData.docNumber,
+            docIssuer: currentDocData.docIssuer,
+            dateOfIssue: currentDocData.dateOfIssue,
           }),
           credentials: "include",
         });
@@ -662,26 +731,220 @@ export default function Contacts({
             <div className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
               <div className="flex flex-col gap-[16px] items-start self-stretch">
                 <h1 className="text-[#000] text-[20px] not-italic font-normal leading-[20px]">
-                  Данные
+                  {t("queue_tab_data")}
                 </h1>
                 <div className="flex flex-col items-start gap-[8px] self-stretch">
-                  <Row label={t("last_name")} value={docData.lastName} />
-                  <Row label={t("first_name")} value={docData.firstName} />
-                  <Row label={t("middle_name")} value={docData.middleName} />
-                  <Row
-                    label={t("gender")}
-                    value={
-                      docData.gender === "male"
-                        ? t("male")
-                        : docData.gender === "female"
-                          ? t("female")
-                          : docData.gender
-                    }
-                  />
-                  <Row label={t("date_of_birth")} value={docData.dateOfBirth} />
-                  <Row label={t("doc_number")} value={docData.docNumber} />
-                  <Row label={t("doc_issuer")} value={docData.docIssuer} />
-                  <Row label={t("date_of_issue")} value={docData.dateOfIssue} />
+                  {manualMode ? (
+                    <>
+                      <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                        <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                          {t("last_name")} <span className="text-red-500">*</span>
+                        </span>
+                        <Input
+                          type="text"
+                          placeholder="Фамилия"
+                          value={lastName}
+                          onValueChange={(v) => setLastName(normalizeCyrillicNameInput(v))}
+                          variant="flat"
+                          className="[&_input::placeholder]:!text-[#2655AF]"
+                          classNames={{
+                            base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
+                            label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                            input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                            inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                            innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                          }}
+                          isDisabled={loading}
+                          isRequired
+                        />
+                      </div>
+                      <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                        <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                          {t("first_name")} <span className="text-red-500">*</span>
+                        </span>
+                        <Input
+                          type="text"
+                          placeholder="Имя"
+                          value={firstName}
+                          onValueChange={(v) => setFirstName(normalizeCyrillicNameInput(v))}
+                          variant="flat"
+                          className="[&_input::placeholder]:!text-[#2655AF]"
+                          classNames={{
+                            base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
+                            label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                            input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                            inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                            innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                          }}
+                          isDisabled={loading}
+                          isRequired
+                        />
+                      </div>
+                      <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                        <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                          {t("middle_name")} <span className="text-red-500">*</span>
+                        </span>
+                        <Input
+                          type="text"
+                          placeholder="Отчество"
+                          value={middleName}
+                          onValueChange={(v) => setMiddleName(normalizeCyrillicNameInput(v))}
+                          variant="flat"
+                          className="[&_input::placeholder]:!text-[#2655AF]"
+                          classNames={{
+                            base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
+                            label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                            input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                            inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                            innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                          }}
+                          isDisabled={loading}
+                          isRequired
+                        />
+                      </div>
+                      <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                        <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                          {t("gender")} <span className="text-red-500">*</span>
+                        </span>
+                        <Autocomplete
+                          placeholder={t("gender")}
+                          inputValue={gender}
+                          onInputChange={(value) => {
+                            if (value === "Мужской" || value === "Женский" || value === "") {
+                              setGender(value);
+                            }
+                          }}
+                          onSelectionChange={(key) => {
+                            if (key != null) {
+                              setGender(String(key));
+                            }
+                          }}
+                          items={[{ value: "Мужской" }, { value: "Женский" }]}
+                          allowsCustomValue={false}
+                          variant="flat"
+                          classNames={{
+                            base: "w-full !bg-[#F4F6FB] rounded-[16px]",
+                            listboxWrapper: "w-full !bg-[#F4F6FB] rounded-[16px]",
+                            listbox: "w-full !bg-[#F4F6FB] rounded-[16px]",
+                            popoverContent: "w-full !bg-[#F4F6FB] rounded-[16px]",
+                          }}
+                          className="
+                        [&_input]:!text-[#2655AF]
+                        [&_input]:text-[18px]
+                        [&_input]:font-medium
+                        [&_input::placeholder]:!text-[#2655AF]
+                        [&_[data-slot='input-wrapper']]:bg-[#F4F6FB]
+                        [&_[data-slot='input-wrapper']]:rounded-[16px]
+                        [&_[data-slot='input-wrapper']]:px-[0px]
+                        [&_[data-slot='input-wrapper']]:py-[0px]
+                        [&_[data-slot='input-wrapper']]:shadow-none
+                        "
+                          isDisabled={loading}
+                          defaultFilter={() => true}
+                          aria-label={t("gender")}
+                        >
+                          {(item: { value: string }) => (
+                            <AutocompleteItem key={item.value} textValue={item.value}>
+                              {item.value}
+                            </AutocompleteItem>
+                          )}
+                        </Autocomplete>
+                      </div>
+                      <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                        <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                          {t("date_of_birth")} <span className="text-red-500">*</span>
+                        </span>
+                        <Input
+                          value={dateOfBirth}
+                          onValueChange={setDateOfBirth}
+                          variant="flat"
+                          inputMode="numeric"
+                          classNames={{
+                            base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
+                            label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                            input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                            inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                            innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                          }}
+                          ref={withMask("99.99.9999")} />
+                      </div>
+                      <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                        <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                          {t("doc_number")} <span className="text-red-500">*</span>
+                        </span>
+                        <Input
+                          value={docNumber}
+                          onValueChange={(v) => setDocNumber(String(v || "").replace(/\D/g, "").slice(0, 9))}
+                          variant="flat"
+                          inputMode="numeric"
+                          classNames={{
+                            base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
+                            label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                            input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                            inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                            innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                          }}
+                          ref={withMask("999999999")}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                        <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                          {t("doc_issuer")} <span className="text-red-500">*</span>
+                        </span>
+                        <Input
+                          value={"МВД РК"}
+                          onValueChange={() => setDocIssuer("МВД РК")}
+                          variant="flat"
+                          classNames={{
+                            base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
+                            label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                            input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                            inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                            innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                          }}
+                          isReadOnly
+                        />
+                      </div>
+                      <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                        <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                          {t("date_of_issue")} <span className="text-red-500">*</span>
+                        </span>
+                        <Input
+                          value={dateOfIssue}
+                          onValueChange={setDateOfIssue}
+                          variant="flat"
+                          inputMode="numeric"
+                          classNames={{
+                            base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
+                            label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                            input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                            inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                            innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                          }}
+                          ref={withMask("99.99.9999")} />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Row label={t("last_name")} value={docData.lastName} />
+                      <Row label={t("first_name")} value={docData.firstName} />
+                      <Row label={t("middle_name")} value={docData.middleName} />
+                      <Row
+                        label={t("gender")}
+                        value={
+                          docData.gender === "male"
+                            ? t("male")
+                            : docData.gender === "female"
+                              ? t("female")
+                              : docData.gender
+                        }
+                      />
+                      <Row label={t("date_of_birth")} value={docData.dateOfBirth} />
+                      <Row label={t("doc_number")} value={docData.docNumber} />
+                      <Row label={t("doc_issuer")} value={docData.docIssuer} />
+                      <Row label={t("date_of_issue")} value={docData.dateOfIssue} />
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -825,6 +1088,31 @@ export default function Contacts({
             ref={withMask("+7 (999) 999-99-99")}
           />
           {error && <p className="text-red-600 text-[14px]">{error}</p>}
+          <Button
+            className="w-full text-[#2655AF] text-[14px] not-italic font-normal leading-[20px] p-2 bg-transparent justify-end hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent"
+            isDisabled={!hasValidPhoneAndIin || loading}
+            onPress={() => {
+              setError(null);
+              setManualMode(true);
+              setDocIssuer("МВД РК");
+              setDocData({
+                lastName: lastName.trim(),
+                firstName: firstName.trim(),
+                middleName: middleName.trim(),
+                gender: gender.trim(),
+                dateOfBirth: dateOfBirth.trim(),
+                docNumber: docNumber.trim(),
+                docIssuer: docIssuer.trim(),
+                dateOfIssue: dateOfIssue.trim(),
+                phone: effectivePhone,
+                email: contactEmail.trim(),
+                address: contactAddress.trim(),
+              });
+              setStep("success");
+            }}
+          >
+            {t("manual_data_entry")}
+          </Button>
         </div>
       )}
       {!isManagerOrAdmin && user?.phone && (
@@ -832,28 +1120,17 @@ export default function Contacts({
           {t("confirmation_code_will_be_sent_to_number")} {user.phone} {t("in_whatsapp")}
         </p>
       )}
-      {!isManagerOrAdmin && error && <p className="text-red-600 text-[14px]">{error}</p>}
-      {!isManagerOrAdmin && hasAllRequiredDocFields ? (
-        <div className="flex flex-col">
-          <Button
-            onPress={proceedWithoutBiometric}
-            isDisabled={loading}
-            className="flex justify-start rounded-[16px] border border-[#2655AF] bg-transparent p-0"
-          >
-            <span className="text-[#2655AF]">{t("next")}</span>
-          </Button>
-        </div>
-      ) : (
-        <Button
-          onPress={handleRequest}
-          isLoading={loading}
-          className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] bg-[#1A3C7E]"
-        >
-          <span className="text-[#FFF] text-[15px] not-italic font-medium leading-[20px]">
-            {t("get_document_data")}
-          </span>
-        </Button>
-      )}
+      {error && <p className="text-red-600 text-[14px]">{error}</p>}
+
+      <Button
+        onPress={handleRequest}
+        isLoading={loading}
+        className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] bg-[#1A3C7E]"
+      >
+        <span className="text-[#FFF] text-[15px] not-italic font-medium leading-[20px]">
+          {t("get_document_data")}
+        </span>
+      </Button>
     </div>
   );
 }

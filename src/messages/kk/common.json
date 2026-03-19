@@ -492,5 +492,6 @@
   "no_available_flats": "Пәтерлер жоқ",
   "expand_flats": "пәтерлер",
   "in_sale": "сатылымда",
-  "location": "Орналасу"
+  "location": "Орналасу",
+  "manual_data_entry": "Қолмен енгізу"
 }
