@@ -23,15 +23,19 @@ export async function POST(req: Request) {
     const base = getStrapiBaseUrl().replace(/\/api\/?$/, "").replace(/\/$/, "");
     const headers = getStrapiHeaders();
 
+    let dealCustomerDocumentId: string | null = null;
+
     // Фиксируем сделку и квартиру после «Завершить» — квартира не должна снова стать доступной для бронирования.
     if (dealDocumentId) {
       try {
         const dealRes = await strapiAxios.get(
-          `${base}/api/deals/${dealDocumentId}?populate[property]=true&fields[0]=dealStatus`,
+          `${base}/api/deals/${dealDocumentId}?populate[property]=true&populate[customer][fields][0]=documentId&fields[0]=dealStatus`,
           { headers }
         );
         const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
         const status = deal?.dealStatus ?? deal?.attributes?.dealStatus;
+        const dealCustomer = deal?.customer ?? deal?.attributes?.customer;
+        dealCustomerDocumentId = dealCustomer?.documentId ?? dealCustomer?.id ?? null;
         if (status !== "Договор подписан") {
           await strapiAxios.put(
             `${base}/api/deals/${dealDocumentId}`,
@@ -89,16 +93,19 @@ export async function POST(req: Request) {
 
     const customerId = Number(payload.sub);
 
-    let customerDocumentId: string | null = null;
-    try {
-      const custRes = await strapiAxios.get(
-        `${base}/api/customers?filters[id][$eq]=${customerId}&pagination[pageSize]=1&fields[0]=documentId`,
-        { headers }
-      );
-      const cust = (custRes.data as any)?.data?.[0];
-      customerDocumentId = cust?.documentId ?? cust?.attributes?.documentId ?? null;
-    } catch {
-      customerDocumentId = null;
+    // For manager/admin flow bonus belongs to client in deal, not token holder.
+    let customerDocumentId: string | null = dealCustomerDocumentId;
+    if (!customerDocumentId) {
+      try {
+        const custRes = await strapiAxios.get(
+          `${base}/api/customers?filters[id][$eq]=${customerId}&pagination[pageSize]=1&fields[0]=documentId`,
+          { headers }
+        );
+        const cust = (custRes.data as any)?.data?.[0];
+        customerDocumentId = cust?.documentId ?? cust?.attributes?.documentId ?? null;
+      } catch {
+        customerDocumentId = null;
+      }
     }
 
     if (usedPromocodeCode && projectDocumentId && propertyDocumentId && customerDocumentId) {
