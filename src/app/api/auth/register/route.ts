@@ -1,5 +1,8 @@
+import crypto from "crypto";
+import { cookies, headers as nextHeaders } from "next/headers";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "../../../../lib/strapiServer";
 import { isValidKzPhoneE164, normalizePhone } from "../../../../lib/authOtp";
+import { createAccessToken, createRefreshToken, hashRefreshToken } from "../../../../lib/tokens";
 
 type StrapiList<T> = { data: Array<{ id: number; attributes: T; documentId?: string }> };
 
@@ -9,7 +12,7 @@ function getUpdateKey(item: any): string | number {
 
 export async function POST(req: Request) {
   try {
-    const { phone, firstName, lastName } = await req.json().catch(() => ({}));
+    const { phone, firstName, lastName, deviceId } = await req.json().catch(() => ({}));
 
     if (!phone) {
       return Response.json({ status: "error", message: "phone_required" }, { status: 400 });
@@ -65,8 +68,93 @@ export async function POST(req: Request) {
     );
 
     const documentId = customerItem?.documentId ?? (customerItem as any)?.attributes?.documentId ?? String(customerId);
+
+    // === Create / upsert session (jwt) + set cookies ===
+    const refresh = createRefreshToken();
+    const refreshHash = hashRefreshToken(refresh);
+    const refreshTtlDays = 30;
+    const refreshExpiresAt = new Date(Date.now() + refreshTtlDays * 24 * 60 * 60 * 1000);
+
+    const h = await nextHeaders();
+    const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "";
+    const userAgent = h.get("user-agent") || "";
+
+    // Strapi base: убрать возможный /api в конце
+    const baseRaw = getStrapiBaseUrl();
+    const baseNoApi = baseRaw.replace(/\/api\/?$/, "").replace(/\/$/, "");
+
+    const jwtFindUrl =
+      `${baseNoApi}/api/jwts` +
+      `?filters[user][id][$eq]=${customerId}` +
+      `&pagination[pageSize]=1`;
+
+    const jwtFindRes = await strapiAxios.get(jwtFindUrl, { headers });
+    const existingJwt: any = (jwtFindRes.data as StrapiList<any>)?.data?.[0];
+    const existingDocId = existingJwt?.documentId ?? null;
+
+    let sessionId: string | number | null = null;
+    if (existingDocId) {
+      await strapiAxios.put(
+        `${baseNoApi}/api/jwts/${existingDocId}`,
+        {
+          data: {
+            refreshTokenHash: refreshHash,
+            expiresAt: refreshExpiresAt.toISOString(),
+            revokedAt: null,
+            deviceId: deviceId || null,
+            ip: ip || null,
+            userAgent: userAgent || null,
+          },
+        },
+        { headers }
+      );
+      sessionId = existingJwt?.id ?? existingDocId;
+    } else {
+      const jwtCreateRes = await strapiAxios.post(
+        `${baseNoApi}/api/jwts`,
+        {
+          data: {
+            user: customerId,
+            refreshTokenHash: refreshHash,
+            expiresAt: refreshExpiresAt.toISOString(),
+            revokedAt: null,
+            deviceId: deviceId || null,
+            ip: ip || null,
+            userAgent: userAgent || null,
+          },
+        },
+        { headers }
+      );
+      sessionId = jwtCreateRes.data?.data?.id ?? jwtCreateRes.data?.data?.documentId ?? null;
+    }
+
+    const accessToken = createAccessToken({
+      sub: customerId,
+      role,
+      documentId: String(documentId),
+    });
+    const accessExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const cookieStore = await cookies();
+    const isSecure = process.env.NODE_ENV === "production";
+    cookieStore.set("access_token", accessToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: "lax",
+      path: "/",
+      expires: accessExpiresAt,
+    });
+    cookieStore.set("refresh_token", refresh, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: "lax",
+      path: "/",
+      expires: refreshExpiresAt,
+    });
+
     return Response.json({
       status: "ok",
+      sessionId,
       user: { id: customerId, documentId, phone: normalizedPhone, role, name, surname },
     });
   } catch (err: any) {

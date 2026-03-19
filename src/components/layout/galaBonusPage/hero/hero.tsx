@@ -9,7 +9,7 @@ import Confetti from "react-confetti";
 import { useSelector, useDispatch } from "react-redux";
 import type { TypedUseSelectorHook } from "react-redux";
 import { RootState, AppDispatch } from "@/store";
-import { openAuth } from "@/store/authSlice";
+import { openAuth, setPhone, setStep } from "@/store/authSlice";
 import {
   claimPrize,
   createBonus,
@@ -49,6 +49,16 @@ export default function GalaBonus() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [spinChecking, setSpinChecking] = useState(false);
+
+  const toMaskedPhone = (phoneRaw: string): string => {
+    const digits = String(phoneRaw || "").replace(/\D/g, "");
+    // ожидаем KZ: +7XXXXXXXXXX (11 цифр, начинается с 7)
+    const d = digits.length === 11 && digits.startsWith("7")
+      ? digits
+      : (digits.length === 10 ? `7${digits}` : digits);
+    if (d.length !== 11 || !d.startsWith("7")) return phoneRaw;
+    return `+7 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9, 11)}`;
+  };
 
   useEffect(() => {
     if (probabilityStatus === "idle") {
@@ -202,6 +212,15 @@ export default function GalaBonus() {
                 onClick={async () => {
                   if (!user) {
                     dispatch(openAuth());
+                    return;
+                  }
+                  const hasName = typeof user.name === "string" && user.name.trim() !== "";
+                  const hasSurname = typeof user.surname === "string" && user.surname.trim() !== "";
+                  if (!hasName || !hasSurname) {
+                    // профиль неполный → просим заполнить имя/фамилию и не даём крутить
+                    dispatch(openAuth());
+                    dispatch(setPhone(toMaskedPhone(user.phone)));
+                    dispatch(setStep("registration"));
                     return;
                   }
                   setSpinChecking(true);

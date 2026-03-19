@@ -1,6 +1,6 @@
 // store/authSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { sendAuthCode, verifyAuthCode, checkAuth, registerAuth, logoutAuth } from "@/store/authThunks";
+import { sendAuthCode, verifyAuthCode, checkAuth, registerAuth, logoutAuth, createAuthSession } from "@/store/authThunks";
 
 interface AuthState {
   isOpen: boolean;
@@ -144,18 +144,8 @@ const authSlice = createSlice({
       })
       .addCase(verifyAuthCode.fulfilled, (state, action) => {
         state.isVerifyingCode = false;
-        state.user = action.payload.user;
         state.verifyError = null;
         state.attemptsLeft = null;
-
-        const hasProfileName =
-          typeof action.payload.user?.name === "string" && action.payload.user.name.trim() !== "";
-        const hasProfileSurname =
-          typeof action.payload.user?.surname === "string" && action.payload.user.surname.trim() !== "";
-
-        // If profile is incomplete, force registration step (collect name/surname),
-        // regardless of whether a customer record existed before.
-        state.step = hasProfileName && hasProfileSurname ? "successDefault" : "registration";
       })
       .addCase(verifyAuthCode.rejected, (state, action) => {
         state.isVerifyingCode = false;
@@ -172,6 +162,11 @@ const authSlice = createSlice({
       })
       .addCase(logoutAuth.rejected, (state) => {
         state.user = undefined;
+      });
+
+    builder
+      .addCase(createAuthSession.fulfilled, (state, action) => {
+        state.user = action.payload.user;
       });
   },
 });

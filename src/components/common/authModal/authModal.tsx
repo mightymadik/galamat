@@ -10,7 +10,7 @@ import { handleSpin } from "@/store/galaSlice";
 import { closeAuth, setPhone, setFirstName, setLastName, changeNumber, clearVerifyError, setStep } from "@/store/authSlice";
 import { Drawer, DrawerContent, DrawerHeader, DrawerBody, Button, Input } from "@heroui/react";
 import { withMask } from "use-mask-input";
-import { verifyAuthCode, registerAuth } from "@/store/authThunks";
+import { verifyAuthCode, registerAuth, createAuthSession } from "@/store/authThunks";
 
 export default function AuthModal() {
     const router = useRouter();
@@ -23,6 +23,8 @@ export default function AuthModal() {
     const isPhoneValid = /^\+7 \(\d{3}\) \d{3}-\d{2}-\d{2}$/.test(phone || "");
     const isNameValid = (firstName?.trim() || "") !== "";
     const isSurnameValid = (lastName?.trim() || "") !== "";
+    const canCloseDuringRegistration =
+        !(pathname === "/gala-bonus" && step === "registration" && !(isNameValid && isSurnameValid));
 
     const [code, setCode] = useState(["", "", "", ""]);
     const [timeLeft, setTimeLeft] = useState(180); // 3 минуты
@@ -130,7 +132,14 @@ export default function AuthModal() {
                             {(step === "phone" || step === "verification") && t("auth_verification_title")}
                             {step === "registration" && t("auth_registration_title")}
                             {(step === "successSpin" || step === "successDefault") && t("auth_verification_success_title")}
-                            <Button onPress={() => dispatch(closeAuth())} className="!p-0 !min-w-[32px] !w-[32px] !h-[32px] rounded-[16px] bg-[#F4F6FB] flex items-center !justify-center">
+                            <Button
+                                onPress={() => {
+                                    if (!canCloseDuringRegistration) return;
+                                    dispatch(closeAuth());
+                                }}
+                                isDisabled={!canCloseDuringRegistration}
+                                className="!p-0 !min-w-[32px] !w-[32px] !h-[32px] rounded-[16px] bg-[#F4F6FB] flex items-center !justify-center disabled:opacity-40"
+                            >
                                 ✕
                             </Button>
                         </DrawerHeader>
@@ -226,7 +235,26 @@ export default function AuthModal() {
                                     </div>
                                     <div className="flex flex-col items-start gap-[16px] self-stretch">
                                         <Button
-                                            onPress={() => dispatch(verifyAuthCode({ phoneMasked: phone ?? "", code: code.join("") }) as any)}
+                                            onPress={async () => {
+                                                const res = await dispatch(
+                                                    verifyAuthCode({ phoneMasked: phone ?? "", code: code.join(""), confirmOnly: true }) as any
+                                                );
+                                                const u = res?.payload?.user;
+                                                const hasName = typeof u?.name === "string" && u.name.trim() !== "";
+                                                const hasSurname = typeof u?.surname === "string" && u.surname.trim() !== "";
+
+                                                if (!hasName || !hasSurname) {
+                                                    dispatch(setStep("registration"));
+                                                    return;
+                                                }
+
+                                                const sessionRes = await dispatch(
+                                                    createAuthSession({ phoneMasked: phone ?? "" }) as any
+                                                );
+                                                if (sessionRes?.payload?.status === "ok") {
+                                                    dispatch(setStep(pathname === "/gala-bonus" ? "successSpin" : "successDefault"));
+                                                }
+                                            }}
                                             isDisabled={!isCodeValid || isVerifyingCode}
                                             className={`flex w-full h-[44px] justify-center items-center rounded-[12px] transition-colors ${isCodeValid
                                                 ? "bg-[#DB1D31] text-white"
@@ -314,14 +342,19 @@ export default function AuthModal() {
                                         <div className="flex flex-col items-start gap-[16px] self-stretch">
 
                                             <Button
-                                                onPress={() => dispatch(
-                                                    setStep("successSpin"),
-                                                    registerAuth({
-                                                        phoneMasked: phone ?? "",
-                                                        firstName: firstName ?? "",
-                                                        lastName: lastName ?? "",
-                                                    }) as any
-                                                )}
+                                                onPress={async () => {
+                                                    const res = await dispatch(
+                                                        registerAuth({
+                                                            phoneMasked: phone ?? "",
+                                                            firstName: firstName ?? "",
+                                                            lastName: lastName ?? "",
+                                                        }) as any
+                                                    );
+                                                    // если регистрация прошла — показываем сценарий "успешно, можно крутить"
+                                                    if (res?.payload?.status === "ok") {
+                                                        dispatch(setStep("successSpin"));
+                                                    }
+                                                }}
                                                 isDisabled={!(isNameValid && isSurnameValid) || isRegistering}
                                                 className={`flex w-full h-[44px] justify-center items-center rounded-[12px] transition-colors ${isNameValid && isSurnameValid
                                                     ? "bg-[#DB1D31] text-white"
