@@ -12,6 +12,31 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerBody, Button, Input } from "
 import { withMask } from "use-mask-input";
 import { verifyAuthCode, registerAuth, createAuthSession } from "@/store/authThunks";
 
+function normalizeCyrillicNameInput(raw: string): string {
+    const cleaned = String(raw || "")
+        .replace(/[^А-Яа-яЁё -]/g, "")
+        .replace(/\s+/g, " ")
+        .replace(/-+/g, "-")
+        .trim();
+
+    if (!cleaned) return "";
+
+    const toTitle = (part: string) => {
+        const p = part.trim();
+        if (!p) return "";
+        const first = p[0]?.toUpperCase() ?? "";
+        const rest = p.slice(1).toLowerCase();
+        return `${first}${rest}`;
+    };
+
+    // Title-case for each word and hyphenated segment
+    return cleaned
+        .split(" ")
+        .map((word) => word.split("-").map(toTitle).filter(Boolean).join("-"))
+        .filter(Boolean)
+        .join(" ");
+}
+
 export default function AuthModal() {
     const router = useRouter();
     const pathname = usePathname();
@@ -303,7 +328,7 @@ export default function AuthModal() {
                                                             <Input
                                                                 placeholder={t("auth_enter_first_name")}
                                                                 value={firstName}
-                                                                onChange={(e) => dispatch(setFirstName(e.target.value))}
+                                                                onChange={(e) => dispatch(setFirstName(normalizeCyrillicNameInput(e.target.value)))}
                                                                 classNames={{
                                                                     input: "flex w-full pt-[11px] pr-[12px] pb-[13px] pl-[16px] rounded-[12px] bg-[#F4F6FB] text-[#282D3C] text-[15px] font-normal leading-[20px]",
                                                                     inputWrapper: "p-0"
@@ -324,7 +349,7 @@ export default function AuthModal() {
                                                             <Input
                                                                 placeholder={t("auth_enter_last_name")}
                                                                 value={lastName}
-                                                                onChange={(e) => dispatch(setLastName(e.target.value))}
+                                                                onChange={(e) => dispatch(setLastName(normalizeCyrillicNameInput(e.target.value)))}
                                                                 classNames={{
                                                                     input: "flex w-full pt-[11px] pr-[12px] pb-[13px] pl-[16px] rounded-[12px] bg-[#F4F6FB] text-[#282D3C] text-[15px] font-normal leading-[20px]",
                                                                     inputWrapper: "p-0"
