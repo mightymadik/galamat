@@ -10,11 +10,45 @@ import { buildAgreementNumber, agreementNumberForFilename } from "@/lib/agreemen
 function numberToWordsRu(n: number): string {
   try {
     const res = numberToCyrillic(Math.floor(n), { language: "ru" });
-    const words = res?.convertedInteger ?? String(n);
-    return words + " тенге";
+    return res?.convertedInteger ?? String(n);
   } catch {
-    return String(n) + " тенге";
+    return String(n);
   }
+}
+
+function numberToWordsKz(n: number): string {
+  const int = Math.floor(Math.max(0, n));
+  if (int === 0) return "нөл";
+  const ones = ["", "бір", "екі", "үш", "төрт", "бес", "алты", "жеті", "сегіз", "тоғыз"];
+  const tens = ["", "он", "жиырма", "отыз", "қырық", "елу", "алпыс", "жетпіс", "сексен", "тоқсан"];
+  const hundred = "жүз";
+  const thousand = "мың";
+  const million = "миллион";
+  function to999(x: number): string {
+    if (x === 0) return "";
+    if (x < 10) return ones[x];
+    if (x < 20) return "он " + (x === 10 ? "" : ones[x - 10]);
+    if (x < 100) return tens[Math.floor(x / 10)] + (x % 10 ? " " + ones[x % 10] : "");
+    const h = Math.floor(x / 100);
+    return (h === 1 ? hundred : ones[h] + " " + hundred) + (x % 100 ? " " + to999(x % 100) : "");
+  }
+  function build(x: number): string {
+    if (x === 0) return "";
+    if (x < 1000) return to999(x);
+    if (x < 1_000_000) {
+      const m = Math.floor(x / 1000);
+      const r = x % 1000;
+      return (m === 1 ? thousand : to999(m) + " " + thousand) + (r ? " " + to999(r) : "");
+    }
+    const m = Math.floor(x / 1_000_000);
+    const r = x % 1_000_000;
+    return (m === 1 ? million : to999(m) + " " + million) + (r ? " " + build(r) : "");
+  }
+  return build(int);
+}
+
+function formatSum(n: number): string {
+  return n.toLocaleString("ru-RU").replace(/\u00A0/g, " ");
 }
 
 function formatIin(iin: string | number | null | undefined): string {
@@ -202,36 +236,46 @@ export async function POST(
 
     const dealPrice = Number(deal?.dealPrice ?? deal?.attributes?.dealPrice ?? 0);
     const typedSumVal = Number(typedSum) || 0;
-    const totalSumVal = dealPrice;
-    const totalSumFormatted = `${totalSumVal.toLocaleString("ru-RU").replace(/\u00A0/g, " ")} ₸`;
-    const typedSumFormatted = `${typedSumVal.toLocaleString("ru-RU").replace(/\u00A0/g, " ")} ₸`;
-    const totalSumWords = numberToWordsRu(totalSumVal);
 
     const saListRes = await strapiAxios.get(
-      `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(dealDocumentId)}&sort[0]=createdAt:desc&pagination[pageSize]=1&fields[0]=signedAt`,
+      `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(dealDocumentId)}&filters[templateType][$eq]=ДДУ&sort[0]=createdAt:desc&pagination[pageSize]=1&fields[0]=signedAt&fields[1]=createdAt`,
       { headers }
     );
     const saList: any[] = (saListRes.data as any)?.data ?? [];
     const firstSa = Array.isArray(saList) ? saList[0] : null;
-    const signedAtRaw = firstSa?.signedAt ?? firstSa?.attributes?.signedAt;
+    const signedAtRaw = firstSa?.signedAt ?? firstSa?.attributes?.signedAt ?? firstSa?.createdAt ?? firstSa?.attributes?.createdAt;
     const signedAt = signedAtRaw ? formatDateRu(signedAtRaw) : currentDate;
+    const dateddu = signedAt;
 
     const complexes = project?.complexes ?? project?.attributes?.complexes?.data ?? project?.attributes?.complexes ?? [];
     const firstComplex = Array.isArray(complexes) ? complexes[0] : complexes;
     const complexAddress =
       firstComplex?.complexAddress ?? firstComplex?.attributes?.complexAddress ?? project?.projectName ?? project?.attributes?.projectName ?? "";
 
+    const propertyFloor = propData?.floor ?? propData?.attributes?.floor ?? "";
+    const propertySection = propData?.section ?? propData?.attributes?.section ?? entrance;
+    const previousCustomerAdress = prevCustData?.address ?? prevAttrs?.address ?? "";
+    const currentCustomerAdress = newCust?.address ?? newAttrs?.address ?? "";
+
     const replaceData: Record<string, unknown> = {
+      dateddu,
       agreementNumber,
       currentDate,
       previousClientName,
       previousClientAddress,
       signedAt,
+      propertyApartmentNumber: String(apartmentNumber ?? ""),
+      propertyTotalArea: String(totalArea ?? ""),
+      propertyFloor: String(propertyFloor ?? ""),
+      propertySection: String(propertySection ?? ""),
       totalArea: String(totalArea ?? ""),
       complexAddress,
-      typedSum: typedSumFormatted,
-      totalSum: totalSumFormatted,
-      totalSumWords,
+      PaidSum: formatSum(dealPrice),
+      PaidSumWords: numberToWordsRu(dealPrice),
+      PaidSumWordsKz: numberToWordsKz(dealPrice),
+      totalSum: formatSum(typedSumVal),
+      totalSumWords: numberToWordsRu(typedSumVal),
+      totalSumWordsKz: numberToWordsKz(typedSumVal),
       developerName,
       bin,
       developerBIN: bin,
@@ -248,6 +292,7 @@ export async function POST(
       previousCustomerDocNumber,
       previousCustomerDocIssuer,
       previousCustomerDateIssue,
+      previousCustomerAdress,
       previousCustomerPhone,
       previousCustomerEmail,
       currentCustomerName,
@@ -256,6 +301,7 @@ export async function POST(
       currentCustomerDocNumber,
       currentCustomerDocIssuer,
       currentCustomerDateIssue,
+      currentCustomerAdress,
       currentCustomerPhone,
       currentCustomerEmail,
       currentCustomerAddress,

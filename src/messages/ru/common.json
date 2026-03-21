@@ -217,6 +217,7 @@
   "deferred_payment_conditions": "Условия отложенного платежа",
   "make_deffered_payment_until": "Отложенный платеж до",
   "deffered_until": "Отложенный платеж до",
+  "hypothec_until": "Ипотека до",
   "male": "Мужской",
   "female": "Женский",
   "too_many_requests": "Слишком часто. Попробуйте позже.",
@@ -401,7 +402,7 @@
   "filter_apartment_placeholder": "№ квартиры",
   "filter_manager_placeholder": "Менеджер",
   "no_deals_match_filters": "Нет сделок по заданным фильтрам",
-  "pagination_page_of": "Стр. {{current}} из {{total}}",
+  "pagination_page_of": "Стр. {current} из {total}",
   "apartment_short": "№ кв.",
   "deal_amount": "Сумма",
   "remainder": "Остаток",
@@ -490,5 +491,10 @@
   "expand_flats": "квартир",
   "in_sale": "в продаже",
   "location": "Расположение",
-  "manual_data_entry": "Ручной ввод данных"
+  "manual_data_entry": "ручной ввод данных",
+  "valid_to_date": "Срок до",
+  "hypothec_from": "Ипотека от",
+  "generated_documents": "Сгенерированные документы",
+  "awaiting_signature": "Ожидает подписания",
+  "signed_documents": "Подписанные документы"
 }

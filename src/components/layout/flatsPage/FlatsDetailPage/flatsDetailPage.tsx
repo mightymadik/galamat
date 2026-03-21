@@ -26,6 +26,9 @@ import {
     getFullPaymentDiscountFromConditions,
     parsePriceString,
     parseRaise,
+    getMatchingOptions,
+    formatValidToDate,
+    monthsBetween,
 } from "@/lib/paymentFormUtils";
 
 interface FlatDetail {
@@ -190,6 +193,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
     const [activeButton, setActiveButton] = useState<string | null>(null);
     const [selectedInstallmentPvIndex, setSelectedInstallmentPvIndex] = useState(0);
     const [selectedDefferedPvIndex, setSelectedDefferedPvIndex] = useState(0);
+    const [selectedHypothecPvIndex, setSelectedHypothecPvIndex] = useState(0);
     const [activePlan, setActivePlan] = useState("Планировка");
     const [shareMessage, setShareMessage] = useState<boolean | null>(null);
     const [payStartLoading, setPayStartLoading] = useState(false);
@@ -769,6 +773,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         if (!active.length) return list;
         if (active.some((c) => isPaymentMethod(c, "installment"))) list.push("installment");
         if (active.some((c) => isPaymentMethod(c, "deffered"))) list.push("deffered");
+        if (active.some((c) => isPaymentMethod(c, "hypothec"))) list.push("hypothec");
         return list;
     }, [flat?.paymentConditions]);
 
@@ -796,6 +801,41 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         () => getDefferedPreview(flat?.paymentConditions ?? [], selectedDefferedPvIndex, baseFullPrice, totalArea, flatAttrs),
         [flat?.paymentConditions, selectedDefferedPvIndex, baseFullPrice, totalArea, flatAttrs]
     );
+    const hypothecPreview = useMemo(() => {
+        const conditions = (flat?.paymentConditions || []).filter(
+            (c) =>
+                isPaymentMethod(c, "hypothec") &&
+                isActivePaymentStatus(c) &&
+                isPaymentConditionValidToday(c)
+        );
+        const options = conditions
+            .flatMap((c) => c.paymentCondition || [])
+            .filter((o) => o?.downPayment != null && o?.downPayment !== "");
+        const validTo = conditions[0]?.validTo;
+        const validToFormatted = formatValidToDate(validTo);
+        const optionList = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
+        const selected = optionList[Math.min(selectedHypothecPvIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
+        const raiseRaw = parseRaise(selected?.raise);
+        const raiseAmount = raiseRaw >= 1 && raiseRaw <= 100
+            ? Math.round((baseFullPrice * raiseRaw) / 100)
+            : Math.round(raiseRaw * totalArea);
+        const raisePercent = (() => {
+            if (raiseRaw > 0 && raiseRaw <= 100) return raiseRaw;
+            if (raiseRaw > 100 && baseFullPrice > 0) return (raiseAmount / baseFullPrice) * 100;
+            return 0;
+        })();
+        const fullPrice = Math.max(0, baseFullPrice + Math.max(0, raiseAmount));
+        const firstDownPct = selected
+            ? parseDownPaymentPercent(selected.downPayment) || 30
+            : 30;
+        const firstDown = fullPrice > 0 ? Math.round((fullPrice * firstDownPct) / 100) : 0;
+        const loanAmount = Math.max(0, fullPrice - firstDown);
+        const now = new Date();
+        const validToDate = validTo ? new Date(String(validTo).replace(" ", "T")) : null;
+        const months = validToDate && validToDate > now ? monthsBetween(now, validToDate) : 240;
+        const monthlyPayment = loanAmount > 0 ? Math.round(loanAmount / Math.max(1, months)) : 0;
+        return { options: optionList, validToFormatted, fullPrice, firstDownPct, firstDown, loanAmount, monthlyPayment, raisePercent };
+    }, [flat?.paymentConditions, selectedHypothecPvIndex, baseFullPrice, totalArea, flatAttrs]);
 
     const installmentTableData = useMemo(() => {
         if (!flat || !totalArea) return [];
@@ -874,9 +914,9 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                 };
             case "hypothec":
                 return {
-                    main: flat.originalPrice ?? flat.price,
+                    main: formatPriceDisplay(hypothecPreview.fullPrice || baseFullPrice),
                     crossedOut: undefined,
-                    priceM2: formatM2((Math.round(defferedPreview.fullPrice / area))),
+                    priceM2: formatM2((Math.round((hypothecPreview.fullPrice || baseFullPrice) / area))),
                 };
             default:
                 return {
@@ -885,7 +925,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                     priceM2: basePriceM2,
                 };
         }
-    }, [flat, activeButton, totalArea, installmentPreview.fullPrice, defferedPreview.fullPrice, flatAttrs]);
+    }, [flat, activeButton, totalArea, installmentPreview.fullPrice, defferedPreview.fullPrice, hypothecPreview.fullPrice, baseFullPrice, flatAttrs]);
 
     /** Квартира недоступна для бронирования, если продажа закрыта или статус не «свободно» */
     const isUnavailable =
@@ -1428,49 +1468,87 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                             </div>
                                         </div>
                                     )}
-                                    {/* {availablePaymentMethods.includes("hypothec") && (
-                                <Button
-                                    data-hover={false}
-                                    onClick={() => handleButtonClick("hypothec")}
-                                    className={`h-auto self-stretch flex flex-col justify-start items-start gap-2.5 rounded-[16px] ${activeButton === "hypothec" ? "bg-[#1A3C7E]" : "bg-[#FFF]"}`}
-                                >
-                                    <div data-description="false" data-percent="false" data-price="false" data-show-info-text="true" data-show-tag="false" data-status="False" data-steps="false" className="self-stretch p-4 rounded-2xl flex flex-col justify-start items-start gap-2.5 overflow-hidden">
-                                        <div className="self-stretch inline-flex justify-between items-center gap-1">
-                                            <div className={`flex justify-between text-[16px] font-medium leading-6 ${activeButton === "hypothec" ? "text-white" : "text-[#1A3C7E]"}`}>Ипотека</div>
-                                            <div className="flex justify-end items-center gap-1">
-                                                <div className={`justify-center text-base font-normal leading-6 ${activeButton === "hypothec" ? "text-white" : "opacity-50 text-[#1A3C7E]"}`}>от 643 245 ₸</div>
+                                    {availablePaymentMethods.includes("hypothec") && (
+                                        <div
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => handleButtonClick("hypothec")}
+                                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleButtonClick("hypothec"); } }}
+                                            className={`h-auto self-stretch flex flex-col justify-start items-start gap-2.5 rounded-[16px] p-0 cursor-pointer ${activeButton === "hypothec" ? "bg-[#1A3C7E]" : "bg-[#FFF]"}`}
+                                        >
+                                            <div data-description="false" data-percent="false" data-price="false" data-show-info-text="true" data-show-tag="false" data-status="False" data-steps="false" className="self-stretch p-4 rounded-2xl flex flex-col justify-start items-start gap-2.5 overflow-hidden">
+                                                <div className="self-stretch inline-flex justify-between items-center gap-1">
+                                                    <div className={`flex justify-between text-[16px] font-medium leading-6 ${activeButton === "hypothec" ? "text-white" : "text-[#1A3C7E]"}`}>Ипотека</div>
+                                                    <div className="flex justify-end items-center gap-1">
+                                                        <div className={`justify-center text-base font-normal leading-6 ${activeButton === "hypothec" ? "text-white" : "opacity-50 text-[#1A3C7E]"}`}>
+                                                            {hypothecPreview.options.length ? `от ${hypothecPreview.firstDownPct}%` : "от 30%"}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {activeButton === "hypothec" && (
+                                                    <div
+                                                        className={`w-full flex flex-col items-start gap-[24px] overflow-x-auto overflox-y-hidden scrollbar-hide transition-all duration-500 ease-in-out ${activeButton === "hypothec" ? "max-h-auto opacity-100 visible pointer-events-auto" : "max-h-0 opacity-0 invisible pointer-events-none"
+                                                            }`}>
+                                                        <span className="text-[#FFF] text-[16px]">
+                                                            {t("hypothec_from")} {hypothecPreview.raisePercent > 0 ? `${hypothecPreview.raisePercent.toFixed(2).replace(/\.00$/, "")}%` : "0%"}
+                                                        </span>
+                                                        <p className="text-[#FFF] text-[14px] not-italic font-normal leading-[14px] opacity-60">
+                                                            {hypothecPreview.validToFormatted ? `${t("valid_to_date")} ${hypothecPreview.validToFormatted}` : t("valid_to_date_program")}
+                                                        </p>
+                                                        <div className="flex flex-col items-start gap-[12px]">
+                                                            <p className="text-[#FFF] text-[14px] not-italic font-normal leading-[14px] opacity-60">
+                                                                {t("select_initial_payment_amount")}
+                                                            </p>
+                                                            <div className="flex items-start gap-[8px] flex-wrap">
+                                                                {hypothecPreview.options.length ? hypothecPreview.options.map((opt, i) => {
+                                                                    const label = `${parseDownPaymentPercent(opt.downPayment)}%`;
+                                                                    const isSelected = selectedHypothecPvIndex === i;
+                                                                    return (
+                                                                        <button
+                                                                            key={i}
+                                                                            type="button"
+                                                                            onClick={(e) => { e.stopPropagation(); setSelectedHypothecPvIndex(i); }}
+                                                                            className={`flex px-[10px] py-[4px] rounded-[32px] text-[16px] leading-[24px] font-normal transition-colors ${isSelected ? "bg-[#2655AF] text-white" : "bg-[#FFF] text-[#2655AF]"}`}
+                                                                        >
+                                                                            {label}
+                                                                        </button>
+                                                                    );
+                                                                }) : (
+                                                                    [30, 50, 70].map((pct) => (
+                                                                        <span key={pct} className="flex px-[10px] py-[4px] rounded-[32px] text-[16px] leading-[24px] font-normal bg-[#FFF] text-[#2655AF]">
+                                                                            {pct}%
+                                                                        </span>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-start gap-[10px] w-full">
+                                                            <div className="flex h-[96px] flex-col items-start gap-[8px] flex-[1_0_0]">
+                                                                <div className="w-full h-[8px] rounded-[32px] bg-[#FFF]"></div>
+                                                                <div className="flex h-[80px] flex-col justify-between items-start self-stretch">
+                                                                    <p className="self-stretch text-[#FFF] text-[14px] leading-[16px] opacity-70 min-w-[0]">
+                                                                        {t("initial_payment")} {hypothecPreview.firstDownPct}%
+                                                                    </p>
+                                                                    <span className="text-[#FFF] text-[14px] font-medium leading-[16px]">{formatPriceDisplay(hypothecPreview.firstDown)}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex h-[96px] flex-col items-start gap-[8px] flex-[1_0_0]">
+                                                                <div className="w-full h-[8px] rounded-[32px] bg-[#FFF] opacity-70"></div>
+                                                                <div className="flex h-[80px] flex-col justify-between items-start self-stretch">
+                                                                    <p className="self-stretch text-[#FFF] text-[14px] leading-[16px] opacity-70 min-w-[0]">
+                                                                        {t("remainder_of_payment")} {hypothecPreview.validToFormatted || "даты"}
+                                                                    </p>
+                                                                    <span className="text-[#FFF] text-[14px] font-medium leading-[16px]">{formatPriceDisplay(hypothecPreview.monthlyPayment)}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                        {activeButton === "hypothec" && (
-                                            <div
-                                                className={`w-full flex flex-col items-start gap-[24px] overflow-x-auto overflox-y-hidden scrollbar-hide transition-all duration-500 ease-in-out ${activeButton === "hypothec" ? "max-h-auto opacity-100 visible pointer-events-auto" : "max-h-0 opacity-0 invisible pointer-events-none"
-                                                    }`}>
-                                                <span className="text-[#FFF] text-[16px]">
-                                                    Ипотека от 15.5%
-                                                </span>
-                                                <p className="text-[#FFF] text-[14px] not-italic font-normal leading-[14px] opacity-60">
-                                                    Срок от 3 месяцев с возрастающей ставкой
-                                                </p>
-
-                                                <div className="flex flex-col items-start gap-[8px] w-full">
-                                                    <span className="text-[#FFF] text-[14px] not-italic font-normal leading-[14px]">
-                                                        Цена в ипотеку:
-                                                    </span>
-
-                                                    <h1 className="text-[#FFF] text-[24px] not-italic font-medium leading-[24px]">
-                                                        от 643 245 ₸/мес
-                                                    </h1>
-
-                                                    <p className="text-[#FFF] text-[14px] not-italic font-normal leading-[14px] opacity-50">
-                                                        Полная стоимость: от 56 345 424 ₸
-                                                    </p>
-                                                </div>
-
-                                            </div>
-                                        )}
-                                    </div>
-                                </Button>
-                                )} */}
+                                    )}
                                 </div>
                                 {resumeDealId && (
                                     <div className="self-stretch p-3 rounded-2xl bg-[#E8EEF7] border border-[#1A3C7E]/20 flex flex-col gap-2">

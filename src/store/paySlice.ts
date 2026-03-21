@@ -2,21 +2,23 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Flat } from "@/types/flat";
 import type { AgreementPayload } from "@/types/agreement";
 
+export interface AgreementFileEntry {
+  templateType: string;
+  fileUrl: string;
+  signedAgreementDocumentId?: string;
+}
+
 interface PayState {
   isOpen: boolean;
   step: "reserve" | "payment" | "contacts" | "contractNumber" | "sign";
   flat: Flat | null;
   paymentMethod: string | null;
-  /** Сделка, созданная при старте брони (менеджер/админ) — documentId для последующих шагов */
   dealDocumentId: string | null;
-  /** Данные для генерации договора (заполняется при переходе с шага оплаты на контакты) */
   agreementPayload: AgreementPayload | null;
-  /** Прямая ссылка на сгенерированный договор (для отправки в TrustMe или скачивания ПДБ) */
   agreementFileUrl: string | null;
-  /** "pdb" = преддоговор (скачать); "ddu" = ДДУ (онлайн-подпись TrustMe/Doodocs) */
   agreementTemplateType: "pdb" | "ddu" | null;
-  /** Номер договора из generate (agreementCode-house-apartment/entrance) для имени в Doodocs */
   agreementNumber: string | null;
+  agreementFiles: AgreementFileEntry[];
 }
 
 const initialState: PayState = {
@@ -29,6 +31,7 @@ const initialState: PayState = {
   agreementFileUrl: null,
   agreementTemplateType: null,
   agreementNumber: null,
+  agreementFiles: [],
 };
 
 const paySlice = createSlice({
@@ -58,6 +61,7 @@ const paySlice = createSlice({
       state.agreementFileUrl = null;
       state.agreementTemplateType = null;
       state.agreementNumber = null;
+      state.agreementFiles = [];
       state.step = action.payload.step ?? "payment";
     },
 
@@ -71,6 +75,7 @@ const paySlice = createSlice({
       state.agreementFileUrl = null;
       state.agreementTemplateType = null;
       state.agreementNumber = null;
+      state.agreementFiles = [];
     },
 
     setStep: (
@@ -99,6 +104,10 @@ const paySlice = createSlice({
     setDealDocumentId: (state, action: PayloadAction<string | null>) => {
       state.dealDocumentId = action.payload;
     },
+
+    setAgreementFiles: (state, action: PayloadAction<AgreementFileEntry[]>) => {
+      state.agreementFiles = action.payload;
+    },
   },
 });
 
@@ -108,5 +117,6 @@ export const setAgreementPayload = paySlice.actions.setAgreementPayload;
 export const setAgreementFileUrl = paySlice.actions.setAgreementFileUrl;
 export const setAgreementTemplateType = paySlice.actions.setAgreementTemplateType;
 export const setAgreementNumber = paySlice.actions.setAgreementNumber;
+export const setAgreementFiles = paySlice.actions.setAgreementFiles;
 
 export default paySlice.reducer;

@@ -22,6 +22,7 @@ import {
     isActivePaymentStatus,
     parseRaise,
     getMatchingOptions,
+    resolvePromocodeDiscountValue,
 } from "@/lib/paymentFormUtils";
 import { withMask } from "use-mask-input";
 import type { DateValue } from "@react-types/calendar";
@@ -198,64 +199,6 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
     };
 
     useEffect(() => {
-        if (!effectiveBonusPhone) {
-            setGalaBonus("0 ₸");
-            setGalaBonusAmount(0);
-            setGalaBonusWhen(null);
-            setGalaBonusChecked(false);
-            setGalaBonusChecking(false);
-            return;
-        }
-        setGalaBonusChecking(true);
-        setGalaBonusChecked(false);
-        fetch("/api/galaBonus/check", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: effectiveBonusPhone }),
-        })
-            .then((res) => res.json())
-            .then((data: { bonus?: string; status?: string; when?: string | null } | null) => {
-                if (data?.status === "notFound" || data?.status === "error") {
-                    setGalaBonus("0 ₸");
-                    setGalaBonusAmount(0);
-                    setGalaBonusWhen(null);
-                    return;
-                }
-                const amount = parseBonusAmount(data?.bonus);
-                setGalaBonus(formatPriceDisplay(amount));
-                setGalaBonusAmount(amount);
-                setGalaBonusWhen(data?.when ?? null);
-            })
-            .catch(() => {
-                setGalaBonus("0 ₸");
-                setGalaBonusAmount(0);
-                setGalaBonusWhen(null);
-            })
-            .finally(() => {
-                setGalaBonusChecking(false);
-                setGalaBonusChecked(true);
-            });
-    }, [effectiveBonusPhone]);
-
-    const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000; // 60 days (same as wheel lock)
-    const galaWhenMs = galaBonusWhen ? new Date(String(galaBonusWhen).replace(" ", "T")).getTime() : NaN;
-    const galaLocked = Number.isFinite(galaWhenMs) ? (Date.now() - galaWhenMs < TWO_MONTHS_MS) : false;
-    const galaNextSpinAt = galaLocked ? new Date(galaWhenMs + TWO_MONTHS_MS) : null;
-    const galaWhenText = Number.isFinite(galaWhenMs)
-        ? new Date(galaWhenMs).toLocaleString("ru-RU", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-        })
-        : null;
-    const galaNextSpinText = galaNextSpinAt
-        ? galaNextSpinAt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })
-        : null;
-
-    useEffect(() => {
         const code = formatPromoInput(promocodeInput);
         if (code.length < PROMO_LENGTH) {
             lastValidatedCodeRef.current = "";
@@ -341,9 +284,11 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
     const downPercent = selectedOption ? parseDownPaymentPercent(selectedOption.downPayment) || defaultDownPercent : defaultDownPercent;
     const raisePerM2 = parseRaise(selectedOption?.raise);
     const totalArea = flatData?.totalArea ?? 0;
-    const promocodeDiscount = promocodeResult?.valid && promocodeResult?.value != null ? Number(promocodeResult.value) : 0;
     const totalPriceBeforeDiscounts = basePrice + raisePerM2 * totalArea;
-    const totalPrice = Math.max(0, totalPriceBeforeDiscounts - galaBonusAmount - promocodeDiscount);
+    const promocodeDiscount = promocodeResult?.valid
+        ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, totalArea)
+        : 0;
+    const totalPrice = Math.max(0, totalPriceBeforeDiscounts - promocodeDiscount);
     const downLabel = `${downPercent}%`;
     const downAmount = Math.round(totalPrice * (downPercent / 100));
     const remainingPrice = totalPrice - downAmount;
@@ -360,11 +305,6 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
     const dueDateStr = formattedValidTo || new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
     const totalSumM2 = totalArea > 0 ? totalPrice / totalArea : 0;
     const totalSumM2Display = formatPriceDisplay(Math.round(totalSumM2)) + "/м²";
-    const usedGalaBonusAmount = galaBonusAmount > 0
-        ? Math.min(galaBonusAmount, Math.max(0, totalPriceBeforeDiscounts - promocodeDiscount))
-        : 0;
-
-
     const paymentDayOfMonth = paymentDayDate?.day ?? defaultCalendarDateRef.current.day;
     const formatScheduleDate = (d: Date) =>
         d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -406,7 +346,6 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
             paymentSchedule: schedule,
             agreementProjectDueDate: dueDateStr,
             usedPromocodeCode: promocodeResult?.valid ? promocodeResult.code : undefined,
-            usedGalaBonusAmount: usedGalaBonusAmount || undefined,
             propertyDocumentId: flatData?.documentId,
         };
         onNext(payload);
@@ -510,140 +449,6 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
                     {promocodeResult.error}
                 </p>
             )}
-            {isManagerOrAdmin && (
-                <div className="flex flex-col gap-2 w-full">
-                    <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">{t("client_phone")}</span>
-                    {bonusPhoneStep === "phone" && (
-                        <>
-                            <Input
-                                inputMode="numeric"
-                                value={managerBonusPhone}
-                                onValueChange={(v) => { setManagerBonusPhone(v); setBonusVerifyError(null); }}
-                                variant="flat"
-                                placeholder="+7 (999) 999-99-99"
-                                ref={withMask("+7 (999) 999-99-99")}
-                                classNames={{
-                                    base: "w-full bg-[#F4F6FB] rounded-[16px] px-[16px] py-[8px]",
-                                    input: "!text-[#1A3C7E] text-[16px] font-medium leading-[24px] py-2",
-                                    inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
-                                    innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
-                                }}
-                            />
-                            <Button
-                                onPress={sendBonusCode}
-                                isDisabled={!isManagerBonusPhoneValid || isSendingBonusCode}
-                                className="w-full rounded-[12px] bg-[#1A3C7E] text-white text-[14px] font-medium leading-[20px]"
-                            >
-                                {isSendingBonusCode ? t("sending") : t("get_code")}
-                            </Button>
-                            {bonusVerifyError && bonusPhoneStep === "phone" && (
-                                <p className="text-danger-500 text-[14px] font-normal leading-[20px]">{bonusVerifyError}</p>
-                            )}
-                        </>
-                    )}
-                    {bonusPhoneStep === "code" && (
-                        <>
-                            <p className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
-                                {t("code_sent_to_whatsapp", { managerBonusPhone: managerBonusPhone })}
-                            </p>
-                            <div className="flex gap-2">
-                                {bonusVerificationCode.map((val, i) => (
-                                    <Input
-                                        key={i}
-                                        type="tel"
-                                        inputMode="numeric"
-                                        value={val}
-                                        maxLength={1}
-                                        onChange={(e) => handleBonusCodeChange(i, e.target.value)}
-                                        onKeyDown={(e) => handleBonusCodeKeyDown(i, e)}
-                                        ref={(el) => { bonusCodeInputsRef.current[i] = el; }}
-                                        classNames={{
-                                            input: "text-center text-[16px] font-medium text-[#1A3C7E] bg-[#F4F6FB] rounded-[12px] h-[48px]",
-                                            inputWrapper: "p-0 w-full h-[48px]",
-                                        }}
-                                    />
-                                ))}
-                            </div>
-                            {bonusVerifyError && (
-                                <p className="text-danger-500 text-[14px] font-normal leading-[20px]">{bonusVerifyError}</p>
-                            )}
-                            <Button
-                                onPress={verifyBonusCode}
-                                isDisabled={bonusVerificationCode.join("").length !== 4 || isVerifyingBonusCode}
-                                className="w-full rounded-[12px] bg-[#1A3C7E] text-white text-[14px] font-medium leading-[20px]"
-                            >
-                                {isVerifyingBonusCode ? t("verification_in_progress") : t("confirm_number")}
-                            </Button>
-                            {bonusTimeLeft > 0 ? (
-                                <p className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
-                                    {t("resend_code_in")} {formatBonusTime(bonusTimeLeft)}
-                                </p>
-                            ) : (
-                                <Button onPress={sendBonusCode} isDisabled={isSendingBonusCode} className="!p-0 !min-h-0 h-auto !bg-transparent text-[#1A3C7E] text-[14px] font-medium">
-                                    {t("send_code_again")}
-                                </Button>
-                            )}
-                            <Button onPress={() => { setBonusPhoneStep("phone"); setBonusVerifyError(null); }} className="!p-0 !min-h-0 h-auto !bg-transparent text-[#2655AF] text-[14px]">
-                                {t("change_number")}
-                            </Button>
-                        </>
-                    )}
-                    {bonusPhoneStep === "verified" && (
-                        <div className="flex items-center justify-between gap-2 rounded-[16px] bg-[#F4F6FB] px-[16px] py-[12px]">
-                            <div className="flex flex-row items-start">
-                                <span className="text-[#1A3C7E] text-[16px] font-medium leading-[20px]">{managerBonusPhone}</span>
-                            </div>
-                            <div className="flex flex-row items-center">
-                                <span className="text-[#0e7c0e] text-[14px] font-normal leading-[20px]">{t("confirmed")}</span>
-                                <Button onPress={() => { setBonusPhoneStep("phone"); setManagerBonusPhoneVerified(false); setManagerBonusPhone(""); }} size="sm" className="!min-h-0 h-auto !bg-transparent text-[#2655AF] text-[14px] font-medium">
-                                    {t("change")}
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-            <div className="flex p-[16px] items-center gap-[9px] self-stretch rounded-[16px] bg-[#F4F6FB]">
-                <div className="flex justify-between items-center gap-[4.094px] flex-[1_0_0]">
-                    <div className="flex flex-col justify-between items-start gap-[8px]">
-                        <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">
-                            Gala Bonus
-                        </span>
-                        <span className="text-[#1A3C7E] text-[20px] font-medium leading-[24px]">
-                            {galaBonus}
-                        </span>
-                        {galaBonusChecking && (
-                            <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">
-                                {t("gala_bonus_checking")}
-                            </span>
-                        )}
-                        {galaBonusChecked && !galaBonusChecking && (
-                            <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
-                                {galaBonusAmount > 0 ? t("gala_bonus_can_use_in_payment") : t("gala_bonus_not_available")}
-                            </span>
-                        )}
-                        {galaWhenText && (
-                            <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">
-                                {t("gala_bonus_spinned_date")} {galaWhenText}
-                                {galaLocked && galaNextSpinText ? (
-                                    <>
-                                        {". "} {t("gala_bonus_can_spin_again")} {galaNextSpinText}
-                                    </>
-                                ) : (
-                                    <>
-                                        {". "} {t("gala_bonus_can_spin_now")}
-                                    </>
-                                )}
-                            </span>
-                        )}
-                    </div>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75Z" fill="#1C274C" fillOpacity="0.22" />
-                        <path d="M12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7Z" fill="#1C274C" fillOpacity="0.22" />
-                        <path fillRule="evenodd" clipRule="evenodd" d="M1.25 12C1.25 6.06294 6.06294 1.25 12 1.25C17.9371 1.25 22.75 6.06294 22.75 12C22.75 17.9371 17.9371 22.75 12 22.75C6.06294 22.75 1.25 17.9371 1.25 12ZM12 2.75C6.89137 2.75 2.75 6.89137 2.75 12C2.75 17.1086 6.89137 21.25 12 21.25C17.1086 21.25 21.25 17.1086 21.25 12C21.25 6.89137 17.1086 2.75 12 2.75Z" fill="#1C274C" fillOpacity="0.22" />
-                    </svg>
-                </div>
-            </div>
             <div className="flex w-full p-[32px] flex-col items-start gap-[16px] rounded-[32px] bg-[#F4F6FB]">
                 <div className="flex items-start self-stretch">
                     <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">{t("installment_conditions")}</h1>
@@ -677,7 +482,7 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
                 <div className="flex flex-col items-start gap-[8px] self-stretch">
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("apartment_price")}</span>
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatMoney(totalPriceBeforeDiscounts)}</span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(totalPrice)}</span>
                     </div>
                     <div className="flex px-[0] py-[8px] justify-between items-center self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("payment_day")}</span>
@@ -723,14 +528,10 @@ export default function Installment({ flatData, activeButton, onNext, isSubmitti
                                 Промокод <span className="text-[#2655AF] font-medium">{promocodeResult.code}</span>
                             </span>
                             <span className="text-[#2655AF] text-[16px] not-italic font-normal leading-[16px]">
-                                {promocodeResult.value != null ? formatPriceDisplay(promocodeResult.value) : "0 ₸"}
+                                {formatPriceDisplay(promocodeDiscount)}
                             </span>
                         </div>
                     )}
-                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Gala Bonus</span>
-                        <span className="text-[#2655AF] text-[16px] not-italic font-normal leading-[16px]">{galaBonus}</span>
-                    </div>
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{downLabel} {t("initial_payment")}</span>
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formattedDown}</span>

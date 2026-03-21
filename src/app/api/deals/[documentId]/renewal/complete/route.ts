@@ -6,7 +6,7 @@ import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiSer
 /**
  * POST /api/deals/[documentId]/renewal/complete
  * Body: { newCustomerDocumentId: string }
- * Reassigns the deal to the new customer and sets status to "Договор подписан".
+ * Reassigns the deal to the new customer, sets status to "Договор подписан", sends webhook via backend.
  */
 export async function POST(
   req: Request,
@@ -63,6 +63,17 @@ export async function POST(
       },
       { headers }
     );
+
+    try {
+      await strapiAxios.post(
+        `${base}/api/deals/actions/send-webhook/${encodeURIComponent(dealDocumentId)}`,
+        { status: "reissue", newCustomerDocumentId },
+        { headers }
+      );
+      console.log("[renewal/complete] send-webhook ok");
+    } catch (webhookError: any) {
+      console.error("[renewal/complete] send-webhook error:", webhookError?.response?.data ?? webhookError?.message);
+    }
 
     return NextResponse.json({ status: "ok", message: "Сделка переоформлена на нового клиента" });
   } catch (e: any) {

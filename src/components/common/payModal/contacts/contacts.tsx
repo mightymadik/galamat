@@ -7,7 +7,14 @@ import { Input } from "@heroui/input";
 import Link from "next/link";
 import { Autocomplete, AutocompleteItem, Checkbox } from "@heroui/react";
 import type { RootState } from "@/store";
-import { setDealDocumentId } from "@/store/paySlice";
+import {
+  setDealDocumentId,
+  setAgreementFileUrl,
+  setAgreementTemplateType,
+  setAgreementNumber,
+  setAgreementFiles,
+  setStep as setPayStep,
+} from "@/store/paySlice";
 import { withMask } from "use-mask-input";
 import { isValidKzPhoneE164, normalizePhone } from "@/lib/authOtp";
 import OtpInputs from "./otpInputs";
@@ -73,6 +80,13 @@ interface DocData {
   phone: string;
   email: string;
   address: string;
+}
+
+interface BankOption {
+  id: string | number;
+  name: string;
+  bik?: string;
+  iik?: string;
 }
 
 function formatDateApiToDisplay(iso?: string): string {
@@ -186,6 +200,12 @@ export default function Contacts({
   const [error, setError] = useState<string | null>(null);
   const [contactEmail, setContactEmail] = useState("");
   const [contactAddress, setContactAddress] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankBik, setBankBik] = useState("");
+  const [bankIik, setBankIik] = useState("");
+  const [selectedBankKey, setSelectedBankKey] = useState<string | null>(null);
+  const [banks, setBanks] = useState<BankOption[]>([]);
+  const [banksLoading, setBanksLoading] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState<{ value: string }[]>([]);
   const [addressSuggestionsLoading, setAddressSuggestionsLoading] = useState(false);
   const addressSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,6 +221,28 @@ export default function Contacts({
     }
     setPhone(user?.phone ?? "");
   }, [isManagerOrAdmin, user?.phone]);
+
+  useEffect(() => {
+    let active = true;
+    const loadBanks = async () => {
+      setBanksLoading(true);
+      try {
+        const res = await fetch("/api/banks", { credentials: "include" });
+        const json = await res.json().catch(() => ({}));
+        if (!active) return;
+        const list = Array.isArray(json?.data) ? json.data : [];
+        setBanks(list);
+      } catch {
+        if (active) setBanks([]);
+      } finally {
+        if (active) setBanksLoading(false);
+      }
+    };
+    loadBanks();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const fetchAddressSuggestions = useCallback(async (query: string) => {
     const q = query.trim();
@@ -577,12 +619,31 @@ export default function Contacts({
 
     const email = contactEmail.trim();
     const address = contactAddress.trim();
+    const bik = bankBik.trim().toUpperCase();
+    const iik = bankIik.trim().toUpperCase();
+    const bank = bankName.trim();
+    const bankDocumentId =
+      selectedBankKey && !String(selectedBankKey).startsWith("fallback-")
+        ? String(selectedBankKey)
+        : null;
     if (!email) {
       setError(t("enter_email"));
       return;
     }
     if (!address) {
       setError(t("enter_address"));
+      return;
+    }
+    if (!bank) {
+      setError("Выберите банк");
+      return;
+    }
+    if (!bik) {
+      setError("Введите БИК");
+      return;
+    }
+    if (!iik) {
+      setError("Введите ИИК");
       return;
     }
     setLoading(true);
@@ -600,6 +661,10 @@ export default function Contacts({
             iin: normalizedIin,
             email,
             address,
+            bankName: bank,
+            bankDocumentId,
+            bik,
+            iik,
             lastName: currentDocData.lastName,
             firstName: currentDocData.firstName,
             middleName: currentDocData.middleName,
@@ -622,8 +687,29 @@ export default function Contacts({
           effectiveDealId = attachJson.dealDocumentId;
         }
       }
-      // Переход на шаг «Номер договора» — генерация договора выполняется там с введённым номером
-      onNext();
+      // Генерация договоров (номер ДДУ вычисляется на бэкенде из flatData)
+      const genRes = await fetch("/api/signed-agreements/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flatData: flatData ?? undefined,
+          agreementPayload,
+          templateType: flatData?.hasDdu !== false ? "ddu" : "pdb",
+          dealDocumentId: effectiveDealId ?? undefined,
+        }),
+        credentials: "include",
+      });
+      const genJson = await genRes.json().catch(() => ({}));
+      if (!genRes.ok) {
+        setError(genJson?.detail ?? genJson?.message ?? genJson?.error ?? t("error_generating_agreement"));
+        setLoading(false);
+        return;
+      }
+      if (genJson?.fileUrl) dispatch(setAgreementFileUrl(genJson.fileUrl));
+      if (genJson?.templateType === "pdb" || genJson?.templateType === "ddu") dispatch(setAgreementTemplateType(genJson.templateType));
+      if (genJson?.agreementNumber != null) dispatch(setAgreementNumber(genJson.agreementNumber));
+      if (Array.isArray(genJson?.files)) dispatch(setAgreementFiles(genJson.files));
+      dispatch(setPayStep("sign"));
     } catch {
       setError(t("network_error"));
     } finally {
@@ -957,6 +1043,7 @@ export default function Contacts({
                 </h1>
                 <div className="flex flex-col items-start gap-[8px] self-stretch">
                   <Row label={t("phone")} value={docData.phone} />
+                  
                   <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
                     <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
                       {t("email")} <span className="text-red-500">*</span>
@@ -1022,6 +1109,102 @@ export default function Contacts({
                         </AutocompleteItem>
                       )}
                     </Autocomplete>
+                  </div>
+                  <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                    <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                      Банк <span className="text-red-500">*</span>
+                    </span>
+                    <Autocomplete
+                      placeholder="Выберите банк"
+                      selectedKey={selectedBankKey}
+                      inputValue={bankName}
+                      onInputChange={(value) => {
+                        setBankName(value);
+                        setSelectedBankKey(null);
+                      }}
+                      onSelectionChange={(key) => {
+                        if (key == null) return;
+                        setSelectedBankKey(String(key));
+                        const selected = banks.find((item) => String(item.id) === String(key));
+                        if (!selected) return;
+                        setBankName(selected.name);
+                        if (selected.bik) setBankBik(selected.bik.toUpperCase());
+                        if (selected.iik) setBankIik(selected.iik.toUpperCase());
+                      }}
+                      items={banks}
+                      isLoading={banksLoading}
+                      allowsCustomValue={false}
+                      variant="flat"
+                      classNames={{
+                        base: "w-full !bg-[#F4F6FB] rounded-[16px]",
+                        listboxWrapper: "w-full !bg-[#F4F6FB] rounded-[16px]",
+                        listbox: "w-full !bg-[#F4F6FB] rounded-[16px]",
+                        popoverContent: "w-full !bg-[#F4F6FB] rounded-[16px]",
+                      }}
+                      className="
+                      [&_input]:!text-[#2655AF]
+                      [&_input]:text-[18px]
+                      [&_input]:font-medium
+                      [&_input::placeholder]:!text-[#2655AF]
+                      [&_[data-slot='input-wrapper']]:bg-[#F4F6FB]
+                      [&_[data-slot='input-wrapper']]:rounded-[16px]
+                      [&_[data-slot='input-wrapper']]:px-[8px]
+                      [&_[data-slot='input-wrapper']]:py-[8px]
+                      [&_[data-slot='input-wrapper']]:shadow-none
+                      "
+                      isDisabled={loading}
+                      isRequired
+                      defaultFilter={() => true}
+                      aria-label="Банк"
+                    >
+                      {(item: BankOption) => (
+                        <AutocompleteItem key={String(item.id)} textValue={item.name}>
+                          {item.name}
+                        </AutocompleteItem>
+                      )}
+                    </Autocomplete>
+                  </div>
+                  <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                    <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                      БИК <span className="text-red-500">*</span>
+                    </span>
+                    <Input
+                      placeholder="KZKOKZKX"
+                      value={bankBik}
+                      onValueChange={(v) => setBankBik(String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))}
+                      variant="flat"
+                      className="[&_input::placeholder]:!text-[#2655AF]"
+                      classNames={{
+                        base: `w-full bg-[#F4F6FB] rounded-[16px]`,
+                        label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                        input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                        inputWrapper: "bg-transparent shadow-none p-2 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                        innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                      }}
+                      isDisabled={loading}
+                      isRequired
+                    />
+                  </div>
+                  <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                    <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+                      ИИК <span className="text-red-500">*</span>
+                    </span>
+                    <Input
+                      placeholder="KZ123456789012345678"
+                      value={bankIik}
+                      onValueChange={(v) => setBankIik(String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20))}
+                      variant="flat"
+                      className="[&_input::placeholder]:!text-[#2655AF]"
+                      classNames={{
+                        base: `w-full bg-[#F4F6FB] rounded-[16px]`,
+                        label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                        input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                        inputWrapper: "bg-transparent shadow-none p-2 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                        innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                      }}
+                      isDisabled={loading}
+                      isRequired
+                    />
                   </div>
                 </div>
               </div>

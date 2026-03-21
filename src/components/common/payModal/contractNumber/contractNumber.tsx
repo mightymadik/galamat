@@ -8,6 +8,7 @@ import {
   setAgreementFileUrl,
   setAgreementTemplateType,
   setAgreementNumber,
+  setAgreementFiles,
 } from "@/store/paySlice";
 import type { AgreementPayload } from "@/types/agreement";
 import { useTranslations } from "next-intl";
@@ -95,6 +96,9 @@ export default function ContractNumber({
       }
       if (genJson?.agreementNumber != null) {
         dispatch(setAgreementNumber(genJson.agreementNumber));
+      }
+      if (Array.isArray(genJson?.files)) {
+        dispatch(setAgreementFiles(genJson.files));
       }
       onNext();
     } catch {

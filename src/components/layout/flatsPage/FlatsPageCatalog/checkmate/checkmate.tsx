@@ -348,7 +348,7 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange, onPro
 
                                         {/* Правая часть — подъезды (те же этажи, чтобы ряды совпадали) */}
                                         <div
-                                            className="flex flex-row items-end gap-[24px] overflow-x-auto pb-[32px] pr-[50px] [&::-webkit-scrollbar]:h-[6px] [&::-webkit-scrollbar-track]:bg-[#E5E5E5] [&::-webkit-scrollbar-thumb]:bg-[#132C5E] [&::-webkit-scrollbar-thumb]:rounded-[4px] hover:[&::-webkit-scrollbar-thumb]:bg-[#1f417c]"
+                                            className="flex flex-row items-end gap-[24px] overflow-x-auto pb-[32px] pr-[50px] [&::-webkit-scrollbar]:h-[14px] [&::-webkit-scrollbar-track]:bg-[#E5E5E5] [&::-webkit-scrollbar-thumb]:bg-[#132C5E] [&::-webkit-scrollbar-thumb]:rounded-[4px] hover:[&::-webkit-scrollbar-thumb]:bg-[#1f417c]"
                                         >
                                             {[...new Set(flats.map(flat => toSafeNumber(flat.entrance)))]
                                                 .filter((n) => Number.isFinite(n))

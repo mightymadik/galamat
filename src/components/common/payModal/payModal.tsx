@@ -15,7 +15,6 @@ import Installment from "./installment/installment";
 import Deffered from "./deffered/deffered";
 import Hypothec from "./hypothec/hypothec";
 import Contacts from "./contacts/contacts";
-import ContractNumber from "./contractNumber/contractNumber";
 import Sign from "./sign/sign";
 
 interface PayModalProps {
@@ -216,7 +215,7 @@ export default function PayModal({ id }: PayModalProps) {
     const [paymentConfirmLoading, setPaymentConfirmLoading] = useState(false);
     const [paymentConfirmError, setPaymentConfirmError] = useState<string | null>(null);
     const [flatData, setFlat] = useState<ComponentFlat | null>(null);
-    const stepsOrder = ['payment', 'contacts', 'contractNumber', 'sign'];
+    const stepsOrder = ['payment', 'contacts', 'sign'];
     const currentIndex = stepsOrder.indexOf(step);
 
     useEffect(() => {
@@ -348,7 +347,19 @@ export default function PayModal({ id }: PayModalProps) {
                     )}
                 </div>
             ),
-            hypothec: <Hypothec />
+            hypothec: (
+                <div className="flex flex-col gap-4 self-stretch">
+                    <Hypothec
+                        flatData={flatData}
+                        activeButton={activeOption}
+                        onNext={handlePaymentNext}
+                        isSubmitting={paymentConfirmLoading}
+                    />
+                    {paymentConfirmError && (
+                        <p className="text-red-600 text-[14px] not-italic font-normal">{paymentConfirmError}</p>
+                    )}
+                </div>
+            )
         };
 
         type PaymentMethod = keyof typeof paymentComponents;
@@ -360,15 +371,6 @@ export default function PayModal({ id }: PayModalProps) {
 
             contacts: (
                 <Contacts
-                    flatData={flatData}
-                    agreementPayload={agreementPayload}
-                    dealDocumentId={dealDocumentId}
-                    onNext={() => dispatch(setStep("contractNumber"))}
-                />
-            ),
-
-            contractNumber: (
-                <ContractNumber
                     flatData={flatData}
                     agreementPayload={agreementPayload}
                     dealDocumentId={dealDocumentId}
@@ -405,12 +407,10 @@ export default function PayModal({ id }: PayModalProps) {
     };
 
     const showCloseButton = step !== "sign";
-    const canGoBack = step === "contacts" || step === "contractNumber";
+    const canGoBack = step === "contacts";
     const handleGoBack = () => {
         if (step === "contacts") {
             dispatch(setStep("payment"));
-        } else if (step === "contractNumber") {
-            dispatch(setStep("contacts"));
         }
     };
 
@@ -487,7 +487,6 @@ export default function PayModal({ id }: PayModalProps) {
                                         {step === "payment" && paymentMethod === "deffered" && t("deffered")}
                                         {step === "payment" && paymentMethod === "hypothec" && t("hypothec")}
                                         {step === "contacts" && t("personal_information")}
-                                        {step === "contractNumber" && t("contract_number")}
                                         {step === "sign" && t("sign_contract")}
                                         </span>
                                     </div>

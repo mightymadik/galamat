@@ -25,8 +25,7 @@ function fullName(surname: string, name: string, middlename: string): string {
 
 /**
  * POST /api/deals/[documentId]/termination/generate
- * Body: { customerIIK: string, customerBIK: string, customerBank: string }
- * Generates termination agreement from terminationTemplate, creates signed-agreement, returns fileUrl and signedAgreementDocumentId.
+ * Bank details are fetched from the customer's profile (iik, bik, bank relation).
  */
 export async function POST(
   req: Request,
@@ -42,19 +41,6 @@ export async function POST(
 
     const { documentId: dealDocumentId } = await params;
     if (!dealDocumentId) return NextResponse.json({ error: "documentId required" }, { status: 400 });
-
-    const body = await req.json().catch(() => ({}));
-    const { customerIIK, customerBIK, customerBank } = body as {
-      customerIIK?: string;
-      customerBIK?: string;
-      customerBank?: string;
-    };
-    if (!customerIIK || typeof customerIIK !== "string")
-      return NextResponse.json({ error: "customerIIK required" }, { status: 400 });
-    if (!customerBIK || typeof customerBIK !== "string")
-      return NextResponse.json({ error: "customerBIK required" }, { status: 400 });
-    if (!customerBank || typeof customerBank !== "string")
-      return NextResponse.json({ error: "customerBank required" }, { status: 400 });
 
     const base = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
     const headers = getStrapiHeaders();
@@ -74,7 +60,7 @@ export async function POST(
       `${base}/api/deals/${dealDocumentId}` +
         "?populate[property][populate][project][populate][developer]=true" +
         "&populate[property][populate][project][populate][complexes][fields][0]=complexAddress" +
-        "&populate[customer]=true",
+        "&populate[customer][populate][bank]=true",
       { headers }
     );
     const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
@@ -133,13 +119,14 @@ export async function POST(
     const currentDate = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 
     const saListRes = await strapiAxios.get(
-      `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(dealDocumentId)}&sort[0]=createdAt:desc&pagination[pageSize]=1&fields[0]=signedAt`,
+      `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(dealDocumentId)}&filters[templateType][$eq]=ДДУ&sort[0]=createdAt:desc&pagination[pageSize]=1&fields[0]=signedAt&fields[1]=createdAt`,
       { headers }
     );
     const saList: any[] = (saListRes.data as any)?.data ?? [];
     const firstSa = Array.isArray(saList) ? saList[0] : null;
-    const signedAtRaw = firstSa?.signedAt ?? firstSa?.attributes?.signedAt;
+    const signedAtRaw = firstSa?.signedAt ?? firstSa?.attributes?.signedAt ?? firstSa?.createdAt ?? firstSa?.attributes?.createdAt;
     const signedAt = signedAtRaw ? formatDateRu(signedAtRaw) : currentDate;
+    const dateddu = signedAt;
 
     const complexes = project?.complexes ?? project?.attributes?.complexes?.data ?? project?.attributes?.complexes ?? [];
     const firstComplex = Array.isArray(complexes) ? complexes[0] : complexes;
@@ -158,8 +145,19 @@ export async function POST(
     const customerIIN = formatIin(custData?.iin ?? attrs?.iin);
     const customerAddress = custData?.address ?? attrs?.address ?? "";
     const customerPhone = custData?.phone ?? attrs?.phone ?? "";
+    const customerEmail = custData?.email ?? attrs?.email ?? "";
+
+    const custIik = custData?.iik ?? attrs?.iik ?? "";
+    const custBik = custData?.bik ?? attrs?.bik ?? "";
+    const custBankRel = custData?.bank ?? attrs?.bank;
+    const custBankData = (custBankRel as any)?.data ?? custBankRel;
+    const custBankAttrs = custBankData?.attributes ?? custBankData;
+    const custBankName = custBankAttrs?.nameBank ?? custBankData?.nameBank ?? "";
+    const custBankAddressRu = custBankAttrs?.addressBankRus ?? custBankData?.addressBankRus ?? "";
+    const custBankAddressKz = custBankAttrs?.addressBankKz ?? custBankData?.addressBankKz ?? "";
 
     const replaceData: Record<string, unknown> = {
+      dateddu,
       agreementNumber,
       signedAt,
       currentDate,
@@ -170,17 +168,31 @@ export async function POST(
       developerAddressKz,
       iik,
       bank,
+      bik,
       developerPhoneNumber,
       customerName,
+      "\u0441ustomerName": customerName,
       customerDocNumber,
+      "\u0441ustomerDocNumber": customerDocNumber,
       customerDocIssuer,
+      "\u0441ustomerDocIssuer": customerDocIssuer,
       customerDateIssue,
+      "\u0441ustomerDateIssue": customerDateIssue,
       customerIIN,
+      "\u0441ustomerIIN": customerIIN,
       customerAddress,
+      "\u0441ustomerAdress": customerAddress,
+      customerAdress: customerAddress,
       customerPhone,
-      customerIIK: String(customerIIK ?? "").trim(),
-      customerBIK: String(customerBIK ?? "").trim(),
-      customerBank: String(customerBank ?? "").trim(),
+      "\u0441ustomerPhone": customerPhone,
+      customerEmail,
+      "\u0441ustomerEmail": customerEmail,
+      customerIIK: custIik,
+      customerBIK: custBik,
+      customerBank: custBankName,
+      customerBankname: custBankName,
+      customerBankAddressrru: custBankAddressRu,
+      customerBankAddressrKz: custBankAddressKz,
     };
 
     const templateRes = await fetch(termUrl);

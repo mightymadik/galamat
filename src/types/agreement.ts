@@ -7,7 +7,7 @@ export interface AgreementPaymentRow {
 
 /** Payload passed from payment step to agreement generation */
 export interface AgreementPayload {
-  paymentMethod: "full" | "installment" | "deffered";
+  paymentMethod: "full" | "installment" | "deffered" | "hypothec";
   /** Итоговая сумма с учётом скидок, Gala Bonus, промокода (число в тенге) */
   totalSum: number;
   /** Сумма за м² (число в тенге) */

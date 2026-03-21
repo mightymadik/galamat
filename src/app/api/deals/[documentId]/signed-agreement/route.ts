@@ -27,18 +27,56 @@ export async function GET(
     const headers = getStrapiHeaders();
 
     const dealRes = await strapiAxios.get(
-      `${base}/api/deals/${documentId}?fields[0]=documentId&populate[customer][fields][0]=id&populate[manager][fields][0]=id`,
+      `${base}/api/deals/${documentId}?fields[0]=documentId&populate[customer][fields][0]=id&populate[customer][fields][1]=documentId`,
       { headers }
     );
     const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
     if (!deal) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
 
-    const customerId = deal?.customer?.id ?? deal?.attributes?.customer?.id ?? (deal?.customer?.data as any)?.id;
-    const isCustomer = customerId != null && Number(customerId) === Number(payload.sub);
-    const isAdmin = payload.role === "admin";
-    const managerId = deal?.manager?.id ?? deal?.attributes?.manager?.id ?? (deal?.manager as any)?.data?.id;
-    const isDealManager = managerId != null && Number(managerId) === Number(payload.sub);
-    if (!isCustomer && !isAdmin && !(payload.role === "manager" && isDealManager)) {
+    const customerId =
+      deal?.customer?.id ??
+      deal?.attributes?.customer?.id ??
+      (deal?.customer?.data as any)?.id ??
+      null;
+    const customerDocumentId =
+      deal?.customer?.documentId ??
+      deal?.attributes?.customer?.documentId ??
+      (deal?.customer?.data as any)?.documentId ??
+      null;
+    const isCustomerById = customerId != null && Number(customerId) === Number(payload.sub);
+    let isCustomerByDocumentId = false;
+    if (!isCustomerById && customerDocumentId != null) {
+      try {
+        const meRes = await strapiAxios.get(
+          `${base}/api/customers?filters[id][$eq]=${encodeURIComponent(String(payload.sub))}&pagination[pageSize]=1&fields[0]=documentId`,
+          { headers }
+        );
+        const me = (meRes.data as any)?.data?.[0];
+        const meDocId = me?.documentId ?? me?.attributes?.documentId ?? null;
+        isCustomerByDocumentId = meDocId != null && String(meDocId) === String(customerDocumentId);
+      } catch {
+        isCustomerByDocumentId = false;
+      }
+    }
+    const isCustomer = isCustomerById || isCustomerByDocumentId;
+    let effectiveRole = payload.role ?? "";
+    try {
+      const meRoleRes = await strapiAxios.get(
+        `${base}/api/customers?filters[id][$eq]=${encodeURIComponent(String(payload.sub))}&pagination[pageSize]=1&fields[0]=role`,
+        { headers }
+      );
+      const me = (meRoleRes.data as any)?.data?.[0];
+      const roleFromCustomer = me?.role ?? me?.attributes?.role;
+      if (typeof roleFromCustomer === "string" && roleFromCustomer.trim()) {
+        effectiveRole = roleFromCustomer.trim();
+      }
+    } catch {
+      // keep role from token
+    }
+    const roleLower = String(effectiveRole || "").toLowerCase();
+    const isAdmin = roleLower === "admin";
+    const isManager = roleLower === "manager";
+    if (!isCustomer && !isAdmin && !isManager) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
@@ -57,7 +95,10 @@ export async function GET(
       return NextResponse.json({ error: "Файл договора не найден" }, { status: 404 });
     }
 
-    const fileUrl = url.startsWith("http") ? url : `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+    const path = url.startsWith("http") ? new URL(url).pathname : (url.startsWith("/") ? url : `/${url}`);
+    const fileUrl = path.startsWith("/uploads/")
+      ? `/api/strapi-file?path=${encodeURIComponent(path)}`
+      : (url.startsWith("http") ? url : `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`);
 
     return NextResponse.json({ url: fileUrl });
   } catch (err: any) {

@@ -88,7 +88,17 @@ export async function GET(
           (typeof (fileData?.attributes as any)?.url === "string" && (fileData?.attributes as any).url) ||
           (typeof (file as any)?.url === "string" && (file as any).url);
         if (url) {
-          agreementFileUrl = url.startsWith("http") ? url : `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+          let path: string;
+          try {
+            path = url.startsWith("http") ? new URL(url).pathname : (url.startsWith("/") ? url : `/${url}`);
+          } catch {
+            path = url.startsWith("/") ? url : `/${url}`;
+          }
+          if (path?.startsWith("/uploads/")) {
+            agreementFileUrl = `/api/strapi-file?path=${encodeURIComponent(path)}`;
+          } else {
+            agreementFileUrl = url.startsWith("http") ? url : `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+          }
         }
       }
     } catch {

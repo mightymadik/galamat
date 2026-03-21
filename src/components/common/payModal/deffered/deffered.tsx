@@ -23,9 +23,25 @@ import {
     isPaymentMethod,
     isActivePaymentStatus,
     parseRaise,
+    getMatchingOptions,
+    resolvePromocodeDiscountValue,
 } from "@/lib/paymentFormUtils";
 import { withMask } from "use-mask-input";
 import { useTranslations } from "next-intl";
+
+function calendarDateToRu(date: CalendarDate): string {
+    const d = String(date.day).padStart(2, "0");
+    const m = String(date.month).padStart(2, "0");
+    return `${d}.${m}.${date.year}`;
+}
+
+function formatAmountInput(value: string): string {
+    const digits = (value ?? "").replace(/\D/g, "");
+    if (!digits) return "";
+    const n = parseInt(digits, 10);
+    if (Number.isNaN(n)) return "";
+    return n.toLocaleString("ru-RU").replace(/\u00A0/g, " ");
+}
 
 interface DefferedProps {
     flatData: {
@@ -91,7 +107,10 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
         code?: string;
         error?: string;
     } | null>(null);
-    const [paymentDayDate, setPaymentDayDate] = useState<DateValue | null>(null);
+    const [selectedPaymentDates, setSelectedPaymentDates] = useState<CalendarDate[]>(() => [
+        today(getLocalTimeZone()),
+    ]);
+    const [amountByDateKey, setAmountByDateKey] = useState<Record<string, string>>({});
 
     const effectiveBonusPhone = isManagerOrAdmin
         ? (managerBonusPhoneVerified && managerBonusPhone.trim() ? managerBonusPhone.trim() : null)
@@ -194,64 +213,6 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
     };
 
     useEffect(() => {
-        if (!effectiveBonusPhone) {
-            setGalaBonus("0 ₸");
-            setGalaBonusAmount(0);
-            setGalaBonusWhen(null);
-            setGalaBonusChecked(false);
-            setGalaBonusChecking(false);
-            return;
-        }
-        setGalaBonusChecking(true);
-        setGalaBonusChecked(false);
-        fetch("/api/galaBonus/check", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: effectiveBonusPhone }),
-        })
-            .then((res) => res.json())
-            .then((data: { bonus?: string; status?: string; when?: string | null } | null) => {
-                if (data?.status === "notFound" || data?.status === "error") {
-                    setGalaBonus("0 ₸");
-                    setGalaBonusAmount(0);
-                    setGalaBonusWhen(null);
-                    return;
-                }
-                const amount = parseBonusAmount(data?.bonus);
-                setGalaBonus(formatPriceDisplay(amount));
-                setGalaBonusAmount(amount);
-                setGalaBonusWhen(data?.when ?? null);
-            })
-            .catch(() => {
-                setGalaBonus("0 ₸");
-                setGalaBonusAmount(0);
-                setGalaBonusWhen(null);
-            })
-            .finally(() => {
-                setGalaBonusChecking(false);
-                setGalaBonusChecked(true);
-            });
-    }, [effectiveBonusPhone]);
-
-    const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000; // 60 days (same as wheel lock)
-    const galaWhenMs = galaBonusWhen ? new Date(String(galaBonusWhen).replace(" ", "T")).getTime() : NaN;
-    const galaLocked = Number.isFinite(galaWhenMs) ? (Date.now() - galaWhenMs < TWO_MONTHS_MS) : false;
-    const galaNextSpinAt = galaLocked ? new Date(galaWhenMs + TWO_MONTHS_MS) : null;
-    const galaWhenText = Number.isFinite(galaWhenMs)
-        ? new Date(galaWhenMs).toLocaleString("ru-RU", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-        })
-        : null;
-    const galaNextSpinText = galaNextSpinAt
-        ? galaNextSpinAt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })
-        : null;
-
-    useEffect(() => {
         const code = formatPromoInput(promocodeInput);
         if (code.length < PROMO_LENGTH) {
             lastValidatedCodeRef.current = "";
@@ -307,7 +268,29 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
             : parsePrice(flatData?.originalPrice) ?? parsePrice(flatData?.price);
 
     const defferedConditions = (flatData?.paymentConditions || []).filter((c) => isPaymentMethod(c as any, "deffered") && isActivePaymentStatus(c as any) && isPaymentConditionValidToday(c));
-    const options = defferedConditions.flatMap((c) => c.paymentCondition || []).filter((o) => o?.downPayment != null && o?.downPayment !== "");
+    const allOptions = defferedConditions
+        .flatMap((c) => c.paymentCondition || [])
+        .filter((o) => o?.downPayment != null && o?.downPayment !== "");
+    const flatAttrs = flatData
+        ? {
+            room: flatData.room,
+            totalArea: flatData.totalArea,
+            house: flatData.house,
+            section: flatData.section,
+            entrance: flatData.entrance,
+            floor: flatData.floor,
+            floorGroup: flatData.floorGroup,
+            apartmentNumber: flatData.apartmentNumber,
+        }
+        : undefined;
+    const matchedOptions = flatAttrs
+        ? getMatchingOptions(allOptions as Parameters<typeof getMatchingOptions>[0], flatAttrs)
+        : allOptions;
+    const options = Array.from(
+        new Map(
+            matchedOptions.map((o) => [`${parseDownPaymentPercent(o?.downPayment)}|${parseRaise(o?.raise)}`, o])
+        ).values()
+    );
 
     const validToStr = defferedConditions[0]?.validTo ?? undefined;
     const validToDate = validToStr ? new Date(validToStr.replace(" ", "T")) : null;
@@ -321,9 +304,11 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
     const downPercent = selectedOption ? parseDownPaymentPercent(selectedOption.downPayment) || defaultDownPercent : defaultDownPercent;
     const raisePerM2 = parseRaise(selectedOption?.raise);
     const totalArea = flatData?.totalArea ?? 0;
-    const promocodeDiscount = promocodeResult?.valid && promocodeResult?.value != null ? Number(promocodeResult.value) : 0;
     const totalPriceBeforeDiscounts = basePrice + raisePerM2 * totalArea;
-    const totalPrice = Math.max(0, totalPriceBeforeDiscounts - galaBonusAmount - promocodeDiscount);
+    const promocodeDiscount = promocodeResult?.valid
+        ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, totalArea)
+        : 0;
+    const totalPrice = Math.max(0, totalPriceBeforeDiscounts - promocodeDiscount);
     const downLabel = `${downPercent}%`;
     const downAmount = Math.round(totalPrice * (downPercent / 100));
     const remainingPrice = totalPrice - downAmount;
@@ -338,18 +323,9 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
     const formatScheduleDate = (d: Date) =>
         d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
     const todayStr = formatScheduleDate(new Date());
+
     const now = today(getLocalTimeZone());
-    const lastDayOfCurrentMonth = new Date(now.year, now.month, 0).getDate();
-    const selectedDay = paymentDayDate?.day ?? now.day;
-    const rawDay = Math.min(Math.max(1, selectedDay), lastDayOfCurrentMonth);
-    const calendarValue = new CalendarDate(now.year, now.month, rawDay);
-    const onPaymentDayChange = useCallback((v: DateValue | null) => {
-        if (!v) return;
-        setPaymentDayDate(v);
-    }, []);
-    const usedGalaBonusAmount = galaBonusAmount > 0
-        ? Math.min(galaBonusAmount, Math.max(0, totalPriceBeforeDiscounts - promocodeDiscount))
-        : 0;
+    const todayCalendarDate = today(getLocalTimeZone());
 
     const programEndDate = (() => {
         if (validToDate && !Number.isNaN(validToDate.getTime())) {
@@ -366,23 +342,53 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
         programEndDate.getDate()
     );
 
-    const calendarValueClamped =
-        calendarValue.compare(programEndCalendarDate) > 0 ? programEndCalendarDate : calendarValue;
-    const paymentDayOfMonth = calendarValueClamped.day;
+    const onPaymentDayToggle = (date: DateValue) => {
+        const cd = "day" in date ? date : (date as CalendarDate);
+        if ((cd as CalendarDate).compare(todayCalendarDate) < 0) return;
+        if ((cd as CalendarDate).compare(programEndCalendarDate) > 0) return;
+        setSelectedPaymentDates((prev) => {
+            const next = prev.filter((d) => d.compare(cd as CalendarDate) !== 0);
+            if (next.length === prev.length) next.push(cd as CalendarDate);
+            return next.sort((a, b) => a.compare(b));
+        });
+    };
 
-    const remainderDueDate = (() => {
-        if (!validToDate || Number.isNaN(validToDate.getTime())) {
-            const d = new Date();
-            d.setFullYear(d.getFullYear() + 1);
-            const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-            const day = Math.min(paymentDayOfMonth, lastDay);
-            return new Date(d.getFullYear(), d.getMonth(), day);
-        }
-        const lastDay = new Date(validToDate.getFullYear(), validToDate.getMonth() + 1, 0).getDate();
-        const day = Math.min(paymentDayOfMonth, lastDay);
-        return new Date(validToDate.getFullYear(), validToDate.getMonth(), day);
+    const removePaymentDate = (date: CalendarDate) => {
+        const key = calendarDateToRu(date);
+        setSelectedPaymentDates((prev) => prev.filter((d) => d.compare(date) !== 0));
+        setAmountByDateKey((prev) => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
+    const setAmountForDate = (dateKey: string, value: string) => {
+        setAmountByDateKey((prev) => ({ ...prev, [dateKey]: value }));
+    };
+
+    const sortedPaymentDates = [...selectedPaymentDates]
+        .filter((d) => d.compare(todayCalendarDate) >= 0)
+        .filter((d) => d.compare(programEndCalendarDate) <= 0)
+        .sort((a, b) => a.compare(b));
+    const n = sortedPaymentDates.length;
+    const deferredTotal = downAmount;
+    const firstAmounts = n <= 1 ? [] : sortedPaymentDates.slice(0, -1).map((d) => parsePrice(amountByDateKey[calendarDateToRu(d)] ?? "0"));
+    const sumFirst = firstAmounts.reduce((a, b) => a + b, 0);
+    const remainingRaw = deferredTotal - sumFirst;
+    const amountsForRows = ((): number[] => {
+        if (n === 0) return [deferredTotal];
+        const lastAmount = Math.max(0, remainingRaw);
+        return [...firstAmounts, lastAmount];
     })();
-    const remainderDueDateStr = formatScheduleDate(remainderDueDate);
+    const deferredScheduleRows: AgreementPayload["paymentSchedule"] =
+        sortedPaymentDates.length === 0
+            ? [{ index: 1, date: todayStr, sum: formatMoney(deferredTotal) }]
+            : sortedPaymentDates.map((d, i) => ({
+                index: i + 1,
+                date: calendarDateToRu(d),
+                sum: formatMoney(amountsForRows[i] ?? 0),
+            }));
 
     const handleNext = () => {
         const payload: AgreementPayload = {
@@ -390,12 +396,11 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
             totalSum: totalPrice,
             totalSumM2: Math.round(totalSumM2),
             paymentSchedule: [
-                { index: 1, date: todayStr, sum: formattedDown },
-                { index: 2, date: remainderDueDateStr, sum: formattedRemaining },
+                ...deferredScheduleRows,
+                { index: deferredScheduleRows.length + 1, date: dueDateStr, sum: formatMoney(Math.max(0, remainingPrice)) },
             ],
             agreementProjectDueDate: dueDateStr,
             usedPromocodeCode: promocodeResult?.valid ? promocodeResult.code : undefined,
-            usedGalaBonusAmount: usedGalaBonusAmount || undefined,
             propertyDocumentId: flatData?.documentId,
         };
         onNext(payload);
@@ -499,140 +504,6 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                     {promocodeResult.error}
                 </p>
             )}
-            {isManagerOrAdmin && (
-                <div className="flex flex-col gap-2 w-full">
-                    <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">{t("client_phone")}</span>
-                    {bonusPhoneStep === "phone" && (
-                        <>
-                            <Input
-                                inputMode="numeric"
-                                value={managerBonusPhone}
-                                onValueChange={(v) => { setManagerBonusPhone(v); setBonusVerifyError(null); }}
-                                variant="flat"
-                                placeholder="+7 (999) 999-99-99"
-                                ref={withMask("+7 (999) 999-99-99")}
-                                classNames={{
-                                    base: "w-full bg-[#F4F6FB] rounded-[16px] px-[16px] py-[8px]",
-                                    input: "!text-[#1A3C7E] text-[16px] font-medium leading-[24px] py-2",
-                                    inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
-                                    innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
-                                }}
-                            />
-                            <Button
-                                onPress={sendBonusCode}
-                                isDisabled={!isManagerBonusPhoneValid || isSendingBonusCode}
-                                className="w-full rounded-[12px] bg-[#1A3C7E] text-white text-[14px] font-medium leading-[20px]"
-                            >
-                                {isSendingBonusCode ? t("sending") : t("get_code")}
-                            </Button>
-                            {bonusVerifyError && bonusPhoneStep === "phone" && (
-                                <p className="text-danger-500 text-[14px] font-normal leading-[20px]">{bonusVerifyError}</p>
-                            )}
-                        </>
-                    )}
-                    {bonusPhoneStep === "code" && (
-                        <>
-                            <p className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
-                                {t("code_sent_to_whatsapp", { managerBonusPhone: managerBonusPhone })}
-                            </p>
-                            <div className="flex gap-2">
-                                {bonusVerificationCode.map((val, i) => (
-                                    <Input
-                                        key={i}
-                                        type="tel"
-                                        inputMode="numeric"
-                                        value={val}
-                                        maxLength={1}
-                                        onChange={(e) => handleBonusCodeChange(i, e.target.value)}
-                                        onKeyDown={(e) => handleBonusCodeKeyDown(i, e)}
-                                        ref={(el) => { bonusCodeInputsRef.current[i] = el; }}
-                                        classNames={{
-                                            input: "text-center text-[16px] font-medium text-[#1A3C7E] bg-[#F4F6FB] rounded-[12px] h-[48px]",
-                                            inputWrapper: "p-0 w-full h-[48px]",
-                                        }}
-                                    />
-                                ))}
-                            </div>
-                            {bonusVerifyError && (
-                                <p className="text-danger-500 text-[14px] font-normal leading-[20px]">{bonusVerifyError}</p>
-                            )}
-                            <Button
-                                onPress={verifyBonusCode}
-                                isDisabled={bonusVerificationCode.join("").length !== 4 || isVerifyingBonusCode}
-                                className="w-full rounded-[12px] bg-[#1A3C7E] text-white text-[14px] font-medium leading-[20px]"
-                            >
-                                {isVerifyingBonusCode ? t("verification_in_progress") : t("confirm_number")}
-                            </Button>
-                            {bonusTimeLeft > 0 ? (
-                                <p className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
-                                    {t("resend_code_in")} {formatBonusTime(bonusTimeLeft)}
-                                </p>
-                            ) : (
-                                <Button onPress={sendBonusCode} isDisabled={isSendingBonusCode} className="!p-0 !min-h-0 h-auto !bg-transparent text-[#1A3C7E] text-[14px] font-medium">
-                                    {t("send_code_again")}
-                                </Button>
-                            )}
-                            <Button onPress={() => { setBonusPhoneStep("phone"); setBonusVerifyError(null); }} className="!p-0 !min-h-0 h-auto !bg-transparent text-[#2655AF] text-[14px]">
-                                {t("change_number")}
-                            </Button>
-                        </>
-                    )}
-                    {bonusPhoneStep === "verified" && (
-                        <div className="flex items-center justify-between gap-2 rounded-[16px] bg-[#F4F6FB] px-[16px] py-[12px]">
-                            <div className="flex flex-row items-start">
-                                <span className="text-[#1A3C7E] text-[16px] font-medium leading-[20px]">{managerBonusPhone}</span>
-                            </div>
-                            <div className="flex flex-row items-center">
-                                <span className="text-[#0e7c0e] text-[14px] font-normal leading-[20px]">{t("confirmed")}</span>
-                                <Button onPress={() => { setBonusPhoneStep("phone"); setManagerBonusPhoneVerified(false); setManagerBonusPhone(""); }} size="sm" className="!min-h-0 h-auto !bg-transparent text-[#2655AF] text-[14px] font-medium">
-                                    {t("change")}
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-            <div className="flex p-[16px] items-center gap-[9px] self-stretch rounded-[16px] bg-[#F4F6FB]">
-                <div className="flex justify-between items-center gap-[4.094px] flex-[1_0_0]">
-                    <div className="flex flex-col justify-between items-start gap-[8px]">
-                        <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">
-                            Gala Bonus
-                        </span>
-                        <span className="text-[#1A3C7E] text-[20px] font-medium leading-[24px]">
-                            {galaBonus}
-                        </span>
-                        {galaBonusChecking && (
-                            <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">
-                                {t("gala_bonus_checking")}
-                            </span>
-                        )}
-                        {galaBonusChecked && !galaBonusChecking && (
-                            <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
-                                {galaBonusAmount > 0 ? t("gala_bonus_can_use_in_payment") : t("gala_bonus_not_available")}
-                            </span>
-                        )}
-                        {galaWhenText && (
-                            <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">
-                                {t("gala_bonus_spinned_date")} {galaWhenText}
-                                {galaLocked && galaNextSpinText ? (
-                                    <>
-                                        {". "} {t("gala_bonus_can_spin_again")} {galaNextSpinText}
-                                    </>
-                                ) : (
-                                    <>
-                                        {". "} {t("gala_bonus_can_spin_now")}
-                                    </>
-                                )}
-                            </span>
-                        )}
-                    </div>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75Z" fill="#1C274C" fillOpacity="0.22" />
-                        <path d="M12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7Z" fill="#1C274C" fillOpacity="0.22" />
-                        <path fillRule="evenodd" clipRule="evenodd" d="M1.25 12C1.25 6.06294 6.06294 1.25 12 1.25C17.9371 1.25 22.75 6.06294 22.75 12C22.75 17.9371 17.9371 22.75 12 22.75C6.06294 22.75 1.25 17.9371 1.25 12ZM12 2.75C6.89137 2.75 2.75 6.89137 2.75 12C2.75 17.1086 6.89137 21.25 12 21.25C17.1086 21.25 21.25 17.1086 21.25 12C21.25 6.89137 17.1086 2.75 12 2.75Z" fill="#1C274C" fillOpacity="0.22" />
-                    </svg>
-                </div>
-            </div>
             <div className="flex w-full p-[32px] flex-col items-start gap-[16px] rounded-[32px] bg-[#F4F6FB]">
                 <div className="flex items-start self-stretch">
                     <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">{t("deferred_payment_conditions")}</h1>
@@ -666,35 +537,31 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                 <div className="flex flex-col items-start gap-[8px] self-stretch">
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("apartment_price")}</span>
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatMoney(totalPriceBeforeDiscounts)}</span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(totalPrice)}</span>
                     </div>
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("price_per_square_meter")}</span>
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{totalSumM2Display}</span>
                     </div>
-                    <div className="flex px-[0] py-[8px] justify-between items-center self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("payment_day")}</span>
+                    <div className="flex items-center justify-between w-full flex-row gap-3 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] py-[8px]">
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                            {t("payment_schedule")}
+                        </span>
                         <Popover placement="bottom-end">
                             <PopoverTrigger>
-                                <Button className="flex h-[24px] pl-[8px] pr-[10px] py-[0] justify-center items-center gap-[4px] rounded-[32px] bg-[#4F6FBF]">
-                                    <span className="text-[#FFF] text-[14px] not-italic font-medium leading-[14px]">
-                                        {`${paymentDayOfMonth} ${t("day_number")}`}
-                                    </span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="5" viewBox="0 0 8 5" fill="none">
-                                        <path d="M7.07288 0.174964C7.285 -0.0582623 7.6289 -0.0583806 7.84096 0.174964C8.05298 0.408436 8.05305 0.787476 7.84096 1.0209L4.38405 4.82499C4.17196 5.05835 3.82808 5.05832 3.61597 4.82499L0.159062 1.0209C-0.0530408 0.787461 -0.0530006 0.408433 0.159062 0.174964C0.371121 -0.0583805 0.71502 -0.0582623 0.927146 0.174964L4.00001 3.55696L7.07288 0.174964Z" fill="white" />
-                                    </svg>
+                                <Button size="sm" className="self-start flex h-[32px] rounded-[12px] bg-[#2655AF] text-white">
+                                    + {t("add_date")}
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="p-0">
                                 <Calendar
-                                    aria-label={t("payment_day_description")}
-                                    value={calendarValueClamped}
-                                    onChange={onPaymentDayChange}
+                                    aria-label={t("select_payment_dates")}
+                                    value={sortedPaymentDates[0] ?? today(getLocalTimeZone())}
+                                    onChange={onPaymentDayToggle}
+                                    minValue={todayCalendarDate}
                                     maxValue={programEndCalendarDate}
                                     classNames={{
                                         header: "disabled",
-                                        prevButton: "opacity-0 pointer-events-none",
-                                        nextButton: "opacity-0 pointer-events-none",
                                         base: "bg-transparent",
                                         gridBody: "bg-[#F4F6FB]",
                                     }}
@@ -704,6 +571,56 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                                 </p>
                             </PopoverContent>
                         </Popover>
+                    </div>
+                    <div className="flex flex-col gap-2 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] py-[8px]">
+                        {sortedPaymentDates.map((d) => {
+                            const dateKey = calendarDateToRu(d);
+                            const isLast = dateKey === (sortedPaymentDates.length > 0 ? calendarDateToRu(sortedPaymentDates[sortedPaymentDates.length - 1]) : "");
+                            return (
+                                <div
+                                    key={dateKey}
+                                    className="flex justify-between flex-wrap items-center gap-2"
+                                >
+                                    <span className="text-[#1A3C7E] text-[14px] font-medium min-w-[90px]">
+                                        {dateKey}
+                                    </span>
+                                    {isLast ? (
+                                        <span className={`text-[14px] ${remainingRaw < 0 ? "text-red-600" : "text-[#000] opacity-80"}`}>
+                                            {t("remaining")}: {formatMoney(remainingRaw)}
+                                        </span>
+                                    ) : (
+                                        <div className="flex items-center gap-2 justify-end">
+                                            <Input
+                                                size="sm"
+                                                type="text"
+                                                inputMode="numeric"
+                                                value={amountByDateKey[dateKey] ?? ""}
+                                                onValueChange={(v) => setAmountForDate(dateKey, formatAmountInput(v ?? ""))}
+                                                placeholder="0"
+                                                classNames={{
+                                                    base: "max-w-[180px] bg-[#FFF] rounded-[12px]",
+                                                    input: "text-[14px] text-right",
+                                                    inputWrapper: "shadow-none",
+                                                }}
+                                                endContent={<span className="text-[12px] text-[#666]">₸</span>}
+                                            />
+                                            {sortedPaymentDates.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    aria-label={t("remove_date")}
+                                                    className="p-1 rounded hover:bg-black/10 text-[#666]"
+                                                    onClick={() => removePaymentDate(d)}
+                                                >
+                                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <path d="M3 3l10 10M13 3L3 13" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("raise_per_square_meter")}</span>
@@ -715,14 +632,10 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                                 Промокод <span className="text-[#2655AF] font-medium">{promocodeResult.code}</span>
                             </span>
                             <span className="text-[#2655AF] text-[16px] not-italic font-normal leading-[16px]">
-                                {promocodeResult.value != null ? formatPriceDisplay(promocodeResult.value) : "0 ₸"}
+                                {formatPriceDisplay(promocodeDiscount)}
                             </span>
                         </div>
                     )}
-                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Gala Bonus</span>
-                        <span className="text-[#2655AF] text-[16px] not-italic font-normal leading-[16px]">{galaBonus}</span>
-                    </div>
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{downLabel} {t("initial_payment")}</span>
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formattedDown}</span>
@@ -731,7 +644,7 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
                             {t("make_deffered_payment_until")} {formattedValidTo ? ` ${formattedValidTo}` : ""}
                         </span>
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formattedRemaining}</span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatMoney(Math.max(0, remainingPrice))}</span>
                     </div>
                 </div>
             </div>

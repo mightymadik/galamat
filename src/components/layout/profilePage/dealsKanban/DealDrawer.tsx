@@ -7,7 +7,6 @@ import type { DealFull } from "./types";
 import { RenewalContactsStep } from "./RenewalContactsStep";
 import { RenewalCostStep } from "./RenewalCostStep";
 import { RenewalSignStep } from "./RenewalSignStep";
-import { TerminationBankStep } from "./TerminationBankStep";
 import { TerminationSignStep } from "./TerminationSignStep";
 import { useTranslations } from "next-intl";
 
@@ -67,9 +66,7 @@ export default function DealDrawer({
     const [renewalStep, setRenewalStep] = useState<RenewalStep | null>(null);
     const [renewalNewCustomerDocumentId, setRenewalNewCustomerDocumentId] = useState<string | null>(null);
     const [renewalTypedSum, setRenewalTypedSum] = useState<number>(0);
-    type TerminationStep = "bank" | "sign";
-    const [terminationStep, setTerminationStep] = useState<TerminationStep | null>(null);
-    const [terminationBank, setTerminationBank] = useState<{ customerIIK: string; customerBIK: string; customerBank: string } | null>(null);
+    const [terminationActive, setTerminationActive] = useState(false);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -163,9 +160,7 @@ export default function DealDrawer({
     const canRenewOrTerminate =
         data?.deal?.dealStatus === "Оплачено" || data?.deal?.dealStatus === "Договор подписан";
     const stepsOrder: RenewalStep[] = ["contacts", "cost", "sign"];
-    const terminationStepsOrder: TerminationStep[] = ["bank", "sign"];
     const currentRenewalIndex = renewalStep ? stepsOrder.indexOf(renewalStep) : -1;
-    const currentTerminationIndex = terminationStep ? terminationStepsOrder.indexOf(terminationStep) : -1;
 
     const exitRenewal = () => {
         setRenewalStep(null);
@@ -174,25 +169,17 @@ export default function DealDrawer({
     };
 
     const exitTermination = () => {
-        setTerminationStep(null);
-        setTerminationBank(null);
+        setTerminationActive(false);
     };
 
     const canGoBackInRenewal = renewalStep != null && renewalStep !== "sign";
-    const canGoBackInTermination = terminationStep != null && terminationStep !== "sign";
     const handleRenewalBack = () => {
         if (!renewalStep) return;
         if (renewalStep === "cost") {
             setRenewalStep("contacts");
             return;
         }
-        // contacts -> back to deal drawer
         exitRenewal();
-    };
-    const handleTerminationBack = () => {
-        if (!terminationStep) return;
-        // bank -> back to deal drawer
-        exitTermination();
     };
 
     return (
@@ -200,7 +187,7 @@ export default function DealDrawer({
             isOpen
             hideCloseButton
             onOpenChange={(open) => {
-                if (!open) { if (renewalStep) exitRenewal(); if (terminationStep) exitTermination(); onClose(); }
+                if (!open) { if (renewalStep) exitRenewal(); if (terminationActive) exitTermination(); onClose(); }
             }}
             placement={isMobile ? "bottom" : "right"}
             classNames={{
@@ -296,49 +283,12 @@ export default function DealDrawer({
                             )}
                         </DrawerBody>
                     </>
-                ) : terminationStep ? (
+                ) : terminationActive ? (
                     <>
-                        <div className="self-stretch h-4 inline-flex justify-start items-center gap-6">
-                            {terminationStepsOrder.map((s, index) => (
-                                <div
-                                    key={s}
-                                    className={`flex-1 h-0 outline outline-[3px] outline-offset-[-1.5px] outline-red-600 ${index <= currentTerminationIndex ? "" : "opacity-20"}`}
-                                />
-                            ))}
-                        </div>
                         <DrawerHeader className="flex items-start justify-between gap-[32px] self-stretch text-[#122C5E] text-[32px] not-italic font-normal leading-[100%] bg-white p-0">
                             <div className="flex flex-col items-start gap-[16px] self-stretch flex-1 min-w-0">
                                 <div className="flex justify-between items-center self-stretch gap-4">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        {canGoBackInTermination && (
-                                            <Button
-                                                isIconOnly
-                                                variant="light"
-                                                size="sm"
-                                                aria-label="Назад"
-                                                className="shrink-0 text-[#122C5E] min-w-8 w-8 h-8"
-                                                onPress={handleTerminationBack}
-                                            >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    width="24"
-                                                    height="24"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="2"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                >
-                                                    <path d="M15 18l-6-6 6-6" />
-                                                </svg>
-                                            </Button>
-                                        )}
-                                        <span className="truncate">
-                                            {terminationStep === "bank" && "Реквизиты клиента для возврата"}
-                                            {terminationStep === "sign" && "Подписать договор расторжения"}
-                                        </span>
-                                    </div>
+                                    <span className="truncate">Подписать договор расторжения</span>
                                     <Button
                                         size="sm"
                                         variant="light"
@@ -355,21 +305,10 @@ export default function DealDrawer({
                             </div>
                         </DrawerHeader>
                         <DrawerBody className="p-0 overflow-y-auto">
-                            {terminationStep === "bank" && (
-                                <TerminationBankStep
-                                    onNext={(payload) => {
-                                        setTerminationBank(payload);
-                                        setTerminationStep("sign");
-                                    }}
-                                />
-                            )}
-                            {terminationStep === "sign" && data && terminationBank && (
+                            {data && (
                                 <TerminationSignStep
                                     dealDocumentId={dealDocumentId}
                                     data={data}
-                                    customerIIK={terminationBank.customerIIK}
-                                    customerBIK={terminationBank.customerBIK}
-                                    customerBank={terminationBank.customerBank}
                                     planImage={planImage}
                                     onComplete={() => { exitTermination(); onUpdated?.(); onClose(); }}
                                 />
@@ -432,7 +371,7 @@ export default function DealDrawer({
                                                         <span className="text-gray-500 text-center">{t("no_image")}</span>
                                                     </div>
                                                 )}
-                                                <div className="flex flex-1 flex-col justify-between items-start self-stretch">
+                                                <div className="flex flex-1 flex-col gap-6 items-start self-stretch">
                                                     <div className="flex w-full justify-between items-center self-stretch">
                                                         <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[24px]">{data.deal.property?.projectName ?? "—"}</h1>
                                                         <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px] opacity-30">№{data.deal.property?.apartmentNumber ?? "-"}</p>
@@ -567,7 +506,7 @@ export default function DealDrawer({
                                             color="danger"
                                             variant="bordered"
                                             className="w-full justify-center text-white bg-[#DB1D31]"
-                                            onPress={() => data && setTerminationStep("bank")}
+                                            onPress={() => data && setTerminationActive(true)}
                                             isDisabled={!!actionLoading}
                                         >
                                             Расторжение

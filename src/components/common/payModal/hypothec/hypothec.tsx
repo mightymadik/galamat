@@ -1,298 +1,489 @@
-"use client"
-import React, { useRef, useState, useEffect } from "react";
-import { Button } from "@heroui/button"
-import Slider from "rc-slider";
-import { CheckboxGroup, Checkbox } from "@heroui/react";
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Input, Popover, PopoverContent, PopoverTrigger, Calendar } from "@heroui/react";
 import Image from "next/image";
-import "rc-slider/assets/index.css";
+import { CalendarDate, getLocalTimeZone, today } from "@internationalized/date";
+import type { DateValue } from "@react-types/calendar";
+import type { PaymentConditionForFlat } from "@/types/flat";
+import type { AgreementPayload } from "@/types/agreement";
+import {
+    PROMO_LENGTH,
+    formatPriceDisplay,
+    formatMoney,
+    formatPromoInput,
+    parseDownPaymentPercent,
+    parseRaise,
+    parsePriceString,
+    getMatchingOptions,
+    isActivePaymentStatus,
+    isPaymentConditionValidToday,
+    isPaymentMethod,
+    formatValidToDate,
+    formatComplexDueDate,
+    resolvePromocodeDiscountValue,
+} from "@/lib/paymentFormUtils";
+import { useTranslations } from "next-intl";
 
-export default function Hypothec() {
-    const [initialPayment, setInitialPayment] = useState<number>(325000); // диапазон
-    const [loanPeriod, setLoanPeriod] = useState<number>(12); // диапазон
-    const [selected, setSelected] = useState<string[]>(["Indirect"]);
-    const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+function calendarDateToRu(date: CalendarDate): string {
+    const d = String(date.day).padStart(2, "0");
+    const m = String(date.month).padStart(2, "0");
+    return `${d}.${m}.${date.year}`;
+}
 
-    const items = [
-        { id: "Indirect", label: "Косвянное подтверждение дохода" },
-        { id: "Deposit", label: "С залогом" },
-        { id: "Otbasy", label: "Есть депозит в Отбасы банк" },
-    ];
-    const sliders = [
-        {
-            label: "Первоначальный взнос, ₸",
-            value: initialPayment,
-            setValue: setInitialPayment,
-            min: 3250000,
-            max: 5000000,
-            step: 1000,
-        },
-        {
-            label: "Cрок кредитования",
-            value: loanPeriod,
-            setValue: setLoanPeriod,
-            min: 12,
-            max: 64,
-            step: 1,
-        },
-    ];
+function formatAmountInput(value: string): string {
+    const digits = (value ?? "").replace(/\D/g, "");
+    if (!digits) return "";
+    const n = parseInt(digits, 10);
+    return Number.isNaN(n) ? "" : n.toLocaleString("ru-RU").replace(/\u00A0/g, " ");
+}
 
-    const toggle = (id: string) => {
-        setSelected((prev) =>
-            prev.includes(id)
-                ? prev.filter((v) => v !== id)
-                : [...prev, id]
-        );
+function parseAmount(value: string): number {
+    return Number((value ?? "").replace(/\D/g, "")) || 0;
+}
+
+interface HypothecProps {
+    flatData: {
+        id?: string | number;
+        title?: string;
+        images?: string[];
+        paymentConditions?: PaymentConditionForFlat[];
+        fullPriceBeforeDiscount?: number;
+        totalArea?: number;
+        room?: string;
+        area?: string;
+        complexDueDate?: string;
+        documentId?: string;
+        projectDocumentId?: string;
+        section?: string;
+        entrance?: string;
+        floor?: string;
+        floorGroup?: string;
+        apartmentNumber?: number;
+        house?: number;
+        price?: string;
+        priceM2?: string;
+    } | null;
+    activeButton: string | null;
+    onNext: (payload?: AgreementPayload) => void;
+    isSubmitting?: boolean;
+}
+
+export default function Hypothec({ flatData, onNext, isSubmitting = false }: HypothecProps) {
+    const t = useTranslations();
+    const [selectedPvIndex, setSelectedPvIndex] = useState(0);
+    const [selectedPaymentDates, setSelectedPaymentDates] = useState<CalendarDate[]>(() => [today(getLocalTimeZone())]);
+    const [amountByDateKey, setAmountByDateKey] = useState<Record<string, string>>({});
+    const [promocodeInput, setPromocodeInput] = useState<string>("");
+    const lastValidatedCodeRef = useRef<string>("");
+    const [promocodeResult, setPromocodeResult] = useState<{ valid: boolean; value?: number; code?: string; error?: string } | null>(null);
+
+    const parsedArea = typeof flatData?.area === "string"
+        ? parseFloat(flatData.area.replace(/[^\d.,]/g, "").replace(",", "."))
+        : 0;
+    const totalArea = flatData?.totalArea && flatData.totalArea > 0 ? flatData.totalArea : (Number.isFinite(parsedArea) ? parsedArea : 0);
+    const basePrice = (flatData?.fullPriceBeforeDiscount && flatData.fullPriceBeforeDiscount > 0)
+        ? flatData.fullPriceBeforeDiscount
+        : parsePriceString(flatData?.price);
+    const todayCalendarDate = today(getLocalTimeZone());
+
+    const conditions = (flatData?.paymentConditions || []).filter(
+        (c) => isPaymentMethod(c, "hypothec") && isActivePaymentStatus(c) && isPaymentConditionValidToday(c)
+    );
+    const allOptions = conditions.flatMap((c) => c.paymentCondition || []).filter((o) => o?.downPayment != null && o?.downPayment !== "");
+    const flatAttrs = {
+        room: flatData?.room,
+        totalArea,
+        section: flatData?.section,
+        entrance: flatData?.entrance,
+        floor: flatData?.floor,
+        floorGroup: flatData?.floorGroup,
+        apartmentNumber: flatData?.apartmentNumber,
     };
+    const matchedOptions = getMatchingOptions(allOptions as Parameters<typeof getMatchingOptions>[0], flatAttrs);
+    const sourceOptions = matchedOptions;
+    const options = Array.from(
+        new Map(
+            sourceOptions
+                .filter((o) => parseDownPaymentPercent(o?.downPayment) > 0)
+                .map((o) => [`${parseDownPaymentPercent(o?.downPayment)}`, o])
+        ).values()
+    );
+    const selectedOption = options[Math.min(selectedPvIndex, Math.max(0, options.length - 1))] ?? options[0];
+    const downPercent = selectedOption ? parseDownPaymentPercent(selectedOption.downPayment) || 30 : 30;
+    const raiseRaw = parseRaise(selectedOption?.raise);
+    const raiseAmount = raiseRaw >= 1 && raiseRaw <= 100
+        ? Math.round((basePrice * raiseRaw) / 100)
+        : Math.round(raiseRaw * totalArea);
+    const raisePerSquareAmount = (() => {
+        if (raiseRaw >= 1 && raiseRaw <= 100) {
+            return totalArea > 0 ? Math.round(((basePrice * raiseRaw) / 100) / totalArea) : 0;
+        }
+        if (raiseRaw >= 101) {
+            return Math.round(raiseRaw);
+        }
+        return 0;
+    })();
+    const totalPriceBeforeDiscounts = Math.max(0, basePrice + Math.max(0, raiseAmount));
+    const promocodeDiscount = promocodeResult?.valid
+        ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, totalArea)
+        : 0;
+    const totalPrice = Math.max(0, totalPriceBeforeDiscounts - promocodeDiscount);
+    const downAmount = Math.round(totalPrice * (downPercent / 100));
+    const loanAmount = Math.max(0, totalPrice - downAmount);
+    const totalSumM2 = totalArea > 0 ? totalPrice / totalArea : 0;
+    const totalSumM2Display = formatPriceDisplay(Math.round(totalSumM2)) + "/м²";
+    const validToDate = conditions[0]?.validTo ? new Date(String(conditions[0]?.validTo).replace(" ", "T")) : null;
+    const validToFormatted = formatValidToDate(conditions[0]?.validTo);
+    const now = today(getLocalTimeZone());
+    const endDate = validToDate && !Number.isNaN(validToDate.getTime())
+        ? new CalendarDate(validToDate.getFullYear(), validToDate.getMonth() + 1, validToDate.getDate())
+        : new CalendarDate(now.year + 1, now.month, now.day);
 
-    const mortgageOptions = [
-        {
-            id: 1,
-            bankTitle: "Halyk ипотека",
-            bankSubtitle: "Заявка через брокер",
-            bankLogo: "/img/halyk.png",
+    const sortedPaymentDates = useMemo(
+        () => [...selectedPaymentDates].filter((d) => d.compare(todayCalendarDate) >= 0 && d.compare(endDate) <= 0).sort((a, b) => a.compare(b)),
+        [selectedPaymentDates, todayCalendarDate, endDate]
+    );
+    const n = sortedPaymentDates.length;
+    const firstAmounts = n <= 1 ? [] : sortedPaymentDates.slice(0, -1).map((d) => parseAmount(amountByDateKey[calendarDateToRu(d)] ?? "0"));
+    const sumFirst = firstAmounts.reduce((a, b) => a + b, 0);
+    const remainingRaw = downAmount - sumFirst;
+    const amountsForRows = n === 0 ? [downAmount] : [...firstAmounts, Math.max(0, remainingRaw)];
 
-            rate: "15.5%",
-            term: "20 лет",
-            price: "31 032 351 ₸",
-
-            monthlyTitle: "Платеж в месяц",
-            monthlyValue: "∼ 232 351 ₸/мес",
-
-            details: [
-                { label: "ГЭСВ", value: "16.64%" },
-                { label: "Переплата", value: "79 052 636 ₸" },
-                { label: "Сумма займа", value: "30 032 351 ₸" },
-            ],
-        },
-        {
-            id: 2,
-            bankTitle: "Оңай ипотека",
-            bankSubtitle: "Altyn Bank",
-            bankLogo: "/img/altyn.png",
-
-            rate: "15.5%",
-            term: "20 лет",
-            price: "31 032 351 ₸",
-
-            monthlyTitle: "Платеж в месяц",
-            monthlyValue: "∼ 232 351 ₸/мес",
-
-            details: [
-                { label: "ГЭСВ", value: "16.64%" },
-                { label: "Переплата", value: "79 052 636 ₸" },
-                { label: "Сумма займа", value: "30 032 351 ₸" },
-            ],
-        },
-        {
-            id: 3,
-            bankTitle: "Цифровая Ипотека",
-            bankSubtitle: "Freedom Bank",
-            bankLogo: "/img/freedom.png",
-
-            rate: "15.5%",
-            term: "20 лет",
-            price: "31 032 351 ₸",
-
-            monthlyTitle: "Платеж в месяц",
-            monthlyValue: "∼ 232 351 ₸/мес",
-
-            details: [
-                { label: "ГЭСВ", value: "16.64%" },
-                { label: "Переплата", value: "79 052 636 ₸" },
-                { label: "Сумма займа", value: "30 032 351 ₸" },
-            ],
-        },
-    ];
-
-    const toggleExpand = (id: number) => {
-        setExpanded(prev => {
-            const currentState = typeof prev === 'object' && prev !== null ? prev : {};
-            return {
-                ...currentState,
-                [id]: !currentState[id],
-            };
+    const onPaymentDayToggle = (date: DateValue) => {
+        const cd = "day" in date ? date : (date as CalendarDate);
+        if ((cd as CalendarDate).compare(todayCalendarDate) < 0) return;
+        if ((cd as CalendarDate).compare(endDate) > 0) return;
+        setSelectedPaymentDates((prev) => {
+            const next = prev.filter((d) => d.compare(cd as CalendarDate) !== 0);
+            if (next.length === prev.length) next.push(cd as CalendarDate);
+            return next.sort((a, b) => a.compare(b));
         });
     };
 
+    const removePaymentDate = (date: CalendarDate) => {
+        const key = calendarDateToRu(date);
+        setSelectedPaymentDates((prev) => prev.filter((d) => d.compare(date) !== 0));
+        setAmountByDateKey((prev) => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
+    const handleNext = () => {
+        const paymentSchedule = sortedPaymentDates.length === 0
+            ? [{ index: 1, date: calendarDateToRu(todayCalendarDate), sum: formatPriceDisplay(downAmount) }]
+            : sortedPaymentDates.map((d, i) => ({
+                index: i + 1,
+                date: calendarDateToRu(d),
+                sum: formatPriceDisplay(amountsForRows[i] ?? 0),
+            }));
+        onNext({
+            paymentMethod: "hypothec",
+            totalSum: totalPrice,
+            totalSumM2: totalArea > 0 ? Math.round(totalPrice / totalArea) : 0,
+            paymentSchedule: [
+                ...paymentSchedule,
+                {
+                    index: paymentSchedule.length + 1,
+                    date: validToFormatted || calendarDateToRu(endDate),
+                    sum: formatPriceDisplay(Math.max(0, loanAmount)),
+                },
+            ],
+            agreementProjectDueDate: validToFormatted || "",
+            propertyDocumentId: flatData?.documentId,
+            usedPromocodeCode: promocodeResult?.valid ? promocodeResult.code : undefined,
+        });
+    };
+
+    useEffect(() => {
+        const code = formatPromoInput(promocodeInput);
+        if (code.length < PROMO_LENGTH) {
+            lastValidatedCodeRef.current = "";
+            setPromocodeResult(null);
+            return;
+        }
+        if (code.length !== PROMO_LENGTH || code === lastValidatedCodeRef.current || !flatData?.projectDocumentId) return;
+        setPromocodeResult(null);
+        fetch("/api/promocodes/validate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                code,
+                projectDocumentId: flatData.projectDocumentId,
+                payment: "Hypothec",
+            }),
+        })
+            .then((res) => res.json())
+            .then((data: { valid?: boolean; value?: number; code?: string; error?: string }) => {
+                lastValidatedCodeRef.current = code;
+                setPromocodeResult({
+                    valid: !!data.valid,
+                    value: data.value,
+                    code: data.code,
+                    error: data.error,
+                });
+            })
+            .catch(() => {
+                setPromocodeResult({ valid: false, error: t("code_verification_error") });
+            });
+    }, [promocodeInput, flatData?.projectDocumentId, t]);
+
     return (
-        <div className="flex flex-col items-start gap-[24px] self-stretch">
-            <div className="flex flex-col items-start gap-[24px] self-stretch">
-                {sliders.map(({ label, value, setValue, min, max, step }, index) => (
-                    <div key={index} className="flex w-full flex-col items-start gap-[4px]">
-                        <p className="overflow-hidden overflow-ellipsis text-[12px] not-italic font-normal leading-[normal] text-[#132C5E]">{label}</p>
-                        <div className="flex flex-col justify-center items-center self-stretch">
-                            <div className="flex items-center self-stretch">
-                                <p className="flex items-start gap-[4px] flex-[1_0_0] bg-[#F4F6FB] rounded-[12px] p-[11px] overflow-hidden overflow-ellipsis text-[15px] not-italic font-normal leading-[20px] text-[#132C5E]"> {value}</p>
-                            </div>
-                            <div className="flex px-[16px] py-[0] flex-col items-start gap-[10px] self-stretch h-0">
-                                <Slider
-                                    className="bottom-2 w-full"
-                                    step={step}
-                                    min={min}
-                                    max={max}
-                                    value={value}
-                                    onChange={(v) => setValue(v as number)}
-                                    trackStyle={{ backgroundColor: "#1A3C7E", height: 2 }}
-                                    handleStyle={{
-                                        borderColor: "#1A3C7E",
-                                        backgroundColor: "#1A3C7E",
-                                        height: 18,
-                                        width: 18,
-                                        marginTop: -7,
-                                    }}
-                                    railStyle={{ backgroundColor: "#1A3C7E", height: 2 }}
-                                />
-                            </div>
+        <div className="flex flex-col items-start gap-[16px] self-stretch">
+            <div className="flex w-full h-full max-h-[168px] p-[16px] flex-col items-start gap-[10px] self-stretch rounded-[32px] bg-[#F4F6FB]">
+                <div className="flex h-full max-h-[168px] justify-between items-center self-stretch gap-[36px]">
+                    {flatData?.images?.[0] ? (
+                        <div className="flex p-[10px] flex-col items-start gap-[10px] rounded-[16px] bg-[#FFF]">
+                            <Image
+                                rel="preload"
+                                src={flatData.images[0]}
+                                alt={flatData?.id?.toString() || "no-image"}
+                                width={130}
+                                height={116}
+                                className="max-w-[200px] max-h-[200px] h-full w-full"
+                            />
+                        </div>
+                    ) : (
+                        <div className="w-[130px] h-[116px] bg-gray-200 rounded-[12px] flex items-center justify-center p-1">
+                            <span className="text-gray-500 text-center">{t("no_image")}</span>
+                        </div>
+                    )}
+                    <div className="flex w-full flex-col justify-between items-start self-stretch">
+                        <div className="flex justify-between items-start self-stretch">
+                            <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[24px]">{flatData?.title || ""}</h1>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px] opacity-30">№{flatData?.apartmentNumber || ""}</span>
+                        </div>
+                        <div className="flex justify-between items-start self-stretch">
+                            <h1 className="text-[#000] text-[16px] not-italic font-normal leading-[24px]">{flatData?.room || ""} {t("rooms")}</h1>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[24px]">{flatData?.area || ""}</span>
+                        </div>
+                        <div className="flex items-end gap-[5px] self-stretch">
+                            <h1 className="text-[#2655AF] text-[20px] not-italic font-medium leading-[16px]">{formatPriceDisplay(totalPrice)}</h1>
                         </div>
                     </div>
-                ))}
-                <div className="flex items-start gap-[12px] self-stretch">
-                    <Button className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center flex-[1_0_0] rounded-[16px] bg-[#1A3C7E]">
-                        <span className="text-[#FFF] text-[15px] not-italic font-medium leading-[20px]">Аннуитет</span>
-                    </Button>
-                    <Button className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center flex-[1_0_0] rounded-[16px] bg-[#F4F5F9]">
-                        <span className="text-[#000] text-[15px] not-italic font-medium leading-[20px]">Равными долями</span>
-                    </Button>
-                </div>
-                <div className="self-stretch flex flex-col gap-2">
-                    {items.map((item) => {
-                        const isSelected = selected.includes(item.id);
-
-                        return (
-                            <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => toggle(item.id)}
-                                className={`self-stretch h-11 min-w-11 min-h-11 px-3 py-2.5 rounded-xl inline-flex justify-start items-center gap-2 transition-colors
-              ${isSelected ? "bg-[#1A3C7E]/10" : "bg-slate-100"}
-            `}
-                            >
-                                {isSelected ? (
-                                    // Checked icon
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
-                                        <path
-                                            fillRule="evenodd"
-                                            clipRule="evenodd"
-                                            d="M14.6666 7.99967C14.6666 11.6816 11.6818 14.6663 7.99992 14.6663C4.31802 14.6663 1.33325 11.6816 1.33325 7.99967C1.33325 4.31778 4.31802 1.33301 7.99992 1.33301C11.6818 1.33301 14.6666 4.31778 14.6666 7.99967ZM10.6868 5.97945C10.8821 6.17472 10.8821 6.4913 10.6868 6.68656L7.35347 10.0199C7.15821 10.2152 6.84163 10.2152 6.64637 10.0199L5.31303 8.68656C5.11777 8.4913 5.11777 8.17472 5.31303 7.97945C5.50829 7.78419 5.82488 7.78419 6.02014 7.97945L6.99992 8.95923L8.48981 7.46934L9.9797 5.97945C10.175 5.78419 10.4915 5.78419 10.6868 5.97945Z"
-                                            fill="#1C274C"
-                                        />
-                                    </svg>
-                                ) : (
-                                    // Unchecked icon
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
-                                        <circle cx="8" cy="8" r="6.5" stroke="#132C5E" fill="none" />
-                                    </svg>
-                                )}
-
-                                <span className="flex-1 text-xs font-medium leading-5 text-left">
-                                    {item.label}
-                                </span>
-                            </button>
-                        );
-                    })}
                 </div>
             </div>
             <div className="flex flex-col items-start gap-[16px] self-stretch">
-                <span className="text-[#122C5E] text-[20px] not-italic font-normal leading-[100%] opacity-50">
-                    Доступные программы
-                </span>
-                <div className="flex flex-col items-start gap-[16px] self-stretch">
-                    {mortgageOptions.map((item) => (
-                        <div key={item.id} className="flex h-full p-[16px] flex-col items-start gap-[24px] self-stretch rounded-[16px] bg-[#F4F6FB]">
-                            {/* Header */}
-                            <div className="flex w-full max-w-[368px] h-[71px] items-center gap-[12px]">
-                                <div className="flex h-[66px] p-[8px] justify-center items-center rounded-[8px] bg-white">
-                                    <Image src={item.bankLogo} width={50} height={50} alt="bank" />
-                                </div>
-
-                                <div className="flex flex-col gap-[4px]">
-                                    <span className="text-[20px] leading-[24px]">{item.bankTitle}</span>
-                                    <p className="text-[16px] opacity-50">{item.bankSubtitle}</p>
-                                </div>
-                            </div>
-
-                            {/* Three columns */}
-                            <div className="flex items-start gap-[16px] self-stretch w-full">
-                                <div className="w-full">
-                                    <p className="text-[14px] opacity-50">Ставка:</p>
-                                    <span className="text-[#1A3C7E]">{item.rate}</span>
-                                </div>
-
-                                <div className="w-full">
-                                    <p className="text-[14px] opacity-50">Срок</p>
-                                    <span className="text-[#1A3C7E]">{item.term}</span>
-                                </div>
-
-                                <div className="w-full">
-                                    <p className="text-[14px] opacity-50">Цена в ипотеку</p>
-                                    <span className="text-[#1A3C7E]">{item.price}</span>
-                                </div>
-                            </div>
-
-                            {/* Monthly */}
-                            <div className="flex justify-between w-full">
-                                <span className="text-[#2655AF]">{item.monthlyTitle}</span>
-                                <span className="text-[#2655AF]">{item.monthlyValue}</span>
-                            </div>
-
-                            {/* Buttons */}
-                            <div className="flex gap-[12px] w-full">
-                                <Button className="flex-1 bg-[#1A3C7E] text-white rounded-[12px]">
-                                    Подать заявку на ипотеку
-                                </Button>
-
-                                <Button
-                                    key={item.id}
-                                    onPress={() => toggleExpand(item.id)}
-                                    className="bg-[#F4F5F9] rounded-[12px] flex items-center gap-[6px]"
-                                >
-                                    Подробнее
-                                    <svg
-                                        className={`transition-transform ${expanded ? "rotate-180" : ""}`}
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 16 16"
-                                        fill="none"
-                                    >
-                                        <path d="M12.6666 6L7.99992 10L3.33325 6" stroke="#1C274C" strokeWidth="1.5" />
-                                    </svg>
-                                </Button>
-                            </div>
-
-                            {/* Expandable block */}
-                           <div
-                                className={`w-full overflow-hidden transition-all duration-300 ${expanded[item.id] ? "max-h-[500px] opacity-100 mt-[12px]" : "max-h-0 opacity-0"
-                                    }`}
-                            >
-                                <div className="flex flex-col gap-[8px]">
-
-                                    {item.details.map((detail, idx) => (
-                                        <div
-                                            key={idx}
-                                            className="flex py-[8px] justify-between border-b border-[rgba(38,85,175,0.16)]"
-                                        >
-                                            <span>{detail.label}</span>
-                                            <span>{detail.value}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            <div
-                                className={`flex items-center gap-[5px] self-stretch p-0 w-full overflow-hidden transition-all duration-300 ${expanded[item.id] ? "max-h-[500px] opacity-100 mt-[12px]" : "max-h-0 opacity-0"
-                                    }`}
-                            >
-                                <Button className="flex px-[11px] py-[9px] rounded-[12px] bg-[#F4F5F9] gap-[6px]">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                        <path d="M8.36902 11.0041C8.27429 11.1077 8.14038 11.1667 8 11.1667C7.85962 11.1667 7.72571 11.1077 7.63099 11.0041L4.96432 8.08738C4.77799 7.88358 4.79215 7.56732 4.99595 7.38099C5.19975 7.19465 5.51602 7.20881 5.70235 7.41262L7.5 9.3788V2C7.5 1.72386 7.72386 1.5 8 1.5C8.27614 1.5 8.5 1.72386 8.5 2V9.3788L10.2977 7.41262C10.484 7.20881 10.8003 7.19465 11.0041 7.38099C11.2079 7.56732 11.222 7.88358 11.0357 8.08738L8.36902 11.0041Z" fill="#132C5E" />
-                                        <path d="M2.5 10C2.5 9.72386 2.27614 9.5 2 9.5C1.72386 9.5 1.5 9.72386 1.5 10V10.0366C1.49999 10.9483 1.49998 11.6832 1.57768 12.2612C1.65836 12.8612 1.83096 13.3665 2.23223 13.7678C2.63351 14.169 3.13876 14.3416 3.73883 14.4223C4.31681 14.5 5.05169 14.5 5.96342 14.5H10.0366C10.9483 14.5 11.6832 14.5 12.2612 14.4223C12.8612 14.3416 13.3665 14.169 13.7678 13.7678C14.169 13.3665 14.3416 12.8612 14.4223 12.2612C14.5 11.6832 14.5 10.9483 14.5 10.0366V10C14.5 9.72386 14.2761 9.5 14 9.5C13.7239 9.5 13.5 9.72386 13.5 10C13.5 10.9569 13.4989 11.6244 13.4312 12.1279C13.3655 12.6171 13.2452 12.8762 13.0607 13.0607C12.8762 13.2452 12.6171 13.3655 12.1279 13.4312C11.6244 13.4989 10.9569 13.5 10 13.5H6C5.04306 13.5 4.37565 13.4989 3.87208 13.4312C3.3829 13.3655 3.12385 13.2452 2.93934 13.0607C2.75483 12.8762 2.63453 12.6171 2.56877 12.1279C2.50106 11.6244 2.5 10.9569 2.5 10Z" fill="#132C5E" />
-                                    </svg>
-                                    Скачать расчеты
-                                </Button>
-                            </div>
+                <div className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
+                    <div className="flex items-start self-stretch">
+                        <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">{t("characteristics")}</h1>
+                    </div>
+                    <div className="flex flex-col items-start gap-[8px] self-stretch">
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("residential_complex")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.title || ""}</span>
                         </div>
-                    ))}
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("house")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.house || ""}</span>
+                        </div>
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("due_date")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatComplexDueDate(flatData?.complexDueDate) || ""}</span>
+                        </div>
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("section")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.section || ""}</span>
+                        </div>
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("entrance")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.entrance || ""}</span>
+                        </div>
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("floor")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.floor || ""}</span>
+                        </div>
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("apartment_price")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(totalPrice)}</span>
+                        </div>
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("price_per_square_meter")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{totalSumM2Display}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
+            <div className="flex flex-col gap-2 w-full">
+                <Input
+                    type="text"
+                    label="Промокод"
+                    value={promocodeInput}
+                    inputMode="text"
+                    autoComplete="off"
+                    onValueChange={(v) => setPromocodeInput(formatPromoInput(v))}
+                    variant="flat"
+                    placeholder=""
+                    maxLength={PROMO_LENGTH}
+                    isInvalid={promocodeResult !== null && !promocodeResult.valid && !!promocodeResult.error}
+                    classNames={{
+                        base: `w-full bg-[#F4F6FB] rounded-[16px] px-[16px] py-[8px] ${promocodeResult?.valid === false ? "bg-danger-50" : "bg-[#F4F6FB]"}`,
+                        label: "text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70 pb-[8px]",
+                        input: "!text-[#1A3C7E] text-[20px] font-medium leading-[24px] uppercase",
+                        inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:!bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                        innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                    }}
+                />
+                {promocodeResult?.valid === false && promocodeResult?.error != null && (
+                    <p className="text-danger-500 text-[14px] font-normal leading-[20px] opacity-90">
+                        {promocodeResult.error}
+                    </p>
+                )}
+            </div>
+            <div className="flex w-full p-[32px] flex-col items-start gap-[16px] rounded-[32px] bg-[#F4F6FB]">
+                <div className="flex items-start self-stretch">
+                    <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">{t("deferred_payment_conditions")}</h1>
+                </div>
+                <p className="text-[#000] text-[14px] not-italic font-normal leading-[20px] opacity-80">
+                    {t("hypothec_until")} {validToFormatted}
+                </p>
+                {options.length > 0 && (
+                    <div className="flex flex-col gap-2 self-stretch">
+                        <p className="text-[#000] text-[14px] not-italic font-normal leading-[20px] opacity-80">
+                            {t("select_initial_payment_amount")}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            {options.map((opt, i) => {
+                                const pctLabel = `${parseDownPaymentPercent(opt.downPayment)}%`;
+                                const isSelected = selectedPvIndex === i;
+                                return (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() => setSelectedPvIndex(i)}
+                                        className={`flex px-4 py-2 rounded-[32px] text-[16px] leading-6 font-medium transition-colors ${isSelected ? "bg-[#1A3C7E] text-white" : "bg-[#FFF] text-[#2655AF] border border-[#1A3C7E]/30"}`}
+                                    >
+                                        {pctLabel}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+                <div className="flex flex-col items-start gap-[8px] self-stretch">
+                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("apartment_price")}</span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(totalPrice)}</span>
+                    </div>
+                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("price_per_square_meter")}</span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{totalSumM2Display}</span>
+                    </div>
+                    <div className="flex items-center justify-between w-full flex-row gap-3 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] py-[8px]">
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                            {t("payment_schedule")}
+                        </span>
+                        <Popover placement="bottom-end">
+                            <PopoverTrigger>
+                                <Button size="sm" className="self-start flex h-[32px] rounded-[12px] bg-[#2655AF] text-white">
+                                    + {t("add_date")}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="p-0">
+                                <Calendar
+                                    aria-label={t("select_payment_dates")}
+                                    value={sortedPaymentDates[0] ?? today(getLocalTimeZone())}
+                                    onChange={onPaymentDayToggle}
+                                    minValue={todayCalendarDate}
+                                    maxValue={endDate}
+                                    classNames={{
+                                        header: "disabled",
+                                        base: "bg-transparent",
+                                        gridBody: "bg-[#F4F6FB]",
+                                    }}
+                                />
+                                <p className="text-[#122C5E] text-[12px] opacity-70 px-2 pb-2">
+                                    {t("hypothec_until")} {calendarDateToRu(endDate)}
+                                </p>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    <div className="flex flex-col gap-2 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] py-[8px]">
+                        {sortedPaymentDates.map((d) => {
+                            const dateKey = calendarDateToRu(d);
+                            const isLast = dateKey === (sortedPaymentDates.length > 0 ? calendarDateToRu(sortedPaymentDates[sortedPaymentDates.length - 1]) : "");
+                            return (
+                                <div
+                                    key={dateKey}
+                                    className="flex justify-between flex-wrap items-center gap-2"
+                                >
+                                    <span className="text-[#1A3C7E] text-[14px] font-medium min-w-[90px]">
+                                        {dateKey}
+                                    </span>
+                                    {isLast ? (
+                                        <span className={`text-[14px] ${remainingRaw < 0 ? "text-red-600" : "text-[#000] opacity-80"}`}>
+                                            {t("remaining")}: {formatMoney(remainingRaw)}
+                                        </span>
+                                    ) : (
+                                        <div className="flex items-center gap-2 justify-end">
+                                            <Input
+                                                size="sm"
+                                                type="text"
+                                                inputMode="numeric"
+                                                value={amountByDateKey[dateKey] ?? ""}
+                                                onValueChange={(v) => setAmountByDateKey((prev) => ({ ...prev, [dateKey]: formatAmountInput(v ?? "") }))}
+                                                placeholder="0"
+                                                classNames={{
+                                                    base: "max-w-[180px] bg-[#FFF] rounded-[12px]",
+                                                    input: "text-[14px] text-right",
+                                                    inputWrapper: "shadow-none",
+                                                }}
+                                                endContent={<span className="text-[12px] text-[#666]">₸</span>}
+                                            />
+                                            {sortedPaymentDates.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    aria-label={t("remove_date")}
+                                                    className="p-1 rounded hover:bg-black/10 text-[#666]"
+                                                    onClick={() => removePaymentDate(d)}
+                                                >
+                                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <path d="M3 3l10 10M13 3L3 13" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("raise_per_square_meter")}</span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(raisePerSquareAmount)}</span>
+                    </div>
+                    {promocodeResult?.valid && promocodeResult?.code != null && (
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                                Промокод <span className="text-[#2655AF] font-medium">{promocodeResult.code}</span>
+                            </span>
+                            <span className="text-[#2655AF] text-[16px] not-italic font-normal leading-[16px]">
+                                {formatPriceDisplay(promocodeDiscount)}
+                            </span>
+                        </div>
+                    )}
+                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{downPercent}% {t("initial_payment")}</span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(downAmount)}</span>
+                    </div>
+                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                            {t("hypothec_until")} {validToFormatted ? ` ${validToFormatted}` : ""}
+                        </span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(Math.max(0, loanAmount))}</span>
+                    </div>
+                </div>
+            </div>
+            <Button
+                onPress={handleNext}
+                isDisabled={isSubmitting}
+                isLoading={isSubmitting}
+                className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] bg-[#1A3C7E]"
+            >
+                <span className="text-[#FFF] text-[15px] not-italic font-medium leading-[20px]">{isSubmitting ? t("saving") : t("next")}</span>
+            </Button>
         </div>
-    )
+    );
 }

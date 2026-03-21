@@ -9,45 +9,42 @@ export async function POST(req: Request) {
     const access = cookieStore.get("access_token")?.value;
     if (!access)
       return NextResponse.json({ status: "error", message: "unauthorized" }, { status: 401 });
-
     const payload = verifyAccessToken(access);
     if (!payload?.sub)
       return NextResponse.json({ status: "error", message: "unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { dealDocumentId } = body as { dealDocumentId?: string };
-
+    const { dealDocumentId, newCustomerDocumentId, totalSum } = body as {
+      dealDocumentId?: string;
+      newCustomerDocumentId?: string;
+      totalSum?: number;
+    };
     if (!dealDocumentId)
-      return NextResponse.json(
-        { status: "error", message: "dealDocumentId required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ status: "error", message: "dealDocumentId required" }, { status: 400 });
+    if (!newCustomerDocumentId)
+      return NextResponse.json({ status: "error", message: "newCustomerDocumentId required" }, { status: 400 });
 
     const base = getStrapiBaseUrl().replace(/\/api\/?$/, "").replace(/\/$/, "");
     const headers = getStrapiHeaders();
 
     const res = await strapiAxios.post(
-      `${base}/api/signed-agreements/send-to-sign`,
-      { dealDocumentId },
-      { headers, timeout: 120_000 }
+      `${base}/api/signed-agreements/generate-transfer`,
+      { dealDocumentId, newCustomerDocumentId, totalSum },
+      { headers, timeout: 60_000 }
     );
 
     const data = res.data as any;
 
-    return NextResponse.json({
-      status: "ok",
-      documents: data.documents ?? [],
-      documentId: data.documents?.[0]?.doodocsDocumentId ?? null,
-      signUrl: data.documents?.[0]?.signUrl ?? null,
-    });
+    if (data.fileUrl) {
+      const url = new URL(data.fileUrl, base);
+      data.fileUrl = `/api/strapi-file?path=${encodeURIComponent(url.pathname)}`;
+    }
+
+    return NextResponse.json(data);
   } catch (e: any) {
     const status = e?.response?.status ?? 500;
-    const msg =
-      e?.response?.data?.error?.message ??
-      e?.response?.data?.message ??
-      e?.message ??
-      "server_error";
-    console.error("[signing/start proxy]", status, msg);
+    const msg = e?.response?.data?.error?.message ?? e?.response?.data?.message ?? e?.message ?? "server_error";
+    console.error("[generate-transfer proxy]", status, msg);
     return NextResponse.json({ status: "error", message: msg }, { status });
   }
 }

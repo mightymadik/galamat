@@ -19,6 +19,8 @@ export interface CashierPaymentRow {
   createdAt: string | null;
   confirmedAt: string | null;
   confirmedByDisplayName?: string | null;
+  receiptUrl?: string | null;
+  receiptName?: string | null;
 }
 
 export interface CashierDeal {
@@ -44,7 +46,7 @@ function formatDate(iso: string | null | undefined): string {
   return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function statusBadgeClass(status: string, type: "deal" | "schedule" | "payment"): string {
+function statusBadgeClass(status: string): string {
   const s = (status || "").trim();
   if (s === "Оплачено") return "bg-emerald-100 text-emerald-800 border-emerald-200";
   if (s === "Просрочено") return "bg-red-100 text-red-800 border-red-200";
@@ -53,15 +55,69 @@ function statusBadgeClass(status: string, type: "deal" | "schedule" | "payment")
   return "bg-gray-100 text-gray-700 border-gray-200";
 }
 
-function StatusBadge({ status, type }: { status: string; type: "deal" | "schedule" | "payment" }) {
+function StatusBadge({ status }: { status: string }) {
   const label = status || "—";
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(label, type)}`}
-    >
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(label)}`}>
       {label}
     </span>
   );
+}
+
+/**
+ * Вычисляет остаток по каждой позиции графика на основе кумулятивной суммы оплат.
+ * Возвращает массив remainder[] в том же порядке, что и schedules.
+ */
+function computeScheduleRemainders(
+  schedules: CashierScheduleRow[],
+  paidAmount: number
+): number[] {
+  let remaining = paidAmount;
+  return schedules.map((s) => {
+    const rowAmount = Number(s.amount ?? 0);
+    const covered = Math.min(remaining, rowAmount);
+    remaining = Math.max(0, remaining - rowAmount);
+    return Math.max(0, rowAmount - covered);
+  });
+}
+
+/**
+ * Определяет номер позиции графика для каждого платежа.
+ * Платежи сортируются по дате (asc), потом распределяются по позициям кумулятивно.
+ */
+function computePaymentScheduleIndexes(
+  schedules: CashierScheduleRow[],
+  payments: CashierPaymentRow[]
+): Map<string, number> {
+  const result = new Map<string, number>();
+  const sorted = [...payments]
+    .filter((p) => p.paymentStatus === "Оплачено")
+    .sort((a, b) => {
+      const da = a.confirmedAt ?? a.createdAt ?? "";
+      const db = b.confirmedAt ?? b.createdAt ?? "";
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+
+  const capacities = schedules.map((s) => Number(s.amount ?? 0));
+  const filled = capacities.map(() => 0);
+
+  for (const p of sorted) {
+    let payAmount = Number(p.amount ?? 0);
+    for (let i = 0; i < capacities.length && payAmount > 0; i++) {
+      const space = capacities[i] - filled[i];
+      if (space <= 0) continue;
+      const take = Math.min(payAmount, space);
+      filled[i] += take;
+      payAmount -= take;
+      if (!result.has(p.documentId)) {
+        result.set(p.documentId, schedules[i].index);
+      }
+    }
+    if (!result.has(p.documentId) && schedules.length > 0) {
+      result.set(p.documentId, schedules[schedules.length - 1].index);
+    }
+  }
+  return result;
 }
 
 const CASHIER_ONLY_KEY = "cashier_only_access";
@@ -146,7 +202,7 @@ export default function CashierPayments() {
     setConfirmingDealId(deal.documentId);
     const firstPending = deal.paymentSchedules.find((s) => SCHEDULE_CONFIRMABLE_STATUSES.includes(s.paymentStatus));
     setScheduleId(firstPending?.documentId ?? null);
-    setAmount(firstPending ? String(firstPending.amount) : "");
+    setAmount(firstPending ? String(firstPending.amount).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "");
     setReceiptFile(null);
     setSubmitError(null);
   };
@@ -169,6 +225,14 @@ export default function CashierPayments() {
     if (!num || num <= 0) {
       setSubmitError(t("enter_amount_error"));
       return;
+    }
+    const deal = deals.find((d) => d.documentId === confirmingDealId);
+    if (deal) {
+      const remaining = Number(deal.dealPrice) - Number(deal.paidAmount);
+      if (num > remaining) {
+        setSubmitError(`Сумма (${formatMoney(num)}) превышает остаток по сделке (${formatMoney(remaining)})`);
+        return;
+      }
     }
     setSubmitError(null);
     const form = new FormData();
@@ -304,7 +368,11 @@ export default function CashierPayments() {
       ) : (
         <>
         <div className="flex flex-col gap-4">
-          {paginatedDeals.map((deal) => (
+          {paginatedDeals.map((deal) => {
+            const remainders = computeScheduleRemainders(deal.paymentSchedules, deal.paidAmount);
+            const paymentToSchedule = computePaymentScheduleIndexes(deal.paymentSchedules, deal.payments);
+
+            return (
             <div key={deal.documentId} className="overflow-hidden rounded-[24px] border border-[#122C5E]/10 bg-[#F4F6FB]">
               <button
                 type="button"
@@ -344,7 +412,7 @@ export default function CashierPayments() {
                   </div>
                 </div>
                 <div className="flex items-center">
-                  <StatusBadge status={deal.dealStatus} type="deal" />
+                  <StatusBadge status={deal.dealStatus} />
                 </div>
                 <div className="flex items-center justify-end text-[#122C5E] text-sm">
                   {expandedId === deal.documentId ? "▲ " + t("collapse") : "▼ " + t("expand_list")}
@@ -357,23 +425,31 @@ export default function CashierPayments() {
                     <section className="min-w-0">
                       <h3 className="mb-2 text-[#122C5E] font-medium">{t("payment_schedule")}</h3>
                       <div className="overflow-x-auto rounded-[12px] border border-[#122C5E]/10 bg-white">
-                        <table className="w-full min-w-[280px] border-collapse text-left text-sm">
+                        <table className="w-full min-w-[360px] border-collapse text-left text-sm">
                           <thead>
                             <tr className="border-b border-[#122C5E]/15 bg-[#122C5E]/05">
                               <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">№</th>
                               <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("due_date_short")}</th>
                               <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("amount")}</th>
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("remainder")}</th>
                               <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("status_label")}</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {deal.paymentSchedules.map((s) => (
+                            {deal.paymentSchedules.map((s, idx) => (
                               <tr key={s.documentId} className="border-b border-[#122C5E]/08 last:border-0">
                                 <td className="px-3 py-2.5">{s.index}</td>
                                 <td className="px-3 py-2.5">{formatDate(s.dueDate)}</td>
                                 <td className="px-3 py-2.5 tabular-nums">{formatMoney(s.amount)}</td>
+                                <td className="px-3 py-2.5 tabular-nums">
+                                  {remainders[idx] > 0 ? (
+                                    <span className="text-amber-700">{formatMoney(remainders[idx])}</span>
+                                  ) : (
+                                    <span className="text-emerald-600">0 ₸</span>
+                                  )}
+                                </td>
                                 <td className="px-3 py-2.5">
-                                  <StatusBadge status={s.paymentStatus} type="schedule" />
+                                  <StatusBadge status={s.paymentStatus} />
                                 </td>
                               </tr>
                             ))}
@@ -384,9 +460,10 @@ export default function CashierPayments() {
                     <section className="min-w-0">
                       <h3 className="mb-2 text-[#122C5E] font-medium">{t("payments")}</h3>
                       <div className="overflow-x-auto rounded-[12px] border border-[#122C5E]/10 bg-white">
-                        <table className="w-full min-w-[260px] border-collapse text-left text-sm">
+                        <table className="w-full min-w-[400px] border-collapse text-left text-sm">
                           <thead>
                             <tr className="border-b border-[#122C5E]/15 bg-[#122C5E]/05">
+                              <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">№</th>
                               <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("amount")}</th>
                               <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("status_label")}</th>
                               <th className="px-3 py-2.5 text-[#122C5E] font-medium opacity-90">{t("confirmed_at")}</th>
@@ -396,21 +473,27 @@ export default function CashierPayments() {
                           <tbody>
                             {deal.payments.length === 0 ? (
                               <tr>
-                                <td colSpan={4} className="px-3 py-4 text-center text-[#122C5E] opacity-60">
+                                <td colSpan={6} className="px-3 py-4 text-center text-[#122C5E] opacity-60">
                                   {t("no_payments")}
                                 </td>
                               </tr>
                             ) : (
-                              deal.payments.map((p) => (
-                                <tr key={p.documentId} className="border-b border-[#122C5E]/08 last:border-0">
-                                  <td className="px-3 py-2.5 tabular-nums">{formatMoney(p.amount)}</td>
-                                  <td className="px-3 py-2.5">
-                                    <StatusBadge status={p.paymentStatus} type="payment" />
-                                  </td>
-                                  <td className="px-3 py-2.5">{formatDate(p.confirmedAt ?? p.createdAt)}</td>
-                                  <td className="px-3 py-2.5">{p.confirmedByDisplayName ?? "—"}</td>
-                                </tr>
-                              ))
+                              deal.payments.map((p) => {
+                                const schedIdx = paymentToSchedule.get(p.documentId);
+                                return (
+                                  <tr key={p.documentId} className="border-b border-[#122C5E]/08 last:border-0">
+                                    <td className="px-3 py-2.5 text-[#122C5E]">
+                                      {schedIdx != null ? `№${schedIdx}` : "—"}
+                                    </td>
+                                    <td className="px-3 py-2.5 tabular-nums">{formatMoney(p.amount)}</td>
+                                    <td className="px-3 py-2.5">
+                                      <StatusBadge status={p.paymentStatus} />
+                                    </td>
+                                    <td className="px-3 py-2.5">{formatDate(p.confirmedAt ?? p.createdAt)}</td>
+                                    <td className="px-3 py-2.5">{p.confirmedByDisplayName ?? "—"}</td>
+                                  </tr>
+                                );
+                              })
                             )}
                           </tbody>
                         </table>
@@ -430,16 +513,20 @@ export default function CashierPayments() {
                             onChange={(e) => {
                               setScheduleId(e.target.value || null);
                               const s = deal.paymentSchedules.find((x) => x.documentId === e.target.value);
-                              if (s) setAmount(String(s.amount));
+                              if (s) setAmount(String(s.amount).replace(/\B(?=(\d{3})+(?!\d))/g, " "));
                             }}
                           >
                             {deal.paymentSchedules
                               .filter((s) => SCHEDULE_CONFIRMABLE_STATUSES.includes(s.paymentStatus))
-                              .map((s) => (
-                                <option key={s.documentId} value={s.documentId}>
-                                  №{s.index} — {formatDate(s.dueDate)} — {formatMoney(s.amount)}
-                                </option>
-                              ))}
+                              .map((s, idx) => {
+                                const rem = remainders[deal.paymentSchedules.indexOf(s)];
+                                return (
+                                  <option key={s.documentId} value={s.documentId}>
+                                    №{s.index} — {formatDate(s.dueDate)} — {formatMoney(s.amount)}
+                                    {rem > 0 && rem < s.amount ? ` (остаток: ${formatMoney(rem)})` : ""}
+                                  </option>
+                                );
+                              })}
                           </select>
                         </div>
                         <div className="flex flex-col gap-1.5">
@@ -447,8 +534,11 @@ export default function CashierPayments() {
                           <Input
                             type="text"
                             value={amount}
-                            onValueChange={setAmount}
-                            placeholder={t("amount_placeholder")}
+                            onValueChange={(v) => {
+                              const digits = v.replace(/\D/g, "");
+                              if (!digits) { setAmount(""); return; }
+                              setAmount(digits.replace(/\B(?=(\d{3})+(?!\d))/g, " "));
+                            }}
                             classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-10" }}
                           />
                         </div>
@@ -501,7 +591,7 @@ export default function CashierPayments() {
                 </div>
               )}
             </div>
-          ))}
+          );})}
         </div>
 
         {totalPages > 1 && (

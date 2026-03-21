@@ -15,6 +15,7 @@ import {
     parsePriceString,
     formatComplexDueDate,
     getFullPaymentDiscountFromConditions,
+    resolvePromocodeDiscountValue,
 } from "@/lib/paymentFormUtils";
 import { withMask } from "use-mask-input";
 import type { DateValue } from "@react-types/calendar";
@@ -339,7 +340,9 @@ export default function FullPayment({ flatData, activeButton, onNext, isSubmitti
     const conditionDiscount = getFullPaymentDiscountFromConditions(flatData?.paymentConditions as any, basePrice ?? 0, totalArea, flatAttrs);
     const basePriceM2 = formatPriceDisplay(parsePriceString(flatData?.priceM2));
     const flatPriceNumber = Math.max(0, basePrice - conditionDiscount);
-    const promocodeDiscount = promocodeResult?.valid && promocodeResult?.value != null ? Number(promocodeResult.value) : 0;
+    const promocodeDiscount = promocodeResult?.valid
+        ? resolvePromocodeDiscountValue(promocodeResult?.value, flatPriceNumber, totalArea)
+        : 0;
     const totalWithBonus = Math.max(0, flatPriceNumber - galaBonusAmount - promocodeDiscount);
     const totalPriceDisplay = formatPriceDisplay(totalWithBonus);
 
@@ -388,6 +391,8 @@ export default function FullPayment({ flatData, activeButton, onNext, isSubmitti
 
     const onPaymentDayToggle = (date: DateValue) => {
         const cd = "day" in date ? date : (date as CalendarDate);
+        const todayCalendarDate = today(getLocalTimeZone());
+        if ((cd as CalendarDate).compare(todayCalendarDate) < 0) return;
         setSelectedPaymentDates((prev) => {
             const next = prev.filter((d) => d.compare(cd) !== 0);
             if (next.length === prev.length) next.push(cd as CalendarDate);
@@ -447,7 +452,7 @@ export default function FullPayment({ flatData, activeButton, onNext, isSubmitti
                                     {formatPriceDisplay(basePrice)}
                                 </span>
                             )}
-                            <h1 className="text-[#2655AF] text-[20px] not-italic font-medium leading-[16px]">{formatPriceDisplay(flatPriceNumber)}</h1>
+                            <h1 className="text-[#2655AF] text-[20px] not-italic font-medium leading-[16px]">{totalPriceDisplay}</h1>
                         </div>
                         {((flatData?.discountPercent != null && flatData.discountPercent > 0) || (conditionDiscount > 0 && basePrice > 0)) && (
                             <div className="flex items-end gap-[5px] self-stretch">
@@ -508,60 +513,30 @@ export default function FullPayment({ flatData, activeButton, onNext, isSubmitti
                     </div>
                 </div>
             </div>
-            <div className="flex flex-col gap-2 w-full">
-                <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70">Промокод</span>
-                <Input
-                    type="text"
-                    value={promocodeInput}
-                    inputMode="text"
-                    autoComplete="off"
-                    onValueChange={(v) => setPromocodeInput(formatPromoInput(v))}
-                    variant="flat"
-                    placeholder=""
-                    maxLength={PROMO_LENGTH}
-                    isInvalid={promocodeResult !== null && !promocodeResult.valid && !!promocodeResult.error}
-                    classNames={{
-                        base: `w-full bg-[#F4F6FB] rounded-[16px] px-[16px] py-[8px] ${promocodeResult?.valid === false ? 'bg-danger-50' : 'bg-[#F4F6FB]'}`,
-                        label: "text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70 pb-[8px]",
-                        input: "!text-[#1A3C7E] text-[20px] font-medium leading-[24px] uppercase",
-                        inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:!bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
-                        innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
-                    }}
-                    endContent={
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="24"
-                            height="24"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                        >
-                            <path
-                                d="M12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75Z"
-                                fill="#1C274C"
-                                fillOpacity="0.22"
-                            />
-                            <path
-                                d="M12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7Z"
-                                fill="#1C274C"
-                                fillOpacity="0.22"
-                            />
-                            <path
-                                fillRule="evenodd"
-                                clipRule="evenodd"
-                                d="M1.25 12C1.25 6.06294 6.06294 1.25 12 1.25C17.9371 1.25 22.75 6.06294 22.75 12C22.75 17.9371 17.9371 22.75 12 22.75C6.06294 22.75 1.25 17.9371 1.25 12ZM12 2.75C6.89137 2.75 2.75 6.89137 2.75 12C2.75 17.1086 6.89137 21.25 12 21.25C17.1086 21.25 21.25 17.1086 21.25 12C21.25 6.89137 17.1086 2.75 12 2.75Z"
-                                fill="#1C274C"
-                                fillOpacity="0.22"
-                            />
-                        </svg>
-                    }
-                />
-                {promocodeResult?.valid === false && promocodeResult?.error != null && (
-                    <p className="text-danger-500 text-[14px] font-normal leading-[20px] opacity-90">
-                        {promocodeResult.error}
-                    </p>
-                )}
-            </div>
-
+            <Input
+                type="text"
+                label="Промокод"
+                value={promocodeInput}
+                inputMode="text"
+                autoComplete="off"
+                onValueChange={(v) => setPromocodeInput(formatPromoInput(v))}
+                variant="flat"
+                placeholder=""
+                maxLength={PROMO_LENGTH}
+                isInvalid={promocodeResult !== null && !promocodeResult.valid && !!promocodeResult.error}
+                classNames={{
+                    base: `w-full bg-[#F4F6FB] rounded-[16px] px-[16px] py-[8px] ${promocodeResult?.valid === false ? 'bg-danger-50' : 'bg-[#F4F6FB]'}`,
+                    label: "text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70 pb-[8px]",
+                    input: "!text-[#1A3C7E] text-[20px] font-medium leading-[24px] uppercase",
+                    inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:!bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                    innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                }}
+            />
+            {promocodeResult?.valid === false && promocodeResult?.error != null && (
+                <p className="text-danger-500 text-[14px] font-normal leading-[20px] opacity-90">
+                    {promocodeResult.error}
+                </p>
+            )}
             {isManagerOrAdmin && (
                 <div className="flex flex-col gap-2 w-full">
                     {bonusPhoneStep !== "code" && (
@@ -711,7 +686,7 @@ export default function FullPayment({ flatData, activeButton, onNext, isSubmitti
                             {t("price")}
                         </span>
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
-                            {flatData?.originalPrice ?? flatData?.price ?? ''}
+                            {totalPriceDisplay}
                         </span>
                     </div>
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
@@ -732,16 +707,16 @@ export default function FullPayment({ flatData, activeButton, onNext, isSubmitti
                             </span>
                         </div>
                     )}
-                    {(promocodeResult?.valid && promocodeResult?.code != null) ? (
+                    {(promocodeResult?.valid && promocodeResult?.code != null) && (
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
                                 Промокод <span className="text-[#2655AF] font-medium">{promocodeResult.code}</span>
                             </span>
                             <span className="text-[#2655AF] text-[16px] not-italic font-normal leading-[16px]">
-                                {promocodeResult.value != null ? formatPriceDisplay(promocodeResult.value) : "0 ₸"}
+                                {formatPriceDisplay(promocodeDiscount)}
                             </span>
                         </div>
-                    ) : null}
+                    )}
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
                             Gala Bonus
@@ -775,6 +750,7 @@ export default function FullPayment({ flatData, activeButton, onNext, isSubmitti
                                     aria-label={t("select_payment_dates")}
                                     value={calendarValue}
                                     onChange={onPaymentDayToggle}
+                                    minValue={today(getLocalTimeZone())}
                                     classNames={{
                                         base: "bg-transparent",
                                         gridBody: "bg-[#F4F6FB]",

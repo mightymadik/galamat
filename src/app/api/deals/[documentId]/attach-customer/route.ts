@@ -69,9 +69,57 @@ export async function POST(
       updateData.docNumber = v ? parseInt(v, 10) : null;
     }
     if (body?.docIssuer != null) updateData.docIssuer = String(body.docIssuer).trim();
+    if (body?.bik != null) updateData.bik = body.bik === "" ? null : String(body.bik).trim().toUpperCase();
+    if (body?.iik != null) updateData.iik = body.iik === "" ? null : String(body.iik).trim().toUpperCase();
     if (body?.iin != null && body?.iin !== "") {
       const v = String(body.iin).replace(/\D/g, "");
       updateData.iin = v ? parseInt(v, 10) : null;
+    }
+
+    const bankDocumentIdRaw = body?.bankDocumentId != null ? String(body.bankDocumentId).trim() : "";
+    const bankNameRaw = body?.bankName != null ? String(body.bankName).trim() : "";
+    let bankDocumentId: string | null = bankDocumentIdRaw || null;
+    let bankNumericId: number | null = null;
+
+    // Resolve relation by bank name when documentId is not available on client.
+    if (!bankDocumentId && bankNameRaw) {
+      try {
+        const bankByNameUrl =
+          `${base}/api/banks` +
+          `?filters[$or][0][nameBank][$eq]=${encodeURIComponent(bankNameRaw)}` +
+          `&filters[$or][1][name][$eq]=${encodeURIComponent(bankNameRaw)}` +
+          `&filters[$or][2][bankName][$eq]=${encodeURIComponent(bankNameRaw)}` +
+          `&pagination[pageSize]=1`;
+        let bankList: any[] = [];
+        try {
+          const bankRes = await strapiAxios.get(bankByNameUrl, { headers });
+          bankList = (bankRes.data as any)?.data ?? [];
+        } catch {
+          // Fallback to public read when token has no banks permission.
+          const publicRes = await fetch(bankByNameUrl, { cache: "no-store" });
+          const publicJson = await publicRes.json().catch(() => ({}));
+          bankList = Array.isArray((publicJson as any)?.data) ? (publicJson as any).data : [];
+        }
+        bankDocumentId = bankList[0]?.documentId ?? null;
+        bankNumericId = typeof bankList[0]?.id === "number" ? bankList[0].id : null;
+      } catch {
+        bankDocumentId = null;
+      }
+    }
+
+    // Defensive check: ignore stale bank ids to avoid hard 400 on customer update.
+    if (bankDocumentId) {
+      try {
+        await strapiAxios.get(`${base}/api/banks/${encodeURIComponent(bankDocumentId)}?fields[0]=documentId`, { headers });
+      } catch {
+        bankDocumentId = null;
+      }
+    }
+
+    if (bankDocumentId) {
+      updateData.bank = { connect: [bankDocumentId] };
+    } else if (bankNumericId) {
+      updateData.bank = { connect: [bankNumericId] };
     }
 
     if (!customerDocId) {
@@ -90,6 +138,31 @@ export async function POST(
         { data: updateData },
         { headers }
       );
+    }
+
+    // Force relation attach for one-to-one bank in case sanitized update ignored it.
+    if (customerDocId && (bankDocumentId || bankNumericId)) {
+      const bankAttachPayloads: Array<Record<string, unknown>> = [];
+      if (bankDocumentId) {
+        bankAttachPayloads.push({ bank: { connect: [bankDocumentId] } });
+        bankAttachPayloads.push({ bank: { set: [bankDocumentId] } });
+        bankAttachPayloads.push({ bank: { connect: [{ documentId: bankDocumentId }] } });
+      }
+      if (bankNumericId) {
+        bankAttachPayloads.push({ bank: { connect: [bankNumericId] } });
+        bankAttachPayloads.push({ bank: { set: [bankNumericId] } });
+      }
+      for (const payloadItem of bankAttachPayloads) {
+        try {
+          await strapiAxios.put(
+            `${base}/api/customers/${customerDocId}`,
+            { data: payloadItem },
+            { headers }
+          );
+        } catch {
+          // Try next format.
+        }
+      }
     }
 
     const currentDealRes = await strapiAxios.get(

@@ -6,11 +6,13 @@ import { Button, Input } from "@heroui/react";
 export function TerminationBankStep({
   onNext,
 }: {
-  onNext: (payload: { customerIIK: string; customerBIK: string; customerBank: string }) => void;
+  onNext: (payload: { customerIIK: string; customerBIK: string; customerBank: string; customerBankAddressrru: string; customerBankAddressrKz: string }) => void;
 }) {
   const [customerIIK, setCustomerIIK] = useState("");
   const [customerBIK, setCustomerBIK] = useState("");
   const [customerBank, setCustomerBank] = useState("");
+  const [customerBankAddressrru, setCustomerBankAddressrru] = useState("");
+  const [customerBankAddressrKz, setCustomerBankAddressrKz] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const normalizeBik = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
@@ -43,7 +45,7 @@ export function TerminationBankStep({
       return;
     }
     setError(null);
-    onNext({ customerIIK: iik, customerBIK: bik, customerBank: bank });
+    onNext({ customerIIK: iik, customerBIK: bik, customerBank: bank, customerBankAddressrru: customerBankAddressrru.trim(), customerBankAddressrKz: customerBankAddressrKz.trim() });
   };
 
   return (
@@ -90,6 +92,36 @@ export function TerminationBankStep({
           onValueChange={(v) => setCustomerBank(normalizeBankTyping(v))}
           variant="flat"
           inputMode="text"
+          classNames={{
+            base: "w-full bg-[#F4F6FB] rounded-[16px] p-2",
+            label: "!text-[#1A3C7E] text-sm opacity-80",
+            input: "!text-[#1A3C7E] text-xl font-medium",
+            inputWrapper: "bg-transparent shadow-none hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-2 w-full">
+        <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70 px-1">Адрес банка (рус)</span>
+        <Input
+          placeholder="г. Алматы, ул. ..."
+          value={customerBankAddressrru}
+          onValueChange={setCustomerBankAddressrru}
+          variant="flat"
+          classNames={{
+            base: "w-full bg-[#F4F6FB] rounded-[16px] p-2",
+            label: "!text-[#1A3C7E] text-sm opacity-80",
+            input: "!text-[#1A3C7E] text-xl font-medium",
+            inputWrapper: "bg-transparent shadow-none hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-2 w-full">
+        <span className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-70 px-1">Адрес банка (каз)</span>
+        <Input
+          placeholder="Алматы қ., ..."
+          value={customerBankAddressrKz}
+          onValueChange={setCustomerBankAddressrKz}
+          variant="flat"
           classNames={{
             base: "w-full bg-[#F4F6FB] rounded-[16px] p-2",
             label: "!text-[#1A3C7E] text-sm opacity-80",

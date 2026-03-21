@@ -6,7 +6,8 @@ import Image from "next/image";
 import type { AgreementPayload } from "@/types/agreement";
 import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "@/store";
-import { setAgreementFileUrl } from "@/store/paySlice";
+import { setAgreementFileUrl, setAgreementFiles } from "@/store/paySlice";
+import type { AgreementFileEntry } from "@/store/paySlice";
 import { formatPriceDisplay } from "@/lib/paymentFormUtils";
 import { useTranslations } from "next-intl";
 
@@ -18,6 +19,14 @@ function formatSignedAt(iso: string | null | undefined): string {
     } catch {
         return iso;
     }
+}
+
+interface DocStatus {
+    templateType: string;
+    doodocsDocumentId?: string;
+    signUrl?: string;
+    signed: boolean;
+    signedAt: string | null;
 }
 
 interface SignProps {
@@ -39,7 +48,7 @@ interface SignProps {
         totalPrice?: number;
     } | null;
     agreementPayload: AgreementPayload | null;
-    activeButton: string | null; // '1day', '3days', '5days'
+    activeButton: string | null;
     onNext: () => void;
 }
 
@@ -48,24 +57,28 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
     const dispatch = useDispatch();
     const [completing, setCompleting] = useState(false);
     const [sendingToSign, setSendingToSign] = useState(false);
-    const [sendStepMessage, setSendStepMessage] = useState<string | null>(null);
     const [sentToSign, setSentToSign] = useState(false);
-    const [doodocsDocumentId, setDoodocsDocumentId] = useState<string | null>(null);
+    const [docStatuses, setDocStatuses] = useState<DocStatus[]>([]);
     const [signError, setSignError] = useState<string | null>(null);
     const [checkingStatus, setCheckingStatus] = useState(false);
-    const [doodocsSignedAt, setDoodocsSignedAt] = useState<string | null>(null);
     const [pdbSignedAt, setPdbSignedAt] = useState<string | null>(null);
     const [signingPdb, setSigningPdb] = useState(false);
-    /** Проект из сводки по сделке — для «Отправить на подпись», если в flatData нет projectDocumentId */
     const [projectDocumentIdFromDeal, setProjectDocumentIdFromDeal] = useState<string | null>(null);
 
     const payFlatDocumentId = useSelector((state: RootState) => state.pay.flat?.documentId);
     const agreementFileUrl = useSelector((state: RootState) => state.pay.agreementFileUrl);
+    const agreementFiles = useSelector((state: RootState) => state.pay.agreementFiles);
     const agreementTemplateType = useSelector((state: RootState) => state.pay.agreementTemplateType);
     const agreementNumber = useSelector((state: RootState) => state.pay.agreementNumber);
     const dealDocumentId = useSelector((state: RootState) => state.pay.dealDocumentId);
     const isPdb = agreementTemplateType === "pdb";
-    const isSigned = isPdb ? Boolean(pdbSignedAt) : Boolean(doodocsSignedAt);
+
+    const allDocsSigned = isPdb
+        ? Boolean(pdbSignedAt)
+        : docStatuses.length > 0 && docStatuses.every((d) => d.signed);
+    const anyDocSigned = isPdb
+        ? Boolean(pdbSignedAt)
+        : docStatuses.some((d) => d.signed);
 
     useEffect(() => {
         if (!isPdb || !dealDocumentId) return;
@@ -77,18 +90,17 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
             .catch(() => { });
     }, [isPdb, dealDocumentId]);
 
-    // После перезагрузки восстанавливаем сводку по сделке: doodocsDocumentId, статус «Ожидания договора», agreementFileUrl (чтобы кнопка «Отправить на подпись» была доступна).
     useEffect(() => {
         if (!dealDocumentId) return;
         fetch(`/api/deals/${dealDocumentId}/summary`, { credentials: "include" })
             .then((r) => r.json().catch(() => ({})))
-            .then((data: { doodocsDocumentId?: string | null; dealStatus?: string; agreementFileUrl?: string | null; projectDocumentId?: string | null }) => {
+            .then((data: any) => {
                 if (data?.agreementFileUrl) dispatch(setAgreementFileUrl(data.agreementFileUrl));
                 if (data?.projectDocumentId) setProjectDocumentIdFromDeal(data.projectDocumentId);
                 if (!isPdb) {
-                    if (data?.doodocsDocumentId) setDoodocsDocumentId(data.doodocsDocumentId);
-                    if (data?.dealStatus === "Ожидания договора") setSentToSign(true);
-                    // Если summary не вернул agreementFileUrl (например, другой формат в Strapi), запрашиваем ссылку на договор отдельно
+                    if (data?.doodocsDocumentId || data?.dealStatus === "Ожидания договора") {
+                        setSentToSign(true);
+                    }
                     if (!data?.agreementFileUrl) {
                         fetch(`/api/deals/${dealDocumentId}/signed-agreement`, { credentials: "include" })
                             .then((res) => res.json().catch(() => ({})))
@@ -111,29 +123,18 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                 : "Договор";
 
     const handleSendToDoodocs = async () => {
-        if (!agreementFileUrl) {
-            setSignError(t("contract_link_not_available"));
-            return;
-        }
-        const projectDocumentId = flatData?.projectDocumentId ?? projectDocumentIdFromDeal;
-        if (!projectDocumentId) {
-            setSignError(t("project_not_specified"));
+        if (!dealDocumentId) {
+            setSignError("dealDocumentId отсутствует");
             return;
         }
         setSignError(null);
-        setSendStepMessage(null);
         setSendingToSign(true);
         try {
             const startRes = await fetch("/api/signing/start", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({
-                    fileUrl: agreementFileUrl,
-                    contractName,
-                    projectDocumentId,
-                    dealDocumentId: dealDocumentId ?? undefined,
-                }),
+                body: JSON.stringify({ dealDocumentId }),
             });
             const startJson = await startRes.json().catch(() => ({}));
             if (!startRes.ok || startJson.status === "error") {
@@ -141,15 +142,21 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                 setSendingToSign(false);
                 return;
             }
-            if (startJson.signUrl) setSentToSign(true);
-            if (startJson.documentId) setDoodocsDocumentId(startJson.documentId);
-            setSendStepMessage(null);
+            setSentToSign(true);
+            if (Array.isArray(startJson.documents)) {
+                setDocStatuses(startJson.documents.map((d: any) => ({
+                    templateType: d.templateType,
+                    doodocsDocumentId: d.doodocsDocumentId,
+                    signUrl: d.signUrl,
+                    signed: false,
+                    signedAt: null,
+                })));
+            }
             setSendingToSign(false);
         } catch {
             setSignError(t("network_error"));
         } finally {
             setSendingToSign(false);
-            setSendStepMessage(null);
         }
     };
 
@@ -173,6 +180,41 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
             setSignError(t("network_error"));
         } finally {
             setSigningPdb(false);
+        }
+    };
+
+    const handleCheckStatus = async () => {
+        if (!dealDocumentId) return;
+        setSignError(null);
+        setCheckingStatus(true);
+        try {
+            const res = await fetch("/api/signing/check-status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ dealDocumentId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (data.allSigned) {
+                setDocStatuses((prev) => prev.map((d) => ({ ...d, signed: true, signedAt: data.documents?.find((dd: any) => dd.templateType === d.templateType)?.signedAt ?? d.signedAt })));
+            } else if (Array.isArray(data.documents)) {
+                setDocStatuses((prev) =>
+                    prev.map((d) => {
+                        const remote = data.documents.find((dd: any) => dd.doodocsDocumentId === d.doodocsDocumentId || dd.templateType === d.templateType);
+                        if (remote) return { ...d, signed: remote.signed, signedAt: remote.signedAt ?? d.signedAt };
+                        return d;
+                    })
+                );
+            } else if (!res.ok) {
+                const err = data?.error ?? data?.detail ?? "Ошибка проверки статуса";
+                setSignError(err === "doodocs_unavailable" ? t("doodocs_unavailable") : err);
+            } else {
+                setSignError(t("both_sides_must_sign"));
+            }
+        } catch {
+            setSignError(t("network_error"));
+        } finally {
+            setCheckingStatus(false);
         }
     };
 
@@ -204,6 +246,16 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
             setCompleting(false);
         }
     };
+
+    const templateTypeLabel = (type: string) => {
+        if (type === "ДДУ") return "ДДУ";
+        if (type === "Доп соглашение") return "Доп. соглашение";
+        if (type === "Соглашение о задатке") return "Соглашение о задатке";
+        if (type === "Расторжение") return "Расторжение";
+        if (type === "Переоформление") return "Переоформление";
+        return type;
+    };
+
     return (
         <div className="flex flex-col items-start gap-[24px] self-stretch">
             <div className="flex flex-col items-start gap-[8px] self-stretch">
@@ -256,6 +308,29 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                         </span>
                     </div>
                 </div>
+
+                {/* Generated files list */}
+                {!isPdb && agreementFiles.length > 0 && (
+                    <div className="flex flex-col gap-1 self-stretch">
+                        <p className="text-[#122C5E] text-[14px] font-medium">{t("generated_documents")}:</p>
+                        {agreementFiles.map((f, i) => {
+                            const label = `${templateTypeLabel(f.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
+                            return (
+                                <a key={i} href={f.fileUrl}
+                                    download={`${label}.docx`}
+                                    className="flex items-center gap-2 text-[#2655AF] text-[13px] underline truncate">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="7 10 12 15 17 10" />
+                                        <line x1="12" y1="15" x2="12" y2="3" />
+                                    </svg>
+                                    {label}
+                                </a>
+                            );
+                        })}
+                    </div>
+                )}
+
                 {isPdb && agreementFileUrl && !pdbSignedAt && (
                     <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
                         {t("precontract_generated")}
@@ -266,30 +341,60 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                         {t("contract_signed")} {formatSignedAt(pdbSignedAt)}.
                     </p>
                 )}
-                {!isPdb && sentToSign && !doodocsSignedAt && (
+
+                {!isPdb && sentToSign && docStatuses.length > 0 && (
+                    <div className="flex flex-col gap-1 self-stretch">
+                        {docStatuses.map((d, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${d.signed ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                                <span className="text-[14px] text-[#122C5E]">
+                                    {templateTypeLabel(d.templateType)}: {d.signed ? `✓ ${t("document_signed") ?? "Подписан"} ${formatSignedAt(d.signedAt)}` : t("awaiting_signature") ?? "Ожидает подписания"}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {!isPdb && sentToSign && docStatuses.length === 0 && (
                     <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
                         {t("link_to_signing_sent_to_whatsapp")}
                     </p>
                 )}
-                {!isPdb && doodocsSignedAt && (
-                    <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
-                        {t("document_signed")} {formatSignedAt(doodocsSignedAt)}.
-                    </p>
+
+                {/* Signed documents download section */}
+                {!isPdb && docStatuses.some((d) => d.signed && d.doodocsDocumentId) && (
+                    <div className="flex flex-col gap-1 self-stretch">
+                        <p className="text-[#122C5E] text-[14px] font-medium">{t("signed_documents")}:</p>
+                        {docStatuses
+                            .filter((d) => d.signed && d.doodocsDocumentId)
+                            .map((d, i) => {
+                                const label = `${templateTypeLabel(d.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
+                                return (
+                                    <a
+                                        key={i}
+                                        href={`/api/signed-agreements/download-signed?doodocsDocumentId=${encodeURIComponent(d.doodocsDocumentId!)}`}
+                                        download={`${label}.pdf`}
+                                        className="flex items-center gap-2 text-[#2655AF] text-[13px] underline"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                            <polyline points="7 10 12 15 17 10" />
+                                            <line x1="12" y1="15" x2="12" y2="3" />
+                                        </svg>
+                                        {label} (PDF)
+                                    </a>
+                                );
+                            })}
+                    </div>
                 )}
+
                 {signError && (
                     <p className="text-red-600 text-[14px] not-italic font-normal leading-[20px]">{signError}</p>
                 )}
                 {!isPdb && sendingToSign && (
-                    <>
-                        {sendStepMessage && (
-                            <p className="text-[#1A3C7E] text-[14px] not-italic font-medium leading-[20px]">
-                                {sendStepMessage}
-                            </p>
-                        )}
-                        <p className="text-[#7E7E7E] text-[13px] not-italic font-normal leading-[18px]">
-                            {t("it_usually_takes_20_to_40_seconds")}
-                        </p>
-                    </>
+                    <p className="text-[#7E7E7E] text-[13px] not-italic font-normal leading-[18px]">
+                        {t("it_usually_takes_20_to_40_seconds")}
+                    </p>
                 )}
             </div>
             <div className="flex flex-col gap-3 self-stretch">
@@ -321,45 +426,16 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                 {!isPdb && !sentToSign && (
                     <Button
                         onPress={handleSendToDoodocs}
-                        isDisabled={sendingToSign || !agreementFileUrl}
+                        isDisabled={sendingToSign || (!agreementFileUrl && agreementFiles.length === 0)}
                         className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] bg-[#1A3C7E]">
                         <span className="text-[#FFF] text-[15px] not-italic font-medium leading-[20px]">
                             {sendingToSign ? t("sending") : t("send_to_sign")}
                         </span>
                     </Button>
                 )}
-                {!isSigned && !isPdb && sentToSign && doodocsDocumentId && dealDocumentId && (
+                {!isPdb && sentToSign && !allDocsSigned && (
                     <Button
-                        onPress={async () => {
-                            setSignError(null);
-                            setCheckingStatus(true);
-                            try {
-                                const res = await fetch("/api/signing/check-status", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    credentials: "include",
-                                    body: JSON.stringify({
-                                        documentId: doodocsDocumentId,
-                                        dealDocumentId,
-                                    }),
-                                });
-                                const data = await res.json().catch(() => ({}));
-                                if (data.signed && data.signedAt) {
-                                    setDoodocsSignedAt(data.signedAt);
-                                } else if (!res.ok) {
-                                    const err = data?.error ?? data?.detail ?? "Ошибка проверки статуса";
-                                    setSignError(
-                                        err === "doodocs_unavailable" ? t("doodocs_unavailable") : err
-                                    );
-                                } else {
-                                    setSignError(t("both_sides_must_sign"));
-                                }
-                            } catch {
-                                setSignError(t("network_error"));
-                            } finally {
-                                setCheckingStatus(false);
-                            }
-                        }}
+                        onPress={handleCheckStatus}
                         isDisabled={checkingStatus}
                         className="bg-[#1A3C7E] flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] border border-[#1A3C7E]">
                         <span className="text-white text-[15px] not-italic font-medium leading-[20px]">
@@ -369,10 +445,10 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                 )}
                 <Button
                     onPress={handleFinish}
-                    isDisabled={completing || !isSigned}
+                    isDisabled={completing || !allDocsSigned}
                     className="bg-[#DB1D31] flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] border border-[#1A3C7E] disabled:opacity-50 disabled:cursor-not-allowed">
                     <span className="text-white text-[15px] not-italic font-medium leading-[20px]">
-                        {completing ? t("loading") : !isSigned ? t("contract_not_signed") : t("finish")}
+                        {completing ? t("loading") : !allDocsSigned ? t("contract_not_signed") : t("finish")}
                     </span>
                 </Button>
             </div>

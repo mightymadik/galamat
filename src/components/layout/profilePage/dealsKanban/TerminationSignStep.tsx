@@ -32,17 +32,11 @@ function formatPrice(input: unknown): string {
 export function TerminationSignStep({
   dealDocumentId,
   data,
-  customerIIK,
-  customerBIK,
-  customerBank,
   planImage,
   onComplete,
 }: {
   dealDocumentId: string;
   data: DealFull;
-  customerIIK: string;
-  customerBIK: string;
-  customerBank: string;
   planImage: string | null;
   onComplete: () => void;
 }) {
@@ -67,7 +61,7 @@ export function TerminationSignStep({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ customerIIK, customerBIK, customerBank }),
+        body: JSON.stringify({}),
       });
       const genJson = await genRes.json().catch(() => ({}));
       if (!genRes.ok) {

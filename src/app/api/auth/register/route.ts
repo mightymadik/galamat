@@ -49,6 +49,20 @@ export async function POST(req: Request) {
     const customerId: number = customerItem.id;
     const role: string = customerItem?.attributes?.role || "customer";
 
+    // Enforce OTP confirmation before registration.
+    const otpFindUrl =
+      `${base}/api/otps` +
+      `?filters[user][id][$eq]=${customerId}` +
+      `&filters[confirmedAt][$null]=false` +
+      `&filters[expiresAt][$gt]=${encodeURIComponent(nowIso)}` +
+      `&sort=createdAt:desc` +
+      `&pagination[pageSize]=1`;
+    const otpRes = await strapiAxios.get(otpFindUrl, { headers });
+    const otpItem: any = (otpRes.data as StrapiList<any>)?.data?.[0];
+    if (!otpItem?.documentId) {
+      return Response.json({ status: "error", message: "otp_not_confirmed" }, { status: 400 });
+    }
+
     // ✅ ключ для обновления: documentId если есть, иначе id
     const updateKey = getUpdateKey(customerItem);
 

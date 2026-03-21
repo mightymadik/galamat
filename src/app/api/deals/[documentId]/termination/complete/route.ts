@@ -5,7 +5,7 @@ import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiSer
 
 /**
  * POST /api/deals/[documentId]/termination/complete
- * Sets deal dealStatus to "Расторжение" and returns the apartment to available (propertyStatus: свободно, saleStatus: открыто).
+ * Sets deal dealStatus to "Расторжение", returns apartment to available, sends webhook via backend.
  */
 export async function POST(
   req: Request,
@@ -63,6 +63,17 @@ export async function POST(
       { data: { dealStatus: "Расторжение" } },
       { headers }
     );
+
+    try {
+      await strapiAxios.post(
+        `${base}/api/deals/actions/send-webhook/${encodeURIComponent(dealDocumentId)}`,
+        { status: "termination" },
+        { headers }
+      );
+      console.log("[termination/complete] send-webhook ok");
+    } catch (webhookError: any) {
+      console.error("[termination/complete] send-webhook error:", webhookError?.response?.data ?? webhookError?.message);
+    }
 
     return NextResponse.json({ status: "ok", message: "Сделка расторгнута" });
   } catch (e: any) {

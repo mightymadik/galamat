@@ -7,43 +7,38 @@ export async function POST(req: Request) {
   try {
     const cookieStore = await cookies();
     const access = cookieStore.get("access_token")?.value;
-    if (!access) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    verifyAccessToken(access);
+    if (!access)
+      return NextResponse.json({ status: "error", message: "unauthorized" }, { status: 401 });
+    const payload = verifyAccessToken(access);
+    if (!payload?.sub)
+      return NextResponse.json({ status: "error", message: "unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
     const { dealDocumentId } = body as { dealDocumentId?: string };
-    if (!dealDocumentId) {
-      return NextResponse.json({ error: "dealDocumentId required" }, { status: 400 });
-    }
+    if (!dealDocumentId)
+      return NextResponse.json({ status: "error", message: "dealDocumentId required" }, { status: 400 });
 
     const base = getStrapiBaseUrl().replace(/\/api\/?$/, "").replace(/\/$/, "");
     const headers = getStrapiHeaders();
 
     const res = await strapiAxios.post(
-      `${base}/api/signed-agreements/check-status`,
+      `${base}/api/signed-agreements/generate-termination`,
       { dealDocumentId },
       { headers, timeout: 60_000 }
     );
 
     const data = res.data as any;
 
-    const allSigned = data.allSigned ?? false;
-    const firstSigned = data.documents?.find((d: any) => d.signed);
+    if (data.fileUrl) {
+      const url = new URL(data.fileUrl, base);
+      data.fileUrl = `/api/strapi-file?path=${encodeURIComponent(url.pathname)}`;
+    }
 
-    return NextResponse.json({
-      signed: allSigned,
-      signedAt: firstSigned?.signedAt ?? null,
-      documents: data.documents ?? [],
-      allSigned,
-    });
+    return NextResponse.json(data);
   } catch (e: any) {
-    console.error("signing/check-status error:", e?.response?.data ?? e?.message);
     const status = e?.response?.status ?? 500;
     const msg = e?.response?.data?.error?.message ?? e?.response?.data?.message ?? e?.message ?? "server_error";
-    const isNetwork = msg === "doodocs_unavailable" || status === 503;
-    return NextResponse.json(
-      { error: isNetwork ? "doodocs_unavailable" : msg },
-      { status: isNetwork ? 503 : status }
-    );
+    console.error("[generate-termination proxy]", status, msg);
+    return NextResponse.json({ status: "error", message: msg }, { status });
   }
 }

@@ -264,6 +264,9 @@ export default function AuthModal() {
                                                 const res = await dispatch(
                                                     verifyAuthCode({ phoneMasked: phone ?? "", code: code.join(""), confirmOnly: true }) as any
                                                 );
+                                                if (res?.meta?.requestStatus !== "fulfilled") {
+                                                    return;
+                                                }
                                                 const u = res?.payload?.user;
                                                 const hasName = typeof u?.name === "string" && u.name.trim() !== "";
                                                 const hasSurname = typeof u?.surname === "string" && u.surname.trim() !== "";

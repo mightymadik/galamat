@@ -81,7 +81,8 @@ export async function GET(request: NextRequest) {
         "&pagination[pageSize]=1000" +
         "&fields[0]=documentId&fields[1]=amount&fields[2]=paymentStatus&fields[3]=createdAt&fields[4]=confirmedAt" +
         "&populate[deal][fields][0]=documentId" +
-        "&populate[confirmedBy][fields][0]=name&populate[confirmedBy][fields][1]=surname",
+        "&populate[confirmedBy][fields][0]=name&populate[confirmedBy][fields][1]=surname" +
+        "&populate[receipt][fields][0]=url&populate[receipt][fields][1]=name&populate[receipt][fields][2]=mime",
       { headers }
     ).catch(() => ({ data: { data: [] } }));
     const paymentsList: any[] = (paymentsRes.data as any)?.data ?? [];
@@ -96,6 +97,11 @@ export async function GET(request: NextRequest) {
         const cbSurname = confByData?.surname ?? confByData?.attributes?.surname ?? "";
         const confirmedByDisplayName = [cbSurname, cbName].filter(Boolean).join(" ").trim() || null;
         if (!paymentsByDeal[docId]) paymentsByDeal[docId] = [];
+        const receiptRel = p?.receipt ?? p?.attributes?.receipt;
+        const receiptData = (receiptRel as any)?.data ?? receiptRel;
+        const receiptUrl = receiptData?.url ?? null;
+        const receiptName = receiptData?.name ?? null;
+
         paymentsByDeal[docId].push({
           documentId: p?.documentId ?? p?.id,
           amount: p?.amount ?? p?.attributes?.amount,
@@ -103,6 +109,8 @@ export async function GET(request: NextRequest) {
           createdAt: p?.createdAt ?? p?.attributes?.createdAt,
           confirmedAt: p?.confirmedAt ?? p?.attributes?.confirmedAt,
           confirmedByDisplayName,
+          receiptUrl,
+          receiptName,
         });
       }
     }

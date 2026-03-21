@@ -315,6 +315,28 @@ export function parseRaise(raise: number | string | null | undefined): number {
   return typeof raise === "number" ? raise : Number(String(raise).replace(/\s/g, "")) || 0;
 }
 
+/**
+ * Интерпретация значения скидки промокода:
+ * - 1–100: процент от стоимости
+ * - 101–50_000: скидка за м² (value * totalArea)
+ * - 50_001 и выше: фиксированная скидка от стоимости
+ */
+export function resolvePromocodeDiscountValue(
+  rawValue: number | null | undefined,
+  basePrice: number,
+  totalArea: number
+): number {
+  const value = Number(rawValue ?? 0);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  if (value >= 1 && value <= 100) {
+    return basePrice > 0 ? Math.round((basePrice * value) / 100) : 0;
+  }
+  if (value >= 101 && value <= 50_000) {
+    return totalArea > 0 ? Math.round(value * totalArea) : 0;
+  }
+  return Math.round(value);
+}
+
 const FALLBACK_PCTS = [30, 50, 70] as const;
 
 /** Installment preview for flat detail page: options, validTo, full price, first down, monthly payment */

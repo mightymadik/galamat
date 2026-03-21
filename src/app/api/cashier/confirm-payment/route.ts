@@ -1,190 +1,148 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
-import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import {
+  getStrapiBaseUrl,
+  getStrapiHeaders,
+  strapiAxios,
+} from "@/lib/strapiServer";
 
-function ensureCashier(
+async function ensureCashier(
   payload: { sub?: number; role?: string },
   base: string,
   headers: Record<string, string>
-): Promise<{ customerDocumentId: string }> {
-  let isCashier = payload.role === "cashier" || payload.role === "admin";
-  return new Promise((resolve, reject) => {
-    if (isCashier) {
-      strapiAxios
-        .get(`${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=documentId`, { headers })
-        .then((res) => {
-          const list = (res.data as any)?.data ?? [];
-          const docId = list[0]?.documentId ?? list[0]?.id;
-          resolve({ customerDocumentId: String(docId ?? payload.sub) });
-        })
-        .catch(() => resolve({ customerDocumentId: String(payload.sub) }));
-      return;
-    }
-    strapiAxios
-      .get(`${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role&fields[1]=documentId`, { headers })
-      .then((res) => {
-        const list = (res.data as any)?.data ?? [];
-        const customer = list[0];
-        const role = customer?.role ?? customer?.attributes?.role;
-        const docId = customer?.documentId ?? customer?.id;
-        if (role === "cashier" || role === "admin") {
-          resolve({ customerDocumentId: String(docId ?? payload.sub) });
-        } else {
-          reject(new Error("forbidden"));
-        }
-      })
-      .catch((err) => reject(err));
+): Promise<string> {
+  const res = await strapiAxios.get(
+    `${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=documentId&fields[1]=role`,
+    { headers }
+  );
+  const list: any[] = (res.data as any)?.data ?? [];
+  const customer = list[0];
+  const docId = customer?.documentId ?? customer?.id;
+  const role =
+    payload.role ?? customer?.role ?? customer?.attributes?.role ?? "";
+
+  if (role === "cashier" || role === "admin" || role === "manager") {
+    return String(docId ?? payload.sub);
+  }
+  throw new Error("forbidden");
+}
+
+async function uploadReceipt(
+  file: File,
+  base: string,
+  headers: Record<string, string>
+): Promise<number | null> {
+  if (!file || file.size === 0) return null;
+  const FormDataUpload = (await import("form-data")).default;
+  const form = new FormDataUpload();
+  form.append("files", Buffer.from(await file.arrayBuffer()), {
+    filename: file.name || "receipt",
+    contentType: file.type || "application/octet-stream",
   });
+  const res = await strapiAxios.post(`${base}/api/upload`, form, {
+    headers: { ...headers, ...form.getHeaders() },
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  });
+  const data = (res.data as any) ?? [];
+  const first = Array.isArray(data) ? data[0] : data;
+  return first?.id ?? null;
 }
 
 /**
  * POST /api/cashier/confirm-payment
- * FormData: dealDocumentId, amount, paymentScheduleDocumentId? (optional — иначе первый с Ожидание), receipt (file)
- * Создаёт платёж, привязывает чек, помечает позицию графика «Оплачено». При переплате уменьшает сумму следующей позиции или помечает следующие как оплаченные.
+ *
+ * FormData: dealDocumentId, amount, receipt (file, опционально)
+ *
+ * 1. Проверяет авторизацию и роль (cashier/admin/manager)
+ * 2. Загружает чек в Strapi upload
+ * 3. Вызывает POST /api/payments?cashier=true → бэкенд создаёт Payment
+ *    через strapi.documents(), пересчитывает paidAmount и статусы графика
+ * 4. Обновляет dealStatus на фронте (на случай если бэк не сделал)
  */
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies();
     const access = cookieStore.get("access_token")?.value;
-    if (!access) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    if (!access)
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
     const payload = verifyAccessToken(access);
-    if (!payload?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    if (!payload?.sub)
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
     const base = getStrapiBaseUrl().replace(/\/$/, "");
     const headers = getStrapiHeaders();
 
     const formData = await request.formData().catch(() => null);
-    if (!formData) return NextResponse.json({ error: "FormData required" }, { status: 400 });
+    if (!formData)
+      return NextResponse.json({ error: "FormData required" }, { status: 400 });
 
-    const dealDocumentId = formData.get("dealDocumentId") as string | null;
-    const amountStr = formData.get("amount") as string | null;
-    const paymentScheduleDocumentId = (formData.get("paymentScheduleDocumentId") as string) || null;
+    const dealDocumentId = (formData.get("dealDocumentId") as string) ?? "";
+    const amountStr = (formData.get("amount") as string) ?? "";
     const receiptFile = formData.get("receipt") as File | null;
 
-    if (!dealDocumentId?.trim()) return NextResponse.json({ error: "dealDocumentId required" }, { status: 400 });
-    const amount = amountStr ? parseInt(String(amountStr).replace(/\D/g, ""), 10) : 0;
-    if (!amount || amount <= 0) return NextResponse.json({ error: "amount required and must be > 0" }, { status: 400 });
+    if (!dealDocumentId.trim())
+      return NextResponse.json(
+        { error: "dealDocumentId required" },
+        { status: 400 }
+      );
+    const amount = parseInt(String(amountStr).replace(/\D/g, ""), 10) || 0;
+    if (amount <= 0)
+      return NextResponse.json(
+        { error: "amount must be > 0" },
+        { status: 400 }
+      );
 
-    const { customerDocumentId } = await ensureCashier(payload, base, headers);
+    const customerDocumentId = await ensureCashier(payload, base, headers);
 
-    let receiptFileId: number | null = null;
-    if (receiptFile && receiptFile.size > 0) {
-      const FormDataUpload = (await import("form-data")).default;
-      const form = new FormDataUpload();
-      form.append("files", Buffer.from(await receiptFile.arrayBuffer()), {
-        filename: receiptFile.name || "receipt",
-        contentType: receiptFile.type || "application/octet-stream",
-      });
-      const uploadRes = await strapiAxios.post(`${base}/api/upload`, form, {
-        headers: { ...headers, ...form.getHeaders() },
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity,
-      });
-      const uploadData = (uploadRes.data as any) ?? [];
-      const first = Array.isArray(uploadData) ? uploadData[0] : uploadData;
-      if (first?.id) receiptFileId = first.id;
-    }
+    const receiptFileId = receiptFile
+      ? await uploadReceipt(receiptFile, base, headers)
+      : null;
 
-    const now = new Date().toISOString();
-    const paymentPayload: Record<string, unknown> = {
-      deal: { connect: [dealDocumentId] },
+    const scheduleDocId =
+      (formData.get("paymentScheduleDocumentId") as string) || null;
+
+    const body: Record<string, unknown> = {
+      dealDocumentId,
       amount,
-      paymentStatus: "Оплачено",
-      confirmedBy: { connect: [customerDocumentId] },
-      confirmedAt: now,
+      confirmedBy: customerDocumentId,
     };
-    if (receiptFileId != null) paymentPayload.receipt = receiptFileId;
+    if (receiptFileId != null) body.receipt = receiptFileId;
+    if (scheduleDocId) body.scheduleDocumentId = scheduleDocId;
 
-    const createRes = await strapiAxios.post(`${base}/api/payments`, { data: paymentPayload }, { headers });
-    const createdPayment: any = (createRes.data as any)?.data ?? createRes.data;
-    const paymentDocumentId = createdPayment?.documentId ?? createdPayment?.id;
-    if (!paymentDocumentId) return NextResponse.json({ error: "payment create failed" }, { status: 502 });
-
-    const schedulesRes = await strapiAxios.get(
-      `${base}/api/payment-schedules?filters[deal][documentId][$eq]=${encodeURIComponent(dealDocumentId)}&sort[0]=index:asc&pagination[pageSize]=100&fields[0]=documentId&fields[1]=index&fields[2]=amount&fields[3]=paymentStatus`,
+    const res = await strapiAxios.post(
+      `${base}/api/payments?cashier=true`,
+      body,
       { headers }
     );
-    const schedules: any[] = (schedulesRes.data as any)?.data ?? [];
-    const pendingOrOverdue = schedules.filter(
-      (s: any) => ((v) => v === "Ожидание" || v === "Просрочено")(s?.paymentStatus ?? s?.attributes?.paymentStatus)
-    );
-    const targetSchedule = paymentScheduleDocumentId
-      ? schedules.find((s: any) => (s?.documentId ?? s?.id) === paymentScheduleDocumentId)
-      : pendingOrOverdue[0];
-    if (!targetSchedule) {
-      return NextResponse.json({ error: "Нет позиции графика для оплаты (Ожидание или Просрочено)" }, { status: 400 });
-    }
-
-    const targetDocId = targetSchedule?.documentId ?? targetSchedule?.id;
-    const targetAmount = Number(targetSchedule?.amount ?? targetSchedule?.attributes?.amount ?? 0);
-
-    await strapiAxios.put(
-      `${base}/api/payment-schedules/${targetDocId}`,
-      { data: { paymentStatus: "Оплачено", payment: { connect: [paymentDocumentId] } } },
-      { headers }
-    );
-
-    let remainder = amount - targetAmount;
-    const targetIndex = Number(targetSchedule?.index ?? targetSchedule?.attributes?.index ?? 0);
-    const nextSchedules = schedules.filter(
-      (s: any) =>
-        ((v) => v === "Ожидание" || v === "Просрочено")(s?.paymentStatus ?? s?.attributes?.paymentStatus) &&
-        Number(s?.index ?? s?.attributes?.index) > targetIndex
-    );
-
-    for (const next of nextSchedules) {
-      if (remainder <= 0) break;
-      const nextAmount = Number(next?.amount ?? next?.attributes?.amount ?? 0);
-      const nextDocId = next?.documentId ?? next?.id;
-      if (nextAmount <= remainder) {
-        await strapiAxios.put(
-          `${base}/api/payment-schedules/${nextDocId}`,
-          { data: { paymentStatus: "Оплачено", payment: { connect: [paymentDocumentId] } } },
-          { headers }
-        );
-        remainder -= nextAmount;
-      } else {
-        await strapiAxios.put(
-          `${base}/api/payment-schedules/${nextDocId}`,
-          { data: { amount: nextAmount - remainder } },
-          { headers }
-        );
-        remainder = 0;
-        break;
-      }
-    }
-
-    const paymentsSumRes = await strapiAxios.get(
-      `${base}/api/payments?filters[deal][documentId][$eq]=${encodeURIComponent(dealDocumentId)}&filters[paymentStatus][$eq]=Оплачено&pagination[pageSize]=500&fields[0]=amount`,
-      { headers }
-    );
-    const paidList: any[] = (paymentsSumRes.data as any)?.data ?? [];
-    const paidAmount = paidList.reduce((sum: number, p: any) => sum + Number(p?.amount ?? p?.attributes?.amount ?? 0), 0);
-
-    const dealRes = await strapiAxios.get(`${base}/api/deals/${dealDocumentId}?fields[0]=dealPrice`, { headers });
-    const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
-    const dealPrice = Number(deal?.dealPrice ?? deal?.attributes?.dealPrice ?? 0);
-    const updateDealData: Record<string, unknown> = { paidAmount };
-    if (dealPrice > 0 && paidAmount >= dealPrice) {
-      updateDealData.dealStatus = "Оплачено";
-    }
-    await strapiAxios.put(`${base}/api/deals/${dealDocumentId}`, { data: updateDealData }, { headers });
+    const result = res.data as any;
 
     return NextResponse.json({
       status: "ok",
-      paymentDocumentId,
-      paidAmount,
-      dealStatus: updateDealData.dealStatus ?? deal?.dealStatus ?? deal?.attributes?.dealStatus,
+      paymentDocumentId:
+        result?.data?.documentId ?? result?.data?.id ?? null,
+      paidAmount: result?.paidAmount ?? 0,
     });
   } catch (e: any) {
     if (e?.message === "forbidden")
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
-    console.error("[cashier/confirm-payment]", e?.response?.data ?? e);
-    return NextResponse.json(
-      { error: e?.message ?? "server_error" },
-      { status: 500 }
-    );
+
+    const status = e?.response?.status ?? 500;
+    const msg =
+      e?.response?.data?.error?.message ??
+      e?.response?.data?.error ??
+      e?.message ??
+      "server_error";
+
+    console.error("[cashier/confirm-payment]", {
+      status,
+      msg,
+      url: e?.response?.config?.url,
+      data: e?.response?.data,
+    });
+
+    return NextResponse.json({ error: msg }, { status });
   }
 }
