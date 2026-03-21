@@ -131,6 +131,18 @@ export async function POST(request: Request) {
               { data: { propertyStatus: "бронь" } },
               { headers }
             );
+            try {
+              await strapiAxios.post(
+                `${base}/api/properties/${propertyDocId}/publish`,
+                {},
+                { headers }
+              );
+            } catch (publishErr: any) {
+              console.warn(
+                "[deals/start] publish property:",
+                publishErr?.response?.status ?? publishErr?.message
+              );
+            }
           } catch (_) {}
         }
         return Response.json({ reused: true, deal: { documentId: String(docId) } });

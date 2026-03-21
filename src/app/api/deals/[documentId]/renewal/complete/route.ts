@@ -43,7 +43,7 @@ export async function POST(
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     const dealRes = await strapiAxios.get(
-      `${base}/api/deals/${dealDocumentId}?populate[manager][fields][0]=id`,
+      `${base}/api/deals/${dealDocumentId}?populate[manager][fields][0]=id&populate[property][fields][0]=documentId`,
       { headers }
     );
     const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
@@ -63,6 +63,30 @@ export async function POST(
       },
       { headers }
     );
+
+    const propertyDocId =
+      deal?.property?.documentId ??
+      deal?.attributes?.property?.documentId ??
+      (deal?.property as any)?.data?.documentId;
+    if (propertyDocId) {
+      await strapiAxios.put(
+        `${base}/api/properties/${propertyDocId}`,
+        { data: { propertyStatus: "договор" } },
+        { headers }
+      );
+      try {
+        await strapiAxios.post(
+          `${base}/api/properties/${propertyDocId}/publish`,
+          {},
+          { headers }
+        );
+      } catch (publishErr: any) {
+        console.warn(
+          "[renewal/complete] publish property:",
+          publishErr?.response?.status ?? publishErr?.message
+        );
+      }
+    }
 
     try {
       await strapiAxios.post(

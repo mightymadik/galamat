@@ -16,6 +16,24 @@ function toStrapiDate(s: string | undefined): string | null {
   return `${y}-${m}-${d}`;
 }
 
+function normalizeBankName(raw: string): string {
+  return String(raw || "")
+    .toLowerCase()
+    .replace(/[«»"'`]/g, "")
+    .replace(/\b(ao|ао|jsc|акционерное общество)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractBankName(item: any): string {
+  const src = item?.attributes ?? item ?? {};
+  const candidates = [src?.nameBank, src?.name, src?.bankName, src?.title, src?.bank];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim();
+  }
+  return "";
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ documentId: string }> }
@@ -49,7 +67,7 @@ export async function POST(
       `&pagination[pageSize]=1`;
     const foundRes = await strapiAxios.get(findUrl, { headers });
     const list = (foundRes.data as any)?.data ?? [];
-    let customerDocId: string | null = list[0]?.documentId ?? list[0]?.id ?? null;
+    let customerDocId: string | null = list[0]?.documentId ?? null;
 
     const updateData: Record<string, unknown> = {
       phone: normalizedPhone,
@@ -76,20 +94,33 @@ export async function POST(
       updateData.iin = v ? parseInt(v, 10) : null;
     }
 
-    const bankDocumentIdRaw = body?.bankDocumentId != null ? String(body.bankDocumentId).trim() : "";
-    const bankNameRaw = body?.bankName != null ? String(body.bankName).trim() : "";
-    let bankDocumentId: string | null = bankDocumentIdRaw || null;
-    let bankNumericId: number | null = null;
+    const bankPayload = body?.bank?.data ?? body?.bank ?? null;
+    const bankPayloadAttrs = bankPayload?.attributes ?? bankPayload ?? {};
+    const bankDocumentIdRaw =
+      body?.bankDocumentId != null
+        ? String(body.bankDocumentId).trim()
+        : bankPayload?.documentId != null
+          ? String(bankPayload.documentId).trim()
+          : "";
+    const bankNameRaw =
+      body?.bankName != null
+        ? String(body.bankName).trim()
+        : extractBankName(bankPayloadAttrs);
+    const bankRequested = Boolean(bankDocumentIdRaw || bankNameRaw);
+    let bankDocumentId: string | null = null;
+
+    const isFallbackId = bankDocumentIdRaw.startsWith("fallback-");
+
+    if (bankDocumentIdRaw && !isFallbackId) {
+      if (!/^\d+$/.test(bankDocumentIdRaw)) {
+        bankDocumentId = bankDocumentIdRaw;
+      }
+    }
 
     // Resolve relation by bank name when documentId is not available on client.
     if (!bankDocumentId && bankNameRaw) {
       try {
-        const bankByNameUrl =
-          `${base}/api/banks` +
-          `?filters[$or][0][nameBank][$eq]=${encodeURIComponent(bankNameRaw)}` +
-          `&filters[$or][1][name][$eq]=${encodeURIComponent(bankNameRaw)}` +
-          `&filters[$or][2][bankName][$eq]=${encodeURIComponent(bankNameRaw)}` +
-          `&pagination[pageSize]=1`;
+        const bankByNameUrl = `${base}/api/banks?pagination[pageSize]=300`;
         let bankList: any[] = [];
         try {
           const bankRes = await strapiAxios.get(bankByNameUrl, { headers });
@@ -100,26 +131,40 @@ export async function POST(
           const publicJson = await publicRes.json().catch(() => ({}));
           bankList = Array.isArray((publicJson as any)?.data) ? (publicJson as any).data : [];
         }
-        bankDocumentId = bankList[0]?.documentId ?? null;
-        bankNumericId = typeof bankList[0]?.id === "number" ? bankList[0].id : null;
+
+        const targetNorm = normalizeBankName(bankNameRaw);
+        const withName = bankList
+          .map((b) => ({
+            item: b,
+            rawName: extractBankName(b),
+            normName: normalizeBankName(extractBankName(b)),
+          }))
+          .filter((x) => !!x.rawName);
+
+        const exact = withName.find((x) => x.normName === targetNorm);
+        const fuzzy = withName.find(
+          (x) => x.normName.includes(targetNorm) || targetNorm.includes(x.normName)
+        );
+        const picked = exact?.item ?? fuzzy?.item ?? null;
+
+        bankDocumentId = picked?.documentId ?? null;
       } catch {
         bankDocumentId = null;
       }
     }
 
-    // Defensive check: ignore stale bank ids to avoid hard 400 on customer update.
-    if (bankDocumentId) {
-      try {
-        await strapiAxios.get(`${base}/api/banks/${encodeURIComponent(bankDocumentId)}?fields[0]=documentId`, { headers });
-      } catch {
-        bankDocumentId = null;
-      }
-    }
-
-    if (bankDocumentId) {
-      updateData.bank = { connect: [bankDocumentId] };
-    } else if (bankNumericId) {
-      updateData.bank = { connect: [bankNumericId] };
+    if (bankRequested && !bankDocumentId) {
+      console.error("[deals/attach-customer] bank resolve failed", {
+        bankDocumentIdRaw,
+        bankNameRaw,
+      });
+      return Response.json(
+        {
+          error:
+            "Не удалось получить банк из Strapi. Проверьте права STRAPI_API_TOKEN на banks (find/findOne) и что /api/banks не отдает fallback-список.",
+        },
+        { status: 502 }
+      );
     }
 
     if (!customerDocId) {
@@ -129,7 +174,7 @@ export async function POST(
         { headers }
       );
       const created = (createRes.data as any)?.data ?? createRes.data;
-      customerDocId = created?.documentId ?? created?.id ?? null;
+      customerDocId = created?.documentId ?? null;
       if (!customerDocId)
         return Response.json({ error: "Не удалось создать клиента" }, { status: 502 });
     } else {
@@ -141,26 +186,57 @@ export async function POST(
     }
 
     // Force relation attach for one-to-one bank in case sanitized update ignored it.
-    if (customerDocId && (bankDocumentId || bankNumericId)) {
-      const bankAttachPayloads: Array<Record<string, unknown>> = [];
-      if (bankDocumentId) {
-        bankAttachPayloads.push({ bank: { connect: [bankDocumentId] } });
-        bankAttachPayloads.push({ bank: { set: [bankDocumentId] } });
-        bankAttachPayloads.push({ bank: { connect: [{ documentId: bankDocumentId }] } });
+    if (customerDocId && bankDocumentId) {
+      let lastAttachError: string | null = null;
+      try {
+        await strapiAxios.put(
+          `${base}/api/customers/${customerDocId}`,
+          {
+            data: {
+              // Prefer explicit relation connect for D&P edge cases.
+              bank: { connect: [{ documentId: bankDocumentId, status: "published" }] },
+            },
+          },
+          { headers }
+        );
+      } catch (err: any) {
+        const msg =
+          err?.response?.data?.error?.message ??
+          err?.response?.data?.error ??
+          err?.message ??
+          "unknown_attach_error";
+        lastAttachError = String(msg);
       }
-      if (bankNumericId) {
-        bankAttachPayloads.push({ bank: { connect: [bankNumericId] } });
-        bankAttachPayloads.push({ bank: { set: [bankNumericId] } });
-      }
-      for (const payloadItem of bankAttachPayloads) {
-        try {
-          await strapiAxios.put(
-            `${base}/api/customers/${customerDocId}`,
-            { data: payloadItem },
-            { headers }
-          );
-        } catch {
-          // Try next format.
+
+      // Best-effort verification: do not block deal flow on admin display mismatch.
+      try {
+        const verifyUrls = [
+          `${base}/api/customers/${customerDocId}?populate=bank`,
+          `${base}/api/customers/${customerDocId}?populate=bank&status=published`,
+          `${base}/api/customers/${customerDocId}?populate=bank&status=draft`,
+        ];
+        let attachedBankDocId: string | null = null;
+        for (const verifyUrl of verifyUrls) {
+          const customerCheckRes = await strapiAxios.get(verifyUrl, { headers });
+          const customerCurrent: any = (customerCheckRes.data as any)?.data ?? customerCheckRes.data;
+          const bankRel = customerCurrent?.bank ?? customerCurrent?.attributes?.bank;
+          const bankData = bankRel?.data ?? bankRel;
+          attachedBankDocId = bankData?.documentId ?? null;
+          if (attachedBankDocId) break;
+        }
+        if (!attachedBankDocId && bankRequested) {
+          console.error("[deals/attach-customer] bank attach not visible after update", {
+            customerDocId,
+            bankDocumentId,
+            lastAttachError,
+          });
+        }
+      } catch {
+        if (bankRequested) {
+          console.error("[deals/attach-customer] bank attach verification request failed", {
+            customerDocId,
+            bankDocumentId,
+          });
         }
       }
     }
@@ -194,7 +270,7 @@ export async function POST(
     const existingRes = await strapiAxios.get(existingDealsUrl, { headers });
     const existingList = (existingRes.data as any)?.data ?? [];
     const existingDeal = Array.isArray(existingList) ? existingList[0] : null;
-    const existingDealId = existingDeal?.documentId ?? existingDeal?.id ?? null;
+    const existingDealId = existingDeal?.documentId ?? null;
 
     if (existingDealId) {
       if (managerDocId) {

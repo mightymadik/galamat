@@ -129,12 +129,12 @@ export async function POST(
 
     try {
       await strapiAxios.post(
-        `${base}/api/properties/${propertyDocId}/unpublish`,
+        `${base}/api/properties/${propertyDocId}/publish`,
         {},
         { headers }
       );
-    } catch (unpublishErr: any) {
-      console.warn("[deals/sign-pdb] unpublish property:", unpublishErr?.response?.status ?? unpublishErr?.message);
+    } catch (publishErr: any) {
+      console.warn("[deals/sign-pdb] publish property:", publishErr?.response?.status ?? publishErr?.message);
     }
 
     return Response.json({
