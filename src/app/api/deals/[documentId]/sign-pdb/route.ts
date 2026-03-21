@@ -117,7 +117,7 @@ export async function POST(
 
     await strapiAxios.put(
       `${base}/api/deals/${documentId}`,
-      { data: { dealStatus: "Договор подписан" } },
+      { data: { dealStatus: "Договор подписан", expiresAt: null } },
       { headers }
     );
 
