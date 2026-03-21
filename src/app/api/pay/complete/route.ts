@@ -68,6 +68,12 @@ export async function POST(req: Request) {
       propertyDocumentId: asString(propertyDocumentId),
     });
 
+    if (propertyDocumentId) {
+      try {
+        await strapiAxios.post(`${base}/api/properties/${propertyDocumentId}/publish`, {}, { headers });
+      } catch (_) {}
+    }
+
     if (dealDocumentId) {
       try {
         console.log("[pay/complete] calling backend send-webhook", { dealDocumentId });
