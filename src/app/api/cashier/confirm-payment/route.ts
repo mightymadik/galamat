@@ -19,8 +19,12 @@ async function ensureCashier(
   const list: any[] = (res.data as any)?.data ?? [];
   const customer = list[0];
   const docId = customer?.documentId ?? customer?.id;
-  const role =
-    payload.role ?? customer?.role ?? customer?.attributes?.role ?? "";
+  // Prefer the live role from DB (token role can be stale after role changes).
+  const role = String(
+    customer?.role ?? customer?.attributes?.role ?? payload.role ?? ""
+  )
+    .trim()
+    .toLowerCase();
 
   if (role === "cashier" || role === "admin" || role === "manager") {
     return String(docId ?? payload.sub);
