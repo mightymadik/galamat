@@ -109,7 +109,7 @@ export default function FullPayment({ flatData, activeButton, onNext, isSubmitti
     const [selectedPaymentDates, setSelectedPaymentDates] = useState<CalendarDate[]>(() => [
         today(getLocalTimeZone()),
     ]);
-    /** Суммы по датам (ключ = dd.MM.yyyy). Для последней даты в списке сумма не хранится — считается остатком. */
+    /** Суммы по датам (ключ = dd.MM.yyyy). Для последней даты сумма не хранится — считается остатком. */
     const [amountByDateKey, setAmountByDateKey] = useState<Record<string, string>>({});
 
     const effectiveBonusPhone = isManagerOrAdmin

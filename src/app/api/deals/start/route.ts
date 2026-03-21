@@ -123,28 +123,6 @@ export async function POST(request: Request) {
       const docId = existingInactive?.documentId ?? existingInactive?.id ?? null;
       if (docId != null) {
         await strapiAxios.put(`${base}/api/deals/${docId}`, { data: dealPayload }, { headers });
-        const propertyDocId = existingInactive?.property?.documentId ?? existingInactive?.property?.id ?? propertyId;
-        if (propertyDocId) {
-          try {
-            await strapiAxios.put(
-              `${base}/api/properties/${propertyDocId}`,
-              { data: { propertyStatus: "бронь" } },
-              { headers }
-            );
-            try {
-              await strapiAxios.post(
-                `${base}/api/properties/${propertyDocId}/publish`,
-                {},
-                { headers }
-              );
-            } catch (publishErr: any) {
-              console.warn(
-                "[deals/start] publish property:",
-                publishErr?.response?.status ?? publishErr?.message
-              );
-            }
-          } catch (_) {}
-        }
         return Response.json({ reused: true, deal: { documentId: String(docId) } });
       }
     }

@@ -56,6 +56,9 @@ export async function POST(
         { data: { propertyStatus: "свободно", saleStatus: "открыто" } },
         { headers }
       );
+      try {
+        await strapiAxios.post(`${base}/api/properties/${propertyDocumentId}/publish`, {}, { headers });
+      } catch (_) {}
     }
 
     await strapiAxios.put(

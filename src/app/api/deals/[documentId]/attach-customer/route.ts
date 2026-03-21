@@ -296,6 +296,9 @@ export async function POST(
             { data: { propertyStatus: "свободно" } },
             { headers }
           );
+          try {
+            await strapiAxios.post(`${base}/api/properties/${propId}/publish`, {}, { headers });
+          } catch (_) {}
         }
         await strapiAxios.put(
           `${base}/api/deals/${documentId}`,

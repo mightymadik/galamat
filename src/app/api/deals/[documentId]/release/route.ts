@@ -51,6 +51,9 @@ export async function POST(
         { data: { propertyStatus: "свободно" } },
         { headers }
       );
+      try {
+        await strapiAxios.post(`${base}/api/properties/${propertyDocId}/publish`, {}, { headers });
+      } catch (_) {}
     }
 
     await strapiAxios.put(
