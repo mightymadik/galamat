@@ -146,6 +146,11 @@ export function normalizeFilterParams(params: FlatsFilterParams): FlatsFilterPar
   return out;
 }
 
+/** Один ключ для сравнения «те же фильтры или нет» (как в URL после flatten). */
+export function filterParamsCanonicalKey(params: FlatsFilterParams): string {
+  return normalizeQueryString(flattenFilterParamsToSearchParams(normalizeFilterParams(params)));
+}
+
 export function parseSearchParamsToFilterParams(searchParams: URLSearchParams): FlatsFilterParams {
   const params: FlatsFilterParams = {};
 

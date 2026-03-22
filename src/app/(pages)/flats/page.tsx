@@ -7,7 +7,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatsFilterParams } from "@/types/flat";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
+  filterParamsCanonicalKey,
   flattenFilterParamsToSearchParams,
+  normalizeFilterParams,
   parseSearchParamsToFilterParams,
 } from "@/lib/flatsFilterUrl";
 
@@ -32,6 +34,15 @@ function Page() {
     [searchParams]
   );
 
+  // Remount фильтра только когда query очищен (был непустой → стал пустой), а не при каждом появлении ?params
+  const prevUrlQsRef = useRef<string | null>(null);
+  const filterRemountGenRef = useRef(0);
+  if (prevUrlQsRef.current !== null && prevUrlQsRef.current !== "" && urlQs === "") {
+    filterRemountGenRef.current += 1;
+  }
+  prevUrlQsRef.current = urlQs;
+  const flatsFilterMountKey = `flats-filter-${filterRemountGenRef.current}`;
+
   // initial берём ОДИН раз из URL (чтобы не было "дерганья" при каждом searchParams)
   const [filterParams, setFilterParams] = useState<FlatsFilterParams>(() =>
     parseSearchParamsToFilterParams(new URLSearchParams(searchParams.toString()))
@@ -53,6 +64,18 @@ function Page() {
 
   // Флаг: какой qs мы сами только что запушили, чтобы не ловить его обратно
   const lastPushedQsRef = useRef<string>("");
+  /** Пока replace не отразился в searchParams, urlQs может быть старым — не откатывать filterParams */
+  const pendingReplaceQsRef = useRef<string | null>(null);
+
+  const applyFiltersFromUi = useCallback((next: FlatsFilterParams) => {
+    setFilterParams((prev) => {
+      const norm = normalizeFilterParams(next);
+      if (filterParamsCanonicalKey(prev) === filterParamsCanonicalKey(norm)) {
+        return prev;
+      }
+      return norm;
+    });
+  }, []);
 
   // initialFilterParams only from URL (stable when urlQs unchanged) — never from filterParams to avoid loop
   const initialFilterParamsFromUrl = useMemo(
@@ -62,22 +85,41 @@ function Page() {
 
   // 1) URL -> state (back/forward / открыли шарибельную ссылку)
   useEffect(() => {
-    if (urlQs && urlQs === lastPushedQsRef.current) return;
+    if (!urlQs) {
+      lastPushedQsRef.current = "";
+      pendingReplaceQsRef.current = null;
+    }
+
+    if (urlQs && urlQs === lastPushedQsRef.current) {
+      pendingReplaceQsRef.current = null;
+      return;
+    }
+
+    if (pendingReplaceQsRef.current && urlQs !== pendingReplaceQsRef.current) {
+      return;
+    }
+    if (pendingReplaceQsRef.current && urlQs === pendingReplaceQsRef.current) {
+      pendingReplaceQsRef.current = null;
+    }
 
     const fromUrl = parseSearchParamsToFilterParams(new URLSearchParams(searchParams.toString()));
-    const fromUrlQs = normalizeQueryString(flattenFilterParamsToSearchParams(fromUrl));
-    const currentQs = normalizeQueryString(flattenFilterParamsToSearchParams(filterParams));
-    if (fromUrlQs === currentQs) return;
+    const fromKey = filterParamsCanonicalKey(fromUrl);
+    const currentKey = filterParamsCanonicalKey(filterParams);
+    if (fromKey === currentKey) return;
 
-    setFilterParams(fromUrl);
+    setFilterParams(normalizeFilterParams(fromUrl));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlQs]);
 
   // 2) state -> URL (когда юзер меняет фильтры)
   useEffect(() => {
     const nextQs = normalizeQueryString(flattenFilterParamsToSearchParams(filterParams));
-    if (nextQs === urlQs) return;
+    if (nextQs === urlQs) {
+      pendingReplaceQsRef.current = null;
+      return;
+    }
 
+    pendingReplaceQsRef.current = nextQs;
     lastPushedQsRef.current = nextQs;
     const path = nextQs ? `/flats?${nextQs}` : "/flats";
     router.replace(path, { scroll: false });
@@ -86,8 +128,9 @@ function Page() {
   return (
     <div className="mt-[68px]">
       <FlatsPageFilter
+        key={flatsFilterMountKey}
         initialFilterParams={initialFilterParamsFromUrl}
-        onFilterChange={setFilterParams}
+        onFilterChange={applyFiltersFromUi}
         totalCount={totalCount}
       />
 

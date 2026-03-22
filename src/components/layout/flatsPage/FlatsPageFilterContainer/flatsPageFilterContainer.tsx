@@ -7,6 +7,7 @@ import { DropdownSelector } from "../../mainPage/mainPageFilter";
 import DesktopFlatsFilter from "../DesktopFlatsFilter/desktopFlatsFilter";
 import MobileFlatsFilter from "../MobileFlatsFilter/mobileFlatsFilter";
 import { FlatsFilterParams } from "@/types/flat";
+import { filterParamsCanonicalKey, normalizeFilterParams } from "@/lib/flatsFilterUrl";
 import { useTranslations } from "next-intl";
 import { FlatsFilterSkeleton, MobileFlatsFilterSkeleton } from "../Parts/flatsFilterSkeleton";
 
@@ -72,6 +73,8 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
 
     // Блокируем onFilterChange, пока применяем initialFilterParams и metadata
     const suppressEmitRef = useRef(true);
+    /** Не дёргать родителя с тем же каноническим набором фильтров (иначе лишние рендеры и fetch) */
+    const lastEmittedCanonicalKeyRef = useRef<string>("");
 
     // Включаем emit только когда:
     // - метаданные загружены
@@ -97,6 +100,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
 
         // пока применяем URL — не эмитим наверх
         suppressEmitRef.current = true;
+        lastEmittedCanonicalKeyRef.current = "";
 
         if (initialFilterParams.district) {
             setSelectedValues((prev) => ({ ...prev, district: initialFilterParams.district! }));
@@ -124,6 +128,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         if (!lastAppliedInitialRef.current) return;
 
         suppressEmitRef.current = true;
+        lastEmittedCanonicalKeyRef.current = "";
 
         setActiveCategory(null);
         setSelectedRooms(new Set());
@@ -424,14 +429,17 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         selectedRooms,
         selectedValues,
         activeCategory,
-        t,
       ]);
       
-    // Effect to notify parent of filter changes
+    // Effect to notify parent of filter changes (уважаем suppressEmitRef — иначе при сбросе URL
+    // родитель очищает state, а мы в том же тике шлём старые фильтры → бесконечный replace /flats ↔ /flats?...)
     useEffect(() => {
-        if (onFilterChange) {
-            onFilterChange(buildFilterParams());
-        }
+        if (!onFilterChange || suppressEmitRef.current) return;
+        const norm = normalizeFilterParams(buildFilterParams());
+        const key = filterParamsCanonicalKey(norm);
+        if (key === lastEmittedCanonicalKeyRef.current) return;
+        lastEmittedCanonicalKeyRef.current = key;
+        onFilterChange(norm);
     }, [buildFilterParams, onFilterChange]);
 
     // Ключ запроса: при любом изменении фильтров (проект, ползунки, комнаты и т.д.) эффект перезапустится
