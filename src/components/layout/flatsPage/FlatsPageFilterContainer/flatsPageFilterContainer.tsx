@@ -76,21 +76,6 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
     /** Не дёргать родителя с тем же каноническим набором фильтров (иначе лишние рендеры и fetch) */
     const lastEmittedCanonicalKeyRef = useRef<string>("");
 
-    // Включаем emit только когда:
-    // - метаданные загружены
-    // - initialFilterParams применены (или отсутствуют)
-    useEffect(() => {
-        if (!filterMetadata) return;
-
-        // если initialFilterParams есть, то ждём пока они применятся и будут помечены
-        if (initialFilterParams && Object.keys(initialFilterParams).length > 0) {
-            const key = JSON.stringify(initialFilterParams);
-            if (lastAppliedInitialRef.current !== key) return;
-        }
-
-        suppressEmitRef.current = false;
-    }, [filterMetadata, initialFilterParams]);
-
     // Apply initialFilterParams from URL on mount / when URL changes (back/forward)
     useEffect(() => {
         if (!initialFilterParams || Object.keys(initialFilterParams).length === 0) return;
@@ -100,7 +85,6 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
 
         // пока применяем URL — не эмитим наверх
         suppressEmitRef.current = true;
-        lastEmittedCanonicalKeyRef.current = "";
 
         if (initialFilterParams.district) {
             setSelectedValues((prev) => ({ ...prev, district: initialFilterParams.district! }));
@@ -128,7 +112,6 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         if (!lastAppliedInitialRef.current) return;
 
         suppressEmitRef.current = true;
-        lastEmittedCanonicalKeyRef.current = "";
 
         setActiveCategory(null);
         setSelectedRooms(new Set());
@@ -153,7 +136,8 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         setDebouncedM2Value(nextM2);
 
         lastAppliedInitialRef.current = "";
-        suppressEmitRef.current = false;
+        // НЕ ставим suppressEmitRef = false здесь: setState батчится, buildFilterParams ещё
+        // вернёт СТАРЫЕ значения. Enable-emit effect включит emit после следующего рендера.
     }, [initialFilterParams, filterMetadata, t]);
 
 
@@ -431,8 +415,20 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         activeCategory,
       ]);
       
-    // Effect to notify parent of filter changes (уважаем suppressEmitRef — иначе при сбросе URL
-    // родитель очищает state, а мы в том же тике шлём старые фильтры → бесконечный replace /flats ↔ /flats?...)
+    // Enable emit: только после загрузки metadata и ПОСЛЕ того как state обновлён (deps включают buildFilterParams,
+    // который пересчитывается при каждом flush state → эффект повторится на «чистом» рендере).
+    useEffect(() => {
+        if (!filterMetadata) return;
+
+        if (initialFilterParams && Object.keys(initialFilterParams).length > 0) {
+            const key = JSON.stringify(initialFilterParams);
+            if (lastAppliedInitialRef.current !== key) return;
+        }
+
+        suppressEmitRef.current = false;
+    }, [filterMetadata, initialFilterParams, buildFilterParams]);
+
+    // Effect to notify parent of filter changes
     useEffect(() => {
         if (!onFilterChange || suppressEmitRef.current) return;
         const norm = normalizeFilterParams(buildFilterParams());
