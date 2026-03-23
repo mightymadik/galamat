@@ -8,10 +8,10 @@ import Menu from "@/components/common/menu/menu";
 import ReduxProvider from "./providers";
 import { store } from "@/store";
 import AuthModal from "@/components/common/authModal/authModal";
-import PreloadComponent from "@/components/common/preload/preload";
 import UtmCapture from "@/components/common/utmCapture/utmCapture";
 import CtaModal from "@/components/common/ctaModal/ctaModal";
 import { NextIntlClientProvider } from 'next-intl';
+import CookieConsent from "@/components/common/cookieConsent/cookieConsent";
 
 type Props = {
   children: React.ReactNode;
@@ -81,7 +81,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         <NextIntlClientProvider>
           <ReduxProvider store={store}>
             <NextTopLoader />
-            {/* <PreloadComponent /> */}
+            <CookieConsent />
             <Header />
             <main className="flex-1">{children}</main>
             <Menu />

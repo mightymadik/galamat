@@ -10,7 +10,7 @@ export interface AgreementFileEntry {
 
 interface PayState {
   isOpen: boolean;
-  step: "reserve" | "payment" | "contacts" | "contractNumber" | "sign";
+  step: "reserve" | "payment" | "contacts" | "sign";
   flat: Flat | null;
   paymentMethod: string | null;
   dealDocumentId: string | null;
@@ -44,7 +44,7 @@ const paySlice = createSlice({
         flat: Flat;
         paymentMethod: string;
         /** Для менеджера/админа: открыть на шаге "бронь", сделка уже создана */
-        step?: "reserve" | "payment" | "contacts" | "contractNumber" | "sign";
+        step?: "reserve" | "payment" | "contacts" | "sign";
         dealDocumentId?: string | null;
       }>
     ) => {
@@ -80,7 +80,7 @@ const paySlice = createSlice({
 
     setStep: (
       state,
-      action: PayloadAction<"payment" | "contacts" | "contractNumber" | "sign">
+      action: PayloadAction<"payment" | "contacts" | "sign">
     ) => {
       state.step = action.payload;
     },
