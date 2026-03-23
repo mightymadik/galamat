@@ -6,8 +6,7 @@ import Image from "next/image";
 import type { AgreementPayload } from "@/types/agreement";
 import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "@/store";
-import { setAgreementFileUrl, setAgreementFiles } from "@/store/paySlice";
-import type { AgreementFileEntry } from "@/store/paySlice";
+import { setAgreementFileUrl } from "@/store/paySlice";
 import { formatPriceDisplay } from "@/lib/paymentFormUtils";
 import { useTranslations } from "next-intl";
 
@@ -48,7 +47,6 @@ interface SignProps {
         totalPrice?: number;
     } | null;
     agreementPayload: AgreementPayload | null;
-    activeButton: string | null;
     onNext: () => void;
 }
 
@@ -61,9 +59,6 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
     const [docStatuses, setDocStatuses] = useState<DocStatus[]>([]);
     const [signError, setSignError] = useState<string | null>(null);
     const [checkingStatus, setCheckingStatus] = useState(false);
-    const [pdbSignedAt, setPdbSignedAt] = useState<string | null>(null);
-    const [signingPdb, setSigningPdb] = useState(false);
-    const [projectDocumentIdFromDeal, setProjectDocumentIdFromDeal] = useState<string | null>(null);
 
     const payFlatDocumentId = useSelector((state: RootState) => state.pay.flat?.documentId);
     const agreementFileUrl = useSelector((state: RootState) => state.pay.agreementFileUrl);
@@ -73,22 +68,7 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
     const dealDocumentId = useSelector((state: RootState) => state.pay.dealDocumentId);
     const isPdb = agreementTemplateType === "pdb";
 
-    const allDocsSigned = isPdb
-        ? Boolean(pdbSignedAt)
-        : docStatuses.length > 0 && docStatuses.every((d) => d.signed);
-    const anyDocSigned = isPdb
-        ? Boolean(pdbSignedAt)
-        : docStatuses.some((d) => d.signed);
-
-    useEffect(() => {
-        if (!isPdb || !dealDocumentId) return;
-        fetch(`/api/deals/${dealDocumentId}/sign-pdb`, { method: "GET", credentials: "include" })
-            .then((r) => r.json().catch(() => ({})))
-            .then((data) => {
-                if (data?.signed && data?.signedAt) setPdbSignedAt(data.signedAt);
-            })
-            .catch(() => { });
-    }, [isPdb, dealDocumentId]);
+    const allDocsSigned = docStatuses.length > 0 && docStatuses.every((d) => d.signed);
 
     useEffect(() => {
         if (!dealDocumentId) return;
@@ -96,23 +76,20 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
             .then((r) => r.json().catch(() => ({})))
             .then((data: any) => {
                 if (data?.agreementFileUrl) dispatch(setAgreementFileUrl(data.agreementFileUrl));
-                if (data?.projectDocumentId) setProjectDocumentIdFromDeal(data.projectDocumentId);
-                if (!isPdb) {
-                    if (data?.doodocsDocumentId || data?.dealStatus === "Ожидания договора") {
-                        setSentToSign(true);
-                    }
-                    if (!data?.agreementFileUrl) {
-                        fetch(`/api/deals/${dealDocumentId}/signed-agreement`, { credentials: "include" })
-                            .then((res) => res.json().catch(() => ({})))
-                            .then((json: { url?: string }) => {
-                                if (json?.url) dispatch(setAgreementFileUrl(json.url));
-                            })
-                            .catch(() => { });
-                    }
+                if (data?.doodocsDocumentId || data?.dealStatus === "Ожидания договора") {
+                    setSentToSign(true);
+                }
+                if (!data?.agreementFileUrl) {
+                    fetch(`/api/deals/${dealDocumentId}/signed-agreement`, { credentials: "include" })
+                        .then((res) => res.json().catch(() => ({})))
+                        .then((json: { url?: string }) => {
+                            if (json?.url) dispatch(setAgreementFileUrl(json.url));
+                        })
+                        .catch(() => { });
                 }
             })
             .catch(() => { });
-    }, [dealDocumentId, isPdb, dispatch]);
+    }, [dealDocumentId, dispatch]);
 
     const docTypeLabel = agreementTemplateType === "ddu" ? "ДДУ" : agreementTemplateType === "pdb" ? "ПДБ" : "";
     const contractName =
@@ -157,29 +134,6 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
             setSignError(t("network_error"));
         } finally {
             setSendingToSign(false);
-        }
-    };
-
-    const handleSignPdbOnSite = async () => {
-        if (!dealDocumentId) return;
-        setSignError(null);
-        setSigningPdb(true);
-        try {
-            const res = await fetch(`/api/deals/${dealDocumentId}/sign-pdb`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-            });
-            const json = await res.json().catch(() => ({}));
-            if (res.ok && json?.signedAt) {
-                setPdbSignedAt(json.signedAt);
-            } else {
-                setSignError(json?.error ?? t("failed_to_confirm_signature"));
-            }
-        } catch {
-            setSignError(t("network_error"));
-        } finally {
-            setSigningPdb(false);
         }
     };
 
@@ -331,18 +285,18 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                     </div>
                 )}
 
-                {isPdb && agreementFileUrl && !pdbSignedAt && (
+                {isPdb && agreementFileUrl && !allDocsSigned && (
                     <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
                         {t("precontract_generated")}
                     </p>
                 )}
-                {isPdb && pdbSignedAt && (
+                {isPdb && allDocsSigned && (
                     <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
-                        {t("contract_signed")} {formatSignedAt(pdbSignedAt)}.
+                        {t("contract_signed")} {formatSignedAt(docStatuses.find((d) => d.signed)?.signedAt)}.
                     </p>
                 )}
 
-                {!isPdb && sentToSign && docStatuses.length > 0 && (
+                {sentToSign && docStatuses.length > 0 && (
                     <div className="flex flex-col gap-1 self-stretch">
                         {docStatuses.map((d, i) => (
                             <div key={i} className="flex items-center gap-2">
@@ -355,14 +309,14 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                     </div>
                 )}
 
-                {!isPdb && sentToSign && docStatuses.length === 0 && (
+                {sentToSign && docStatuses.length === 0 && (
                     <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
                         {t("link_to_signing_sent_to_whatsapp")}
                     </p>
                 )}
 
                 {/* Signed documents download section */}
-                {!isPdb && docStatuses.some((d) => d.signed && d.doodocsDocumentId) && (
+                {docStatuses.some((d) => d.signed && d.doodocsDocumentId) && (
                     <div className="flex flex-col gap-1 self-stretch">
                         <p className="text-[#122C5E] text-[14px] font-medium">{t("signed_documents")}:</p>
                         {docStatuses
@@ -391,39 +345,14 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                 {signError && (
                     <p className="text-red-600 text-[14px] not-italic font-normal leading-[20px]">{signError}</p>
                 )}
-                {!isPdb && sendingToSign && (
+                {sendingToSign && (
                     <p className="text-[#7E7E7E] text-[13px] not-italic font-normal leading-[18px]">
                         {t("it_usually_takes_20_to_40_seconds")}
                     </p>
                 )}
             </div>
             <div className="flex flex-col gap-3 self-stretch">
-                {isPdb && agreementFileUrl && (
-                    <>
-                        <Button
-                            as="a"
-                            href={agreementFileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] border border-[#1A3C7E] bg-transparent">
-                            <span className="text-[#1A3C7E] text-[15px] not-italic font-medium leading-[20px]">
-                                {t("download_contract")}
-                            </span>
-                        </Button>
-                        {!pdbSignedAt && (
-                            <Button
-                                onPress={handleSignPdbOnSite}
-                                isDisabled={signingPdb || !dealDocumentId}
-                                isLoading={signingPdb}
-                                className="bg-[#1A3C7E] flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] border border-[#1A3C7E]">
-                                <span className="text-white text-[15px] not-italic font-medium leading-[20px]">
-                                    {signingPdb ? t("saving") : t("sign_contract")}
-                                </span>
-                            </Button>
-                        )}
-                    </>
-                )}
-                {!isPdb && !sentToSign && (
+                {!sentToSign && (
                     <Button
                         onPress={handleSendToDoodocs}
                         isDisabled={sendingToSign || (!agreementFileUrl && agreementFiles.length === 0)}
@@ -433,7 +362,7 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                         </span>
                     </Button>
                 )}
-                {!isPdb && sentToSign && !allDocsSigned && (
+                {sentToSign && !allDocsSigned && (
                     <Button
                         onPress={handleCheckStatus}
                         isDisabled={checkingStatus}

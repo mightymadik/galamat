@@ -942,9 +942,11 @@ export default function Contacts({
                         </span>
                         <Input
                           value={dateOfBirth}
+                          placeholder="ДД.ММ.ГГГГ"
                           onValueChange={setDateOfBirth}
                           variant="flat"
                           inputMode="numeric"
+                          className="[&_input::placeholder]:!text-[#2655AF]"
                           classNames={{
                             base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
                             label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
@@ -961,8 +963,10 @@ export default function Contacts({
                         <Input
                           value={docNumber}
                           onValueChange={(v) => setDocNumber(String(v || "").replace(/\D/g, "").slice(0, 9))}
+                          placeholder="999999999"
                           variant="flat"
                           inputMode="numeric"
+                          className="[&_input::placeholder]:!text-[#2655AF]"
                           classNames={{
                             base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
                             label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
@@ -997,9 +1001,11 @@ export default function Contacts({
                         </span>
                         <Input
                           value={dateOfIssue}
+                          placeholder="ДД.ММ.ГГГГ"
                           onValueChange={setDateOfIssue}
                           variant="flat"
                           inputMode="numeric"
+                          className="[&_input::placeholder]:!text-[#2655AF]"
                           classNames={{
                             base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
                             label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
