@@ -209,7 +209,6 @@ export default function PayModal({ id }: PayModalProps) {
     const dispatch = useDispatch();
     const { isOpen, step, flat, paymentMethod, agreementPayload, dealDocumentId } = useSelector((state: RootState) => state.pay);
     const [isMobile, setIsMobile] = useState(false);
-    const [activeButton, setActiveButton] = useState<string | null>(null);
     const [activeOption, setActiveOption] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [paymentConfirmLoading, setPaymentConfirmLoading] = useState(false);
@@ -382,7 +381,6 @@ export default function PayModal({ id }: PayModalProps) {
                 <Sign
                     flatData={flatData}
                     agreementPayload={agreementPayload}
-                    activeButton={activeOption}
                     onNext={() => dispatch(closePay())}
                 />
             ),
