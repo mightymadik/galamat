@@ -14,9 +14,9 @@ function Page() {
         <div className="mt-[68px]">
             {id && (
                 <>
-                    <FlatsDetailPage id={id} realEstateType="property" />
+                    <FlatsDetailPage id={id} realEstateType="pantry" />
                     {/* <SimilarFlats currentFlatId={typeof id === 'string' ? parseInt(id) : undefined} /> */}
-                    <PayModal id={id} realEstateType="property" />
+                    <PayModal id={id} realEstateType="pantry" />
                 </>
             )}
         </div>

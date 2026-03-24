@@ -28,6 +28,14 @@ const STATUS_TO_KEY: Record<string, string> = {
   "Отменен": "status_canceled",
 };
 
+function getTodayIsoDate(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function DealsKanban() {
   const t = useTranslations();
   const [deals, setDeals] = useState<DealCardItem[]>([]);
@@ -39,6 +47,8 @@ export default function DealsKanban() {
   const [projectFilter, setProjectFilter] = useState("");
   const [projectOptions, setProjectOptions] = useState<string[]>([]);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("");
+  const [createdAtFrom, setCreatedAtFrom] = useState<string>(getTodayIsoDate());
+  const [createdAtTo, setCreatedAtTo] = useState<string>(getTodayIsoDate());
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [excludeCancelled, setExcludeCancelled] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
@@ -48,6 +58,8 @@ export default function DealsKanban() {
     if (search) params.set("search", search);
     if (projectFilter) params.set("project", projectFilter);
     if (paymentMethodFilter) params.set("paymentMethod", paymentMethodFilter.trim());
+    if (createdAtFrom) params.set("createdAtFrom", createdAtFrom);
+    if (createdAtTo) params.set("createdAtTo", createdAtTo);
     if (overdueOnly) params.set("overdue", "1");
     if (!excludeCancelled) params.set("excludeCancelled", "0");
 
@@ -76,7 +88,7 @@ export default function DealsKanban() {
     } finally {
       setLoading(false);
     }
-  }, [search, projectFilter, paymentMethodFilter, overdueOnly, excludeCancelled, t]);
+  }, [search, projectFilter, paymentMethodFilter, createdAtFrom, createdAtTo, overdueOnly, excludeCancelled, t]);
 
   useEffect(() => {
     fetchDeals();
@@ -168,6 +180,22 @@ export default function DealsKanban() {
         >
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
         </Select>
+        <Input
+          type="date"
+          label="Дата с"
+          value={createdAtFrom}
+          onValueChange={setCreatedAtFrom}
+          size="sm"
+          classNames={{ base: "max-w-[180px]" }}
+        />
+        <Input
+          type="date"
+          label="Дата по"
+          value={createdAtTo}
+          onValueChange={setCreatedAtTo}
+          size="sm"
+          classNames={{ base: "max-w-[180px]" }}
+        />
         <div className="flex flex-col gap-1.5">
           <span className="text-sm text-default-500">{t("checkboxes_label")}</span>
           <div className="flex flex-wrap gap-4">
@@ -195,6 +223,9 @@ export default function DealsKanban() {
             setStatusFilter("");
             setProjectFilter("");
             setPaymentMethodFilter("");
+            const today = getTodayIsoDate();
+            setCreatedAtFrom(today);
+            setCreatedAtTo(today);
             setOverdueOnly(false);
             setExcludeCancelled(true);
           }}>

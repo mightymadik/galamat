@@ -19,8 +19,10 @@ interface MobileFlatsFilterProps {
     rooms: string[];
     selectedRooms: Set<string>;
     setSelectedRooms: (rooms: Set<string>) => void;
+    showRooms?: boolean;
     sliders: any[];
     totalProjects: number;
+    resultNoun?: string;
     onReset: () => void;
     onSubmit?: () => void;
 }
@@ -37,8 +39,10 @@ export const MobileFlatsFilter: React.FC<MobileFlatsFilterProps> = ({
     rooms,
     selectedRooms,
     setSelectedRooms,
+    showRooms = true,
     sliders,
     totalProjects,
+    resultNoun,
     onReset,
     onSubmit,
 }) => {
@@ -116,12 +120,14 @@ export const MobileFlatsFilter: React.FC<MobileFlatsFilterProps> = ({
                                 itemClassName="mainPageFilterSelectorDropdownItem flex items-start self-stretch"
                             />
                         ))}
-                        <RoomSelector
-                            label={t("select_rooms")}
-                            rooms={rooms}
-                            selectedRooms={selectedRooms}
-                            setSelectedRooms={setSelectedRooms}
-                        />
+                        {showRooms && (
+                            <RoomSelector
+                                label={t("select_rooms")}
+                                rooms={rooms}
+                                selectedRooms={selectedRooms}
+                                setSelectedRooms={setSelectedRooms}
+                            />
+                        )}
                     </div>
                 </div>
                 <div className="flex h-full justify-center items-start gap-[32px] self-stretch flex-col w-full">
@@ -140,6 +146,7 @@ export const MobileFlatsFilter: React.FC<MobileFlatsFilterProps> = ({
                 <div className="flex justify-end items-end gap-[12px] w-full flex-col">
                     <FiltersFlatsActions
                         totalProjects={totalProjects}
+                        resultNoun={resultNoun}
                         onReset={onReset}
                         onSubmit={handleSubmit}
                     />

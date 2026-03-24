@@ -19,7 +19,7 @@ export type DealStatusColumn = (typeof DEAL_STATUS_COLUMNS)[number];
 /**
  * GET /api/manager/deals
  * Сделки текущего менеджера для Kanban.
- * Query: search (ФИО/квартира), project, paymentMethod, overdue (1), onlyMine (1), excludeCancelled (1)
+ * Query: search (ФИО/квартира), project, paymentMethod, overdue (1), onlyMine (1), excludeCancelled (1), createdAtFrom (YYYY-MM-DD), createdAtTo (YYYY-MM-DD)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -49,6 +49,8 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search")?.trim() || "";
     const project = searchParams.get("project")?.trim() || "";
     const paymentMethod = searchParams.get("paymentMethod")?.trim() || "";
+    const createdAtFrom = searchParams.get("createdAtFrom")?.trim() || "";
+    const createdAtTo = searchParams.get("createdAtTo")?.trim() || "";
     const overdue = searchParams.get("overdue") === "1";
     const excludeCancelled = searchParams.get("excludeCancelled") !== "0";
 
@@ -67,17 +69,31 @@ export async function GET(request: NextRequest) {
     }
 
     if (project) {
-      filters.push(`filters[property][project][projectName][$eq]=${encodeURIComponent(project)}`);
+      filters.push(
+        `filters[$or][0][property][project][projectName][$eq]=${encodeURIComponent(project)}` +
+        `&filters[$or][1][commerce][project][projectName][$eq]=${encodeURIComponent(project)}` +
+        `&filters[$or][2][parking][project][projectName][$eq]=${encodeURIComponent(project)}` +
+        `&filters[$or][3][pantry][project][projectName][$eq]=${encodeURIComponent(project)}`
+      );
     }
 
     if (paymentMethod) {
       filters.push(`filters[paymentMethod][$eq]=${encodeURIComponent(paymentMethod)}`);
+    }
+    if (createdAtFrom) {
+      filters.push(`filters[createdAt][$gte]=${encodeURIComponent(`${createdAtFrom}T00:00:00.000Z`)}`);
+    }
+    if (createdAtTo) {
+      filters.push(`filters[createdAt][$lte]=${encodeURIComponent(`${createdAtTo}T23:59:59.999Z`)}`);
     }
 
     const sort = "sort[0]=createdAt:desc";
     const pagination = "pagination[pageSize]=200";
     const populate =
       "populate[property][fields][0]=documentId&populate[property][fields][1]=apartmentNumber&populate[property][populate][project][fields][0]=projectName" +
+      "&populate[commerce][fields][0]=documentId&populate[commerce][fields][1]=commerceNumber&populate[commerce][populate][project][fields][0]=projectName" +
+      "&populate[parking][fields][0]=documentId&populate[parking][fields][1]=parkingNumber&populate[parking][populate][project][fields][0]=projectName" +
+      "&populate[pantry][fields][0]=documentId&populate[pantry][fields][1]=numberPantry&populate[pantry][populate][project][fields][0]=projectName" +
       "&populate[customer][fields][0]=name&populate[customer][fields][1]=surname&populate[customer][fields][2]=phone" +
       "&populate[manager][fields][0]=name&populate[manager][fields][1]=surname";
 
@@ -111,11 +127,26 @@ export async function GET(request: NextRequest) {
 
       if (overdue && !isOverdue) continue;
 
-      const prop = d?.property ?? d?.attributes?.property;
-      const propData = (prop as any)?.data ?? prop;
-      const projectName =
-        propData?.project?.projectName ?? propData?.project?.attributes?.projectName ?? "";
-      const apartmentNumber = propData?.apartmentNumber ?? propData?.apartmentNumber ?? "";
+      const property = (d?.property ?? d?.attributes?.property) as any;
+      const commerce = (d?.commerce ?? d?.attributes?.commerce) as any;
+      const parking = (d?.parking ?? d?.attributes?.parking) as any;
+      const pantry = (d?.pantry ?? d?.attributes?.pantry) as any;
+      const p = (property?.data ?? property) || null;
+      const c = (commerce?.data ?? commerce) || null;
+      const pk = (parking?.data ?? parking) || null;
+      const pt = (pantry?.data ?? pantry) || null;
+      const entityType: "property" | "commerce" | "parking" | "pantry" =
+        p?.documentId ? "property" : c?.documentId ? "commerce" : pk?.documentId ? "parking" : "pantry";
+      const entity = entityType === "property" ? p : entityType === "commerce" ? c : entityType === "parking" ? pk : pt;
+      const projectName = entity?.project?.projectName ?? entity?.project?.attributes?.projectName ?? "";
+      const apartmentNumber =
+        entityType === "property"
+          ? (entity?.apartmentNumber ?? "")
+          : entityType === "commerce"
+            ? (entity?.commerceNumber ?? "")
+            : entityType === "parking"
+              ? (entity?.parkingNumber ?? "")
+              : (entity?.numberPantry ?? "");
 
       const cust = d?.customer ?? d?.attributes?.customer;
       const custData = (cust as any)?.data ?? cust;
@@ -151,9 +182,11 @@ export async function GET(request: NextRequest) {
         paymentMethod: d?.paymentMethod ?? d?.attributes?.paymentMethod ?? null,
         createdAt: d?.createdAt ?? d?.attributes?.createdAt ?? null,
         property: {
-          documentId: propData?.documentId ?? propData?.id ?? null,
+          documentId: entity?.documentId ?? entity?.id ?? null,
           apartmentNumber,
           projectName,
+          type: entityType,
+          typeLabel: entityType === "commerce" ? "Коммерция" : entityType === "parking" ? "Паркинг" : entityType === "pantry" ? "Кладовка" : "Квартира",
         },
         customer: { name, surname, phone, displayName: clientName },
         manager: managerDisplayName ? { displayName: managerDisplayName } : null,

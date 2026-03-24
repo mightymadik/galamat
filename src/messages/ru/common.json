@@ -1,6 +1,7 @@
 {
   "nav_projects": "Проекты",
   "nav_flats": "Квартиры",
+  "nav_parking": "Паркинги",
   "nav_why_us": "Почему мы",
   "nav_gala_bonus": "Gala Bonus",
   "nav_main": "Главная",
@@ -131,6 +132,7 @@
   "due_date": "Срок сдачи",
   "class": "Класс",
   "apartment_number": "Номер квартиры",
+  "object_number": "Номер объекта",
   "total_area": "Общая площадь",
   "all_characteristics": "Все характеристики",
   "next": "Далее",
@@ -179,7 +181,7 @@
   "change_number": "Изменить номер",
   "confirmed": "Подтверждён",
   "confirm": "Подтвердить",
-  "apartment_price": "Стоимость квартиры",
+  "apartment_price": "Стоимость",
   "price": "Стоимость",
   "price_per_square_meter": "Стоимость м²",
   "reservation": "Бронь",
@@ -215,6 +217,8 @@
   "raise_per_square_meter": "Надбавка за м²",
   "until": "До",
   "deferred_payment_conditions": "Условия отложенного платежа",
+  "available_hypothec_programs": "Доступные ипотечные программы",
+  "hypothec_payment_conditions": "Условия ипотеки",
   "make_deffered_payment_until": "Отложенный платеж до",
   "deffered_until": "Отложенный платеж до",
   "hypothec_until": "Ипотека до",
@@ -298,6 +302,7 @@
   "no_topups_yet": "Пока нет пополнений",
   "spin_the_wheel_on_the_page": "Крутите колесо на странице",
   "my_objects": "Мои объекты",
+  "objects": "объектов",
   "load_error": "Ошибка загрузки",
   "object_default": "Объект",
   "room_rooms": "комнатная",
@@ -496,5 +501,10 @@
   "hypothec_from": "Ипотека от",
   "generated_documents": "Сгенерированные документы",
   "awaiting_signature": "Ожидает подписания",
-  "signed_documents": "Подписанные документы"
+  "signed_documents": "Подписанные документы",
+  "minimum_initial_payment": "Минимальный первоначальный взнос",
+  "available_hypothec_programs": "Доступные ипотечные программы",
+  "overpayment_of_the_minimum_payment": "Сверх минимального взноса",
+  "minimum_initial_payment_amount": "Минимальный первоначальный взнос {amount} ₸",
+  "down_payment_by_program": "Первоначальный взнос"
 }

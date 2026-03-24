@@ -3,6 +3,14 @@ import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
 
+type RealEstateType = "property" | "commerce" | "parking" | "pantry";
+const TYPE_LABEL: Record<RealEstateType, string> = {
+  property: "Квартира",
+  commerce: "Коммерция",
+  parking: "Паркинг",
+  pantry: "Кладовка",
+};
+
 /**
  * GET: полные данные сделки для модалки Kanban (property, customer, payment-schedules, payments).
  */
@@ -40,6 +48,9 @@ export async function GET(
     const dealRes = await strapiAxios.get(
       `${base}/api/deals/${documentId}` +
         "?populate[property][populate][project][fields][0]=projectName&populate[property][populate][project][fields][1]=documentId&populate[property][fields][0]=house&populate[property][fields][1]=entrance&populate[property][fields][2]=apartmentNumber&populate[property][fields][3]=totalArea&populate[property][fields][4]=section&populate[property][fields][5]=room" +
+        "&populate[commerce][populate][project][fields][0]=projectName&populate[commerce][populate][project][fields][1]=documentId" +
+        "&populate[parking][populate][project][fields][0]=projectName&populate[parking][populate][project][fields][1]=documentId" +
+        "&populate[pantry][populate][project][fields][0]=projectName&populate[pantry][populate][project][fields][1]=documentId" +
         "&populate[customer][fields][0]=name&populate[customer][fields][1]=surname&populate[customer][fields][2]=phone&populate[customer][fields][3]=email&populate[customer][fields][4]=iin&populate[customer][fields][5]=birthDate&populate[customer][fields][6]=docNumber&populate[customer][fields][7]=docIssuer&populate[customer][fields][8]=dateIssue&populate[customer][fields][9]=address" +
         "&populate[manager][fields][0]=id",
       { headers }
@@ -72,8 +83,24 @@ export async function GET(
     const saList: any[] = (saRes.data as any)?.data ?? [];
     const sa = Array.isArray(saList) ? saList[0] : null;
 
-    const prop = deal?.property ?? deal?.attributes?.property;
-    const propData = (prop as any)?.data ?? prop;
+    const propertyData = ((deal?.property ?? deal?.attributes?.property) as any)?.data ?? deal?.property ?? deal?.attributes?.property;
+    const commerceData = ((deal?.commerce ?? deal?.attributes?.commerce) as any)?.data ?? deal?.commerce ?? deal?.attributes?.commerce;
+    const parkingData = ((deal?.parking ?? deal?.attributes?.parking) as any)?.data ?? deal?.parking ?? deal?.attributes?.parking;
+    const pantryData = ((deal?.pantry ?? deal?.attributes?.pantry) as any)?.data ?? deal?.pantry ?? deal?.attributes?.pantry;
+    const selected =
+      (propertyData && { type: "property" as const, entity: propertyData }) ||
+      (commerceData && { type: "commerce" as const, entity: commerceData }) ||
+      (parkingData && { type: "parking" as const, entity: parkingData }) ||
+      (pantryData && { type: "pantry" as const, entity: pantryData }) ||
+      null;
+    const selectedType: RealEstateType = selected?.type ?? "property";
+    const selectedEntity: any = selected?.entity ?? null;
+    const numberFieldByType: Record<RealEstateType, string> = {
+      property: "apartmentNumber",
+      commerce: "commerceNumber",
+      parking: "parkingNumber",
+      pantry: "numberPantry",
+    };
     const cust = deal?.customer ?? deal?.attributes?.customer;
     const custData = (cust as any)?.data ?? cust;
 
@@ -87,18 +114,21 @@ export async function GET(
         reserveSum: deal?.reserveSum ?? deal?.attributes?.reserveSum,
         expiresAt: deal?.expiresAt ?? deal?.attributes?.expiresAt,
         paymentMethod: deal?.paymentMethod ?? deal?.attributes?.paymentMethod,
-        property: propData
+        realEstateType: selectedType,
+        property: selectedEntity
           ? {
-              documentId: propData?.documentId ?? propData?.id,
-              projectName: propData?.project?.projectName ?? propData?.project?.attributes?.projectName,
-              projectDocumentId: propData?.project?.documentId ?? propData?.project?.id,
-              apartmentNumber: propData?.apartmentNumber,
-              totalArea: propData?.totalArea,
-              priceCheckmate: propData?.priceCheckmate,
-              room: propData?.room,
-              house: propData?.house,
-              entrance: propData?.entrance,
-              section: propData?.section,
+              documentId: selectedEntity?.documentId ?? selectedEntity?.id,
+              projectName: selectedEntity?.project?.projectName ?? selectedEntity?.project?.attributes?.projectName,
+              projectDocumentId: selectedEntity?.project?.documentId ?? selectedEntity?.project?.id,
+              apartmentNumber: selectedEntity?.[numberFieldByType[selectedType]],
+              totalArea: selectedEntity?.totalArea ?? selectedEntity?.area ?? selectedEntity?.areaGroup,
+              priceCheckmate: selectedEntity?.priceCheckmate,
+              room: selectedType === "property" ? selectedEntity?.room : undefined,
+              house: selectedEntity?.house,
+              entrance: selectedEntity?.entrance,
+              section: selectedEntity?.section,
+              type: selectedType,
+              typeLabel: TYPE_LABEL[selectedType],
             }
           : null,
         customer: custData

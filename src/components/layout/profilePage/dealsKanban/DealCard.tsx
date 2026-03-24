@@ -82,9 +82,11 @@ export default function DealCard({
     >
       <div className="flex flex-col justify-between items-start gap-2">
         <div>
-          <span className="text-xs text-gray-500">{t("apartment_short")}</span>
+          <span className="text-xs text-gray-500">
+            {deal.property?.type === "property" ? t("apartment_short") : (deal.property?.typeLabel ?? t("object"))}
+          </span>
           <p className="font-medium text-gray-900">
-            {deal.property?.apartmentNumber ?? "—"} · {deal.property?.projectName || "—"}
+            №{deal.property?.apartmentNumber ?? "—"} · {deal.property?.projectName || "—"}
           </p>
         </div>
         {expiresLabel && (

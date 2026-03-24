@@ -26,10 +26,16 @@ export interface CashierPaymentRow {
 export interface CashierDeal {
   documentId: string;
   dealStatus: string;
+  createdAt?: string | null;
   dealPrice: number;
   paidAmount: number;
   paymentMethod: string | null;
-  property: { projectName: string; apartmentNumber?: string | number };
+  property: {
+    projectName: string;
+    apartmentNumber?: string | number;
+    type?: "property" | "commerce" | "parking" | "pantry";
+    typeLabel?: string;
+  };
   customer: { displayName: string; phone?: string };
   manager?: { displayName: string } | null;
   paymentSchedules: CashierScheduleRow[];
@@ -125,6 +131,14 @@ const CASHIER_DEAL_STATUSES = ["Ожидания оплаты", "Договор 
 const SCHEDULE_CONFIRMABLE_STATUSES = ["Ожидание", "Просрочено"];
 const PAGE_SIZE = 10;
 
+function getTodayIsoDate(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function CashierPayments() {
   const t = useTranslations();
   const [deals, setDeals] = useState<CashierDeal[]>([]);
@@ -135,16 +149,19 @@ export default function CashierPayments() {
   const [amount, setAmount] = useState("");
   const [scheduleId, setScheduleId] = useState<string | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [filterProject, setFilterProject] = useState("");
   const [filterApartment, setFilterApartment] = useState("");
   const [filterManager, setFilterManager] = useState("");
+  const [createdAtFrom, setCreatedAtFrom] = useState<string>(getTodayIsoDate());
+  const [createdAtTo, setCreatedAtTo] = useState<string>(getTodayIsoDate());
   const [page, setPage] = useState(1);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetch("/api/cashier/deals", { credentials: "include" })
+    return fetch("/api/cashier/deals", { credentials: "include" })
       .then((res) => {
         if (!res.ok) throw new Error(res.status === 403 ? CASHIER_ONLY_KEY : "load_error");
         return res.json();
@@ -167,16 +184,24 @@ export default function CashierPayments() {
     const proj = filterProject.trim().toLowerCase();
     const apt = filterApartment.trim().toLowerCase();
     const mgr = filterManager.trim().toLowerCase();
-    if (!proj && !apt && !mgr) return activeDeals;
+    const from = createdAtFrom ? new Date(`${createdAtFrom}T00:00:00`) : null;
+    const to = createdAtTo ? new Date(`${createdAtTo}T23:59:59.999`) : null;
+    if (!proj && !apt && !mgr && !from && !to) return activeDeals;
     return activeDeals.filter((d) => {
       if (proj && !(d.property?.projectName ?? "").toLowerCase().includes(proj)) return false;
       const aptStr = d.property?.apartmentNumber != null ? String(d.property.apartmentNumber) : "";
       if (apt && !aptStr.toLowerCase().includes(apt)) return false;
       const managerName = (d.manager?.displayName ?? "").toLowerCase();
       if (mgr && !managerName.includes(mgr)) return false;
+      if (from || to) {
+        const created = d.createdAt ? new Date(d.createdAt) : null;
+        if (!created || Number.isNaN(created.getTime())) return false;
+        if (from && created < from) return false;
+        if (to && created > to) return false;
+      }
       return true;
     });
-  }, [activeDeals, filterProject, filterApartment, filterManager]);
+  }, [activeDeals, filterProject, filterApartment, filterManager, createdAtFrom, createdAtTo]);
 
   const projectOptions = useMemo(() => {
     const names = new Set<string>();
@@ -217,6 +242,7 @@ export default function CashierPayments() {
 
   const submitConfirm = async () => {
     if (!confirmingDealId) return;
+    if (submittingPayment) return;
     if (!receiptFile || receiptFile.size === 0) {
       setSubmitError(t("attach_receipt_error"));
       return;
@@ -240,6 +266,7 @@ export default function CashierPayments() {
     form.append("amount", String(num));
     if (scheduleId) form.append("paymentScheduleDocumentId", scheduleId);
     if (receiptFile) form.append("receipt", receiptFile);
+    setSubmittingPayment(true);
     try {
       const res = await fetch("/api/cashier/confirm-payment", {
         method: "POST",
@@ -251,10 +278,12 @@ export default function CashierPayments() {
         setSubmitError(json?.error ?? t("confirm_payment_error"));
         return;
       }
+      await load();
       cancelConfirm();
-      load();
     } catch {
       setSubmitError(t("network_error"));
+    } finally {
+      setSubmittingPayment(false);
     }
   };
 
@@ -293,7 +322,7 @@ export default function CashierPayments() {
 
       {activeDeals.length > 0 && (
         <div className="rounded-[20px] border border-[#122C5E]/10 bg-white/80 p-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] lg:items-end">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("filter_by_project")}</label>
               <Select
@@ -312,7 +341,7 @@ export default function CashierPayments() {
               </Select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("filter_by_apartment")}</label>
+              <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("filter_by_object")}</label>
               <Input
                 size="sm"
                 value={filterApartment}
@@ -320,7 +349,7 @@ export default function CashierPayments() {
                   setFilterApartment(v);
                   setPage(1);
                 }}
-                placeholder={t("filter_apartment_placeholder")}
+                placeholder={t("filter_object_placeholder")}
                 classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-9" }}
               />
             </div>
@@ -337,6 +366,32 @@ export default function CashierPayments() {
                 classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-9" }}
               />
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-[#122C5E] opacity-80">Дата с</label>
+              <Input
+                type="date"
+                size="sm"
+                value={createdAtFrom}
+                onValueChange={(v) => {
+                  setCreatedAtFrom(v);
+                  setPage(1);
+                }}
+                classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-9" }}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-[#122C5E] opacity-80">Дата по</label>
+              <Input
+                type="date"
+                size="sm"
+                value={createdAtTo}
+                onValueChange={(v) => {
+                  setCreatedAtTo(v);
+                  setPage(1);
+                }}
+                classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-9" }}
+              />
+            </div>
             <Button
               size="sm"
               variant="flat"
@@ -345,6 +400,9 @@ export default function CashierPayments() {
                 setFilterProject("");
                 setFilterApartment("");
                 setFilterManager("");
+                const today = getTodayIsoDate();
+                setCreatedAtFrom(today);
+                setCreatedAtTo(today);
                 setPage(1);
               }}
             >
@@ -381,10 +439,8 @@ export default function CashierPayments() {
               >
                 <div className="min-w-0">
                   <span className="truncate text-[#122C5E] font-medium">
-                    {deal.property.projectName || "—"}
-                    {deal.property.apartmentNumber != null && deal.property.apartmentNumber !== ""
-                      ? `, кв. ${deal.property.apartmentNumber}`
-                      : ""}
+                    {(deal.property.typeLabel || (deal.property.type === "property" ? t("apartment_short") : t("object")))}{" "}
+                    №{deal.property.apartmentNumber != null && deal.property.apartmentNumber !== "" ? deal.property.apartmentNumber : "—"} · {deal.property.projectName || "—"}
                   </span>
                 </div>
                 <div className="min-w-0 text-[#000] text-[15px]">
@@ -550,6 +606,7 @@ export default function CashierPayments() {
                             type="file"
                             accept="image/*,.pdf"
                             className="block w-full text-sm text-[#122C5E] file:rounded-[10px] file:border-0 file:bg-[#1A3C7E] file:px-4 file:py-2 file:text-white file:transition-colors hover:file:bg-[#122C5E]"
+                            disabled={submittingPayment}
                             onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
                           />
                           {!receiptFile && (
@@ -559,16 +616,27 @@ export default function CashierPayments() {
                         {submitError && (
                           <p className="text-sm text-red-600 sm:col-span-2">{submitError}</p>
                         )}
+                        {submittingPayment && (
+                          <p className="text-sm text-[#122C5E] sm:col-span-2">
+                            {t("loading")}...
+                          </p>
+                        )}
                         <div className="flex flex-wrap gap-2 sm:col-span-2">
                           <Button
                             color="success"
                             className="rounded-[10px] text-white"
                             onPress={submitConfirm}
-                            isDisabled={!receiptFile || receiptFile.size === 0}
+                            isLoading={submittingPayment}
+                            isDisabled={submittingPayment || !receiptFile || receiptFile.size === 0}
                           >
                             {t("confirm_payment")}
                           </Button>
-                          <Button variant="flat" className="rounded-[10px]" onPress={cancelConfirm}>
+                          <Button
+                            variant="flat"
+                            className="rounded-[10px]"
+                            onPress={cancelConfirm}
+                            isDisabled={submittingPayment}
+                          >
                             {t("cancel")}
                           </Button>
                         </div>

@@ -1,4 +1,6 @@
 // src/types/flat.ts
+export type RealEstateType = "property" | "commerce" | "parking" | "pantry";
+
 export interface Flat {
     id: number;
     documentId: string;
@@ -41,12 +43,15 @@ export interface Flat {
 export interface PaymentConditionForFlat {
     documentId?: string;
     paymentMethod: string;
+    banks?: string | null;
+    hypothec?: string | null;
     paymentStatus?: string;
     validFrom?: string | null;
     validTo?: string | null;
     paymentCondition?: {
         downPayment?: string | null;
         raise?: number | string | null;
+        discount?: number | string | null;
         paymentRule?: { filters?: { field?: string; operator?: string; value?: unknown }[] };
     }[];
 }

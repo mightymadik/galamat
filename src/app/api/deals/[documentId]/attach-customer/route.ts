@@ -4,6 +4,24 @@ import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiSer
 import { normalizePhone } from "@/lib/authOtp";
 
 const ACTIVE_DEAL_STATUSES = ["Бронь", "Ожидания оплаты", "Ожидания договора"];
+const TYPE_CONFIG = {
+  property: { relation: "property", apiPath: "properties", statusField: "propertyStatus", freeValue: "свободно" },
+  commerce: { relation: "commerce", apiPath: "commerces", statusField: "saleStatus", freeValue: "открыто" },
+  parking: { relation: "parking", apiPath: "parkings", statusField: "saleStatus", freeValue: "открыто" },
+  pantry: { relation: "pantry", apiPath: "pantrys", statusField: "saleStatus", freeValue: "открыто" },
+} as const;
+
+type EntityType = keyof typeof TYPE_CONFIG;
+
+function resolveDealEntity(deal: any): { type: EntityType; cfg: (typeof TYPE_CONFIG)[EntityType]; documentId: string | null } {
+  for (const type of Object.keys(TYPE_CONFIG) as EntityType[]) {
+    const cfg = TYPE_CONFIG[type];
+    const rel = deal?.[cfg.relation] ?? deal?.attributes?.[cfg.relation];
+    const id = rel?.documentId ?? rel?.id ?? rel?.data?.documentId ?? rel?.data?.id ?? null;
+    if (id != null) return { type, cfg, documentId: String(id) };
+  }
+  return { type: "property", cfg: TYPE_CONFIG.property, documentId: null };
+}
 
 /** "dd.mm.yyyy" -> "yyyy-mm-dd" for Strapi date */
 function toStrapiDate(s: string | undefined): string | null {
@@ -242,14 +260,13 @@ export async function POST(
     }
 
     const currentDealRes = await strapiAxios.get(
-      `${base}/api/deals/${documentId}?fields[0]=documentId&populate[property]=true`,
+      `${base}/api/deals/${documentId}?fields[0]=documentId&populate[property]=true&populate[commerce]=true&populate[parking]=true&populate[pantry]=true`,
       { headers }
     );
     const currentDeal: any = (currentDealRes.data as any)?.data ?? currentDealRes.data;
-    const property = currentDeal?.property ?? currentDeal?.attributes?.property;
-    const propertyDocId = property?.documentId ?? property?.id ?? null;
-    if (!propertyDocId) {
-      return Response.json({ error: "У сделки не найдена квартира" }, { status: 400 });
+    const entity = resolveDealEntity(currentDeal);
+    if (!entity.documentId) {
+      return Response.json({ error: "У сделки не найден объект" }, { status: 400 });
     }
 
     const managerRes = await strapiAxios.get(
@@ -262,7 +279,7 @@ export async function POST(
     const activeFilter = ACTIVE_DEAL_STATUSES.map((s, i) => `filters[dealStatus][$in][${i}]=${encodeURIComponent(s)}`).join("&");
     const existingDealsUrl =
       `${base}/api/deals` +
-      `?filters[property][documentId][$eq]=${encodeURIComponent(propertyDocId)}` +
+      `?filters[${entity.cfg.relation}][documentId][$eq]=${encodeURIComponent(entity.documentId)}` +
       `&filters[customer][documentId][$eq]=${encodeURIComponent(customerDocId)}` +
       `&filters[documentId][$ne]=${encodeURIComponent(documentId)}` +
       `&${activeFilter}` +
@@ -281,23 +298,23 @@ export async function POST(
         );
       }
       const dealRes = await strapiAxios.get(
-        `${base}/api/deals/${documentId}?populate[property]=true`,
+        `${base}/api/deals/${documentId}?populate[property]=true&populate[commerce]=true&populate[parking]=true&populate[pantry]=true`,
         { headers }
       );
       const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
       const dealStatus = deal?.dealStatus ?? deal?.attributes?.dealStatus;
       const doNotRelease = ["Договор подписан", "Ожидания договора", "Оплачено"].includes(dealStatus);
       if (!doNotRelease) {
-        const prop = deal?.property ?? deal?.attributes?.property;
-        const propId = prop?.documentId ?? prop?.id;
+        const releaseEntity = resolveDealEntity(deal);
+        const propId = releaseEntity.documentId;
         if (propId) {
           await strapiAxios.put(
-            `${base}/api/properties/${propId}`,
-            { data: { propertyStatus: "свободно" } },
+            `${base}/api/${releaseEntity.cfg.apiPath}/${propId}`,
+            { data: { [releaseEntity.cfg.statusField]: releaseEntity.cfg.freeValue } },
             { headers }
           );
           try {
-            await strapiAxios.post(`${base}/api/properties/${propId}/publish`, {}, { headers });
+            await strapiAxios.post(`${base}/api/${releaseEntity.cfg.apiPath}/${propId}/publish`, {}, { headers });
           } catch (_) {}
         }
         await strapiAxios.put(

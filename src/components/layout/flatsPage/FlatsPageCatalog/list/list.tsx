@@ -9,6 +9,7 @@ import { RootState } from "@/store";
 import { openAuth } from "@/store/authSlice";
 import { toggleFavorite } from "@/store/favoritesSlice";
 import { FlatsFilterParams } from "../../../../../types/flat";
+import type { RealEstateType } from "../../../../../types/flat";
 import { useTranslations } from "next-intl";
 
 function FlatListCardSkeleton() {
@@ -72,6 +73,7 @@ interface ComponentFlat {
   floor: string;
   section: string;
   entrance: string;
+  objectNumber: string;
   deadline: string;
   available: string;
 }
@@ -104,11 +106,12 @@ const adaptProperty = (property: any): ComponentFlat => {
     priceM2: formattedPriceM2,
     tags: property.tags || [],
     images: property.images || [],
-    room: property.room?.toString() || "0",
-    area: `${property.totalArea ?? 0} м²`,
-    floor: property.floor?.toString() || "0",
+    room: property.room?.toString() || "",
+    area: property.totalArea != null && Number(property.totalArea) > 0 ? `${property.totalArea} м²` : "",
+    floor: property.floor != null && Number(property.floor) > 0 ? property.floor.toString() : "",
     section: property.section || "",
     entrance: property.entrance?.toString() || "0",
+    objectNumber: property.apartmentNumber != null ? String(property.apartmentNumber) : String(property.id ?? ""),
     deadline: "", // Property API не содержит deadline
     available: "1", // Все property со статусом "свободно" доступны
   };
@@ -118,9 +121,17 @@ interface ListProps {
   sortKey?: string;
   filterParams?: FlatsFilterParams;
   onTotalCountChange?: (count: number) => void;
+  realEstateType?: RealEstateType;
+  detailBasePath?: string;
 }
 
-export default function List({ sortKey = "lowestPrice", filterParams = {}, onTotalCountChange }: ListProps) {
+export default function List({
+  sortKey = "lowestPrice",
+  filterParams = {},
+  onTotalCountChange,
+  realEstateType = "property",
+  detailBasePath = "/flats",
+}: ListProps) {
   const t = useTranslations();
   const [flats, setFlats] = useState<ComponentFlat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,6 +192,7 @@ export default function List({ sortKey = "lowestPrice", filterParams = {}, onTot
     if (filterParams.district) params.set("district", filterParams.district);
     if (filterParams.project) params.set("project", filterParams.project);
     if (filterParams.tags && filterParams.tags.length > 0) params.set("tags", filterParams.tags.join(","));
+    params.set("type", realEstateType);
     params.set("page", "1");
     params.set("pageSize", String(PAGE_SIZE));
 
@@ -212,7 +224,7 @@ export default function List({ sortKey = "lowestPrice", filterParams = {}, onTot
         }
       });
     return () => abortController.abort();
-  }, [loading, filterKey, localeKey, onTotalCountChange]);
+  }, [loading, filterKey, localeKey, onTotalCountChange, realEstateType]);
 
   const handleShowMore = () => {
     if (loadingMore || flats.length >= totalCount) return;
@@ -226,6 +238,7 @@ export default function List({ sortKey = "lowestPrice", filterParams = {}, onTot
     if (filterParams.district) params.set("district", filterParams.district);
     if (filterParams.project) params.set("project", filterParams.project);
     if (filterParams.tags && filterParams.tags.length > 0) params.set("tags", filterParams.tags.join(","));
+    params.set("type", realEstateType);
     params.set("page", String(currentPage + 1));
     params.set("pageSize", String(PAGE_SIZE));
 
@@ -281,7 +294,7 @@ export default function List({ sortKey = "lowestPrice", filterParams = {}, onTot
           {flats.length > 0 && !loading && (
             <div className="flex flex-col items-start gap-[12px] self-stretch animate-fadeOut">
               {sortedFlats.map((flat, index) => (
-                <FlatCard key={flat.id || index} flat={flat} />
+                <FlatCard key={flat.id || index} flat={flat} detailBasePath={detailBasePath} realEstateType={realEstateType} />
               ))}
             </div>
           )}
@@ -314,7 +327,7 @@ export default function List({ sortKey = "lowestPrice", filterParams = {}, onTot
             className="animate-fadeIn w-full"
             style={{ animationDelay: `${Math.min(index * 50, 300)}ms` }}
           >
-            <FlatCard flat={flat} />
+            <FlatCard flat={flat} detailBasePath={detailBasePath} realEstateType={realEstateType} />
           </div>
         ))}
       </div>
@@ -334,7 +347,7 @@ export default function List({ sortKey = "lowestPrice", filterParams = {}, onTot
   );
 }
 
-function FlatCard({ flat }: { flat: ComponentFlat }) {
+function FlatCard({ flat, detailBasePath, realEstateType }: { flat: ComponentFlat; detailBasePath: string; realEstateType: RealEstateType }) {
     const t = useTranslations();
     const dispatch = useDispatch();
     const user = useSelector((state: RootState) => state.auth.user);
@@ -364,7 +377,12 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
         }
     };
 
-    const flatHref = `/flats/${flat.documentId ?? flat.id}`;
+  const flatHref = `${detailBasePath}/${flat.documentId ?? flat.id}`;
+    const typeLabel =
+        realEstateType === "commerce" ? "Коммерция" :
+        realEstateType === "parking" ? "Паркинг" :
+        realEstateType === "pantry" ? "Кладовка" : `${flat.room} ${t("rooms_count")}`;
+    const showPriceM2 = realEstateType !== "parking" && Boolean(flat.priceM2 && !flat.priceM2.startsWith("0 "));
     return (
         <div className="flex px-[24px] py-[16px] justify-center items-center gap-[24px] self-stretch rounded-[24px] border-[2px] border-solid border-[#E3E3E3] bg-[#FFF] w-full transition-all duration-300 hover:shadow-lg">
             <Link href={flatHref} className="flex flex-1 min-w-0 justify-center items-center gap-[24px] self-stretch">
@@ -422,18 +440,28 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
                                 <p className="text-[#535763] text-[12px] not-italic font-normal leading-[normal]">{t("entrance")}</p>
                                 <span className="text-[#000] text-[18px] not-italic font-normal leading-[normal]">{flat.entrance}</span>
                             </div>
-                            <div className="flex min-w-[120px] px-[10px] py-[4px] flex-col justify-center items-start">
+                            {flat.objectNumber && (
+                              <div className="flex min-w-[120px] px-[10px] py-[4px] flex-col justify-center items-start">
+                                <p className="text-[#535763] text-[12px] not-italic font-normal leading-[normal]">Номер</p>
+                                <span className="text-[#000] text-[18px] not-italic font-normal leading-[normal]">№{flat.objectNumber}</span>
+                              </div>
+                            )}
+                            {flat.floor && (
+                              <div className="flex min-w-[120px] px-[10px] py-[4px] flex-col justify-center items-start">
                                 <p className="text-[#535763] text-[12px] not-italic font-normal leading-[normal]">{t("floor")}</p>
                                 <span className="text-[#000] text-[18px] not-italic font-normal leading-[normal]">{flat.floor}</span>
-                            </div>
+                              </div>
+                            )}
                             <div className="flex min-w-[120px] px-[10px] py-[4px] flex-col justify-center items-start">
-                                <p className="text-[#535763] text-[12px] not-italic font-normal leading-[normal]">{t("rooms")}</p>
-                                <span className="text-[#000] text-[18px] not-italic font-normal leading-[normal]">{flat.room} {t("rooms_count")}</span>
+                                <p className="text-[#535763] text-[12px] not-italic font-normal leading-[normal]">Тип</p>
+                                <span className="text-[#000] text-[18px] not-italic font-normal leading-[normal]">{typeLabel}</span>
                             </div>
-                            <div className="flex min-w-[120px] px-[10px] py-[4px] flex-col justify-center items-start">
+                            {flat.area && (
+                              <div className="flex min-w-[120px] px-[10px] py-[4px] flex-col justify-center items-start">
                                 <p className="text-[#535763] text-[12px] not-italic font-normal leading-[normal]">{t("area")}</p>
                                 <span className="text-[#000] text-[18px] not-italic font-normal leading-[normal]">{flat.area}</span>
-                            </div>
+                              </div>
+                            )}
                             {flat.deadline && (
                                 <div className="flex min-w-[120px] px-[10px] py-[4px] flex-col justify-center items-start">
                                     <p className="text-[#535763] text-[12px] not-italic font-normal leading-[normal]">{t("deadline")}</p>
@@ -447,7 +475,7 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
                         </svg>
                         <div className="flex w-[147px] flex-col justify-center items-start gap-[4px] self-stretch">
                             <h1 className="text-[#000] text-[20px] not-italic font-normal leading-[normal] w-full">{flat.price}</h1>
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[normal]">{flat.priceM2}</span>
+                            {showPriceM2 && <span className="text-[#000] text-[16px] not-italic font-normal leading-[normal]">{flat.priceM2}</span>}
                         </div>
                     </div>
                 </div>

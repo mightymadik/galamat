@@ -40,12 +40,6 @@ function Page() {
   });
 
   const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
-
-  /**
-   * When Effect 1 (URL→state) calls setFilterParams, the state hasn't flushed yet.
-   * Effect 2 (state→URL) runs in the same commit with STALE filterParams and would
-   * push the old query back → infinite loop.  This ref blocks that stale push.
-   */
   const syncingFromUrlRef = useRef(false);
 
   const initialFilterParamsFromUrl = useMemo(
@@ -53,7 +47,6 @@ function Page() {
     [urlQs],
   );
 
-  // 1) URL → state (external navigation, back/forward, header link click)
   useEffect(() => {
     const fromUrl = parseSearchParamsToFilterParams(
       new URLSearchParams(searchParams.toString()),
@@ -69,7 +62,6 @@ function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlQs]);
 
-  // 2) state → URL (user changed filters via UI)
   useEffect(() => {
     if (syncingFromUrlRef.current) {
       syncingFromUrlRef.current = false;
@@ -82,7 +74,7 @@ function Page() {
     if (viewType && viewType !== "block") withView.set("view", viewType);
     const nextQsWithView = normalizeQueryString(withView);
     if (nextQsWithView === urlQs) return;
-    router.replace(nextQsWithView ? `/flats?${nextQsWithView}` : "/flats", { scroll: false });
+    router.replace(nextQsWithView ? `/commerce?${nextQsWithView}` : "/commerce", { scroll: false });
   }, [filterParams, viewType, urlQs, router]);
 
   const applyFiltersFromUi = useCallback((next: FlatsFilterParams) => {
@@ -109,7 +101,7 @@ function Page() {
         initialFilterParams={initialFilterParamsFromUrl}
         onFilterChange={applyFiltersFromUi}
         totalCount={totalCount}
-        realEstateType="property"
+        realEstateType="commerce"
       />
       <FlatsPageCatalog
         filterParams={filterParams}
@@ -117,8 +109,8 @@ function Page() {
         onProjectChange={handleProjectChange}
         initialViewType={viewType}
         onViewTypeChange={setViewType}
-        realEstateType="property"
-        detailBasePath="/flats"
+        realEstateType="commerce"
+        detailBasePath="/commerce"
       />
     </div>
   );

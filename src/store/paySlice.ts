@@ -5,6 +5,7 @@ import type { AgreementPayload } from "@/types/agreement";
 export interface AgreementFileEntry {
   templateType: string;
   fileUrl: string;
+  documentName?: string;
   signedAgreementDocumentId?: string;
 }
 

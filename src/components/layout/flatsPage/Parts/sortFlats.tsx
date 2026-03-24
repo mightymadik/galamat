@@ -7,10 +7,11 @@ import { useTranslations } from "next-intl";
 interface SortFlatsProps {
     onViewChange: (view: string) => void;
     onSortChange?: (sortKey: string) => void;
-
+    allowChessboard?: boolean;
+    initialView?: string;
 }
 
-export default function SortFlats({ onViewChange, onSortChange }: SortFlatsProps) {
+export default function SortFlats({ onViewChange, onSortChange, allowChessboard = true, initialView = "block" }: SortFlatsProps) {
     const t = useTranslations();
     const [activeIndex, setActiveIndex] = useState(0);
     const [isDesktop, setIsDesktop] = useState(false);
@@ -94,9 +95,19 @@ export default function SortFlats({ onViewChange, onSortChange }: SortFlatsProps
         },
     ];
 
-    const [viewType, setViewType] = useState(buttons[0].type);
+    const [viewType, setViewType] = useState(initialView);
 
-    const visibleButtons = buttons.filter(btn => !(btn.type === "list" && !isDesktop));
+    const visibleButtons = buttons.filter((btn) => {
+        if (!allowChessboard && (btn.type === "checkmate" || btn.type === "checkmatePro")) return false;
+        if (btn.type === "list" && !isDesktop) return false;
+        return true;
+    });
+
+    useEffect(() => {
+        setViewType(initialView);
+        const nextIndex = visibleButtons.findIndex((b) => b.type === initialView);
+        setActiveIndex(nextIndex >= 0 ? nextIndex : 0);
+    }, [initialView, allowChessboard, isDesktop]);
 
     const handleClick = (btn: any, index: number) => {
         setActiveIndex(index);

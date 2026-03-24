@@ -6,7 +6,7 @@ import { Button } from "@heroui/button"
 import { DropdownSelector } from "../../mainPage/mainPageFilter";
 import DesktopFlatsFilter from "../DesktopFlatsFilter/desktopFlatsFilter";
 import MobileFlatsFilter from "../MobileFlatsFilter/mobileFlatsFilter";
-import { FlatsFilterParams } from "@/types/flat";
+import { FlatsFilterParams, RealEstateType } from "@/types/flat";
 import { filterParamsCanonicalKey, normalizeFilterParams } from "@/lib/flatsFilterUrl";
 import { useTranslations } from "next-intl";
 import { FlatsFilterSkeleton, MobileFlatsFilterSkeleton } from "../Parts/flatsFilterSkeleton";
@@ -32,10 +32,15 @@ interface FlatsPageFilterProps {
     totalCount?: number; // Актуальное количество квартир с учетом фильтров
     /** When provided, submit button redirects to flats with params (used on project page - no URL sync) */
     onSubmit?: (params: FlatsFilterParams) => void;
+    realEstateType?: RealEstateType;
 }
 
-export default function FlatsPageFilter({ initialFilterParams, onFilterChange, totalCount, onSubmit }: FlatsPageFilterProps) {
+export default function FlatsPageFilter({ initialFilterParams, onFilterChange, totalCount, onSubmit, realEstateType = "property" }: FlatsPageFilterProps) {
     const t = useTranslations();
+    const showRooms = realEstateType === "property";
+    const supportsPricePerM2 = realEstateType !== "parking";
+    const supportsArea = realEstateType !== "parking";
+    const resultNoun = realEstateType === "property" ? t("flats") : t("objects");
     const [totalProjects, setTotalProjects] = useState<number>(0);
     const [isMetadataLoaded, setIsMetadataLoaded] = useState(false);
 
@@ -94,13 +99,13 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
             setSelectedValues((prev) => ({ ...prev, project: initialFilterParams.project! }));
             setSelectedComplex(new Set([initialFilterParams.project!]));
         }
-        setSelectedRooms(new Set(initialFilterParams.roomCount ?? []));
+        setSelectedRooms(showRooms ? new Set(initialFilterParams.roomCount ?? []) : new Set());
         setActiveCategory(initialFilterParams.tags?.[0] ?? null);
 
         // ВАЖНО: помечаем, что применили
         // (слайдеры будут применяться либо в metadata effect, либо ниже в отдельном эффекте)
         lastAppliedInitialRef.current = key;
-    }, [initialFilterParams]);
+    }, [initialFilterParams, showRooms]);
 
     // If URL params were cleared (e.g. navigate to /flats without query),
     // reset filter UI state back to defaults from metadata.
@@ -170,7 +175,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
     useEffect(() => {
         if (isMetadataLoaded) return; // Не загружаем повторно
 
-        fetch('/api/properties?metadata=true')
+        fetch(`/api/properties?metadata=true&type=${encodeURIComponent(realEstateType)}`)
             .then(res => res.json())
             .then((metadata: PropertyFiltersMetadata) => {
                 setFilterMetadata(metadata);
@@ -312,22 +317,22 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
             max: filterMetadata?.priceRange.max || 46608700,
             step: 10000,
         },
-        {
+        ...(supportsPricePerM2 ? [{
             label: t("price_per_m2_range"),
             value: pricePerM2Value,
             setValue: setPricePerM2Value,
             min: filterMetadata?.pricePerM2Range.min || 325000,
             max: filterMetadata?.pricePerM2Range.max || 500000,
             step: 1000,
-        },
-        {
+        }] : []),
+        ...(supportsArea ? [{
             label: t("area_range"),
             value: m2Value,
             setValue: setM2Value,
             min: filterMetadata?.areaRange.min || 36,
             max: filterMetadata?.areaRange.max || 101,
             step: 1,
-        },
+        }] : []),
     ];
 
     // Debounced filter changes для слайдеров (чтобы не делать запрос при каждом движении)
@@ -379,11 +384,15 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
               ? undefined
               : debouncedPriceValue,
           pricePerM2Range:
-            filterMetadata && isFullRange(filterMetadata.pricePerM2Range, debouncedPricePerM2Value)
+            !supportsPricePerM2
+              ? undefined
+              : filterMetadata && isFullRange(filterMetadata.pricePerM2Range, debouncedPricePerM2Value)
               ? undefined
               : debouncedPricePerM2Value,
           areaRange:
-            filterMetadata && isFullRange(filterMetadata.areaRange, debouncedM2Value)
+            !supportsArea
+              ? undefined
+              : filterMetadata && isFullRange(filterMetadata.areaRange, debouncedM2Value)
               ? undefined
               : debouncedM2Value,
           entranceRange:
@@ -391,7 +400,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
               ? undefined
               : debouncedEntranceValue,
       
-          roomCount: selectedRooms.size > 0 ? Array.from(selectedRooms) : undefined,
+          roomCount: showRooms && selectedRooms.size > 0 ? Array.from(selectedRooms) : undefined,
           district: selectedValues.district !== FILTER_VALUE_ALL ? selectedValues.district : undefined,
           project: selectedValues.project !== FILTER_VALUE_ALL ? selectedValues.project : undefined,
           tags: activeCategory ? [activeCategory] : undefined,
@@ -413,6 +422,8 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         selectedRooms,
         selectedValues,
         activeCategory,
+        supportsPricePerM2,
+        supportsArea,
       ]);
       
     // Enable emit: только после загрузки metadata и ПОСЛЕ того как state обновлён (deps включают buildFilterParams,
@@ -457,8 +468,8 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
 
         const sp = new URLSearchParams();
         if (params.priceRange) sp.set("priceRange", params.priceRange.join(","));
-        if (params.pricePerM2Range) sp.set("pricePerM2Range", params.pricePerM2Range.join(","));
-        if (params.areaRange) sp.set("areaRange", params.areaRange.join(","));
+        if (supportsPricePerM2 && params.pricePerM2Range) sp.set("pricePerM2Range", params.pricePerM2Range.join(","));
+        if (supportsArea && params.areaRange) sp.set("areaRange", params.areaRange.join(","));
         if (params.entranceRange) sp.set("entranceRange", params.entranceRange.join(","));
         if (params.roomCount?.length) sp.set("roomCount", params.roomCount.join(","));
         if (params.district) sp.set("district", params.district);
@@ -468,6 +479,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         sp.set("pageSize", "1");
 
         const ac = new AbortController();
+        sp.set("type", realEstateType);
         fetch(`/api/properties?${sp.toString()}`, { signal: ac.signal })
             .then((res) => res.json())
             .then((response: { meta?: { total?: number; pagination?: { total?: number } }; data?: unknown[] }) => {
@@ -482,7 +494,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
                 if (!ac.signal.aborted) setTotalProjects(0);
             });
         return () => ac.abort();
-    }, [onSubmit, countRequestKey, buildFilterParams, initialFilterParams?.project]);
+    }, [onSubmit, countRequestKey, buildFilterParams, initialFilterParams?.project, supportsPricePerM2, supportsArea]);
 
     const handleSubmit = React.useCallback(() => {
         if (onSubmit) {
@@ -501,13 +513,13 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         if (filterMetadata) {
             setEntranceValue([filterMetadata.entranceRange.min, filterMetadata.entranceRange.max]);
             setPriceValue([filterMetadata.priceRange.min, filterMetadata.priceRange.max]);
-            setPricePerM2Value([filterMetadata.pricePerM2Range.min, filterMetadata.pricePerM2Range.max]);
-            setM2Value([filterMetadata.areaRange.min, filterMetadata.areaRange.max]);
+            if (supportsPricePerM2) setPricePerM2Value([filterMetadata.pricePerM2Range.min, filterMetadata.pricePerM2Range.max]);
+            if (supportsArea) setM2Value([filterMetadata.areaRange.min, filterMetadata.areaRange.max]);
         } else {
             setEntranceValue([1, 12]);
             setPriceValue([23_839_400, 46_608_700]);
-            setPricePerM2Value([325_000, 500_000]);
-            setM2Value([36, 101]);
+            if (supportsPricePerM2) setPricePerM2Value([325_000, 500_000]);
+            if (supportsArea) setM2Value([36, 101]);
         }
     };
 
@@ -588,8 +600,10 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
                     rooms={rooms}
                     selectedRooms={selectedRooms}
                     setSelectedRooms={setSelectedRooms}
+                    showRooms={showRooms}
                     sliders={sliders}
                     totalProjects={totalProjects}
+                    resultNoun={resultNoun}
                     onReset={handleReset}
                     onMap={() => console.log("Показать карту")}
                     onSubmit={onSubmit ? handleSubmit : undefined}
@@ -608,7 +622,9 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
                     rooms={rooms}
                     selectedRooms={selectedRooms}
                     setSelectedRooms={setSelectedRooms}
+                    showRooms={showRooms}
                     totalProjects={totalProjects}
+                    resultNoun={resultNoun}
                     onReset={handleReset}
                     sliders={sliders}
                     onSubmit={onSubmit ? handleSubmit : undefined}

@@ -20,6 +20,7 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { propertyDocumentId, dealDocumentId, usedPromocodeCode, usedGalaBonusAmount } = body as {
       propertyDocumentId?: string;
+      realEstateType?: "property" | "commerce" | "parking" | "pantry";
       dealDocumentId?: string;
       usedPromocodeCode?: string;
       usedGalaBonusAmount?: number;
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
       `${base}/api/payments?complete=true`,
       {
         propertyDocumentId,
+        realEstateType: body?.realEstateType ?? "property",
         dealDocumentId,
         usedPromocodeCode,
         usedGalaBonusAmount,

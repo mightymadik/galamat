@@ -69,6 +69,37 @@ export function parseDownPaymentPercent(val: string | number | null | undefined)
   return match ? Math.min(100, parseInt(match[1], 10)) : 0;
 }
 
+/** Числовое значение ПВ: 1..100 = проценты, >=101 = фиксированная сумма в тенге. */
+export function parseDownPaymentValue(val: string | number | null | undefined): number {
+  if (val == null) return 0;
+  const s = String(val).trim().replace(/\s/g, "");
+  const match = s.match(/(\d+(?:[.,]\d+)?)/);
+  if (!match) return 0;
+  const n = Number(match[1].replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Рассчитывает сумму первоначального взноса из ПВ (процент/фикс). */
+export function resolveDownPaymentAmount(
+  downPaymentRaw: string | number | null | undefined,
+  totalPrice: number
+): number {
+  const value = parseDownPaymentValue(downPaymentRaw);
+  if (!Number.isFinite(value) || value <= 0 || totalPrice <= 0) return 0;
+  if (value >= 1 && value <= 100) return Math.round((totalPrice * value) / 100);
+  return Math.round(Math.min(value, totalPrice));
+}
+
+/** Текстовый лейбл ПВ для UI. */
+export function formatDownPaymentLabel(
+  downPaymentRaw: string | number | null | undefined
+): string {
+  const value = parseDownPaymentValue(downPaymentRaw);
+  if (!Number.isFinite(value) || value <= 0) return "0%";
+  if (value >= 1 && value <= 100) return `${Math.round(value)}%`;
+  return `${formatPriceDisplay(Math.round(value))}`;
+}
+
 /** Число полных месяцев между датами (минимум 1) */
 export function monthsBetween(from: Date, to: Date): number {
   const m = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
@@ -119,6 +150,7 @@ export interface PaymentRuleFilter {
 export interface PaymentOption {
   downPayment?: string | null;
   raise?: number | string | null;
+  discount?: number | string | null;
   /** Правило попадания квартиры в это условие (для выбора условия по атрибутам квартиры). */
   paymentRule?: { filters?: PaymentRuleFilter[] };
 }
@@ -126,6 +158,8 @@ export interface PaymentOption {
 /** Payment condition with optional paymentCondition array */
 export interface PaymentConditionWithOptions {
   paymentMethod?: string;
+  banks?: string | null;
+  hypothec?: string | null;
   paymentStatus?: string;
   validFrom?: string | null;
   validTo?: string | null;
@@ -293,7 +327,7 @@ export function resolveFullPaymentDiscountValue(
   return 0;
 }
 
-/** Скидка за полную оплату из условий (Полная оплата / Full). Условие выбирается по совпадению квартиры с фильтрами; raise: 1–100 %; 101–50_000 ₸/м²; 50_001+ ₸ от стоимости. */
+/** Скидка за полную оплату из условий (Полная оплата / Full). Используем discount, fallback на legacy raise. */
 export function getFullPaymentDiscountFromConditions(
   paymentConditions: PaymentConditionWithOptions[] | undefined,
   basePrice: number,
@@ -304,8 +338,8 @@ export function getFullPaymentDiscountFromConditions(
   const full = paymentConditions.find((c) => isPaymentMethod(c, "full") && isActivePaymentStatus(c));
   const options = (full?.paymentCondition || []) as PaymentOption[];
   const option = getMatchingOption(options, flatAttrs);
-  if (!option?.raise) return 0;
-  const raw = parseRaise(option.raise);
+  const raw = parseRaise(option?.discount ?? option?.raise);
+  if (!raw) return 0;
   return resolveFullPaymentDiscountValue(raw, basePrice, totalArea);
 }
 
@@ -371,10 +405,11 @@ export function getInstallmentPreview(
   const selected = optionList[Math.min(selectedOptionIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
   const raisePerM2 = parseRaise(selected?.raise);
   const fullPrice = baseFullPrice + raisePerM2 * totalArea;
-  const firstDownPct = selected
-    ? parseDownPaymentPercent(selected.downPayment) || 30
-    : FALLBACK_PCTS[Math.min(selectedOptionIndex, FALLBACK_PCTS.length - 1)] ?? 30;
-  const firstDown = fullPrice > 0 ? Math.round((fullPrice * firstDownPct) / 100) : 0;
+  const fallbackPct = FALLBACK_PCTS[Math.min(selectedOptionIndex, FALLBACK_PCTS.length - 1)] ?? 30;
+  const firstDown = selected
+    ? resolveDownPaymentAmount(selected.downPayment, fullPrice)
+    : (fullPrice > 0 ? Math.round((fullPrice * fallbackPct) / 100) : 0);
+  const firstDownPct = fullPrice > 0 ? Math.round((firstDown / fullPrice) * 100) : fallbackPct;
   const now = new Date();
   const validToDate = validTo ? new Date(String(validTo).replace(" ", "T")) : null;
   const months = validToDate && validToDate > now ? monthsBetween(now, validToDate) : 1;
@@ -421,10 +456,11 @@ export function getDefferedPreview(
   const selected = optionList[Math.min(selectedOptionIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
   const raisePerM2 = parseRaise(selected?.raise);
   const fullPrice = baseFullPrice + raisePerM2 * totalArea;
-  const firstDownPct = selected
-    ? parseDownPaymentPercent(selected.downPayment) || 30
-    : FALLBACK_PCTS[Math.min(selectedOptionIndex, FALLBACK_PCTS.length - 1)] ?? 30;
-  const firstDown = fullPrice > 0 ? Math.round((fullPrice * firstDownPct) / 100) : 0;
+  const fallbackPct = FALLBACK_PCTS[Math.min(selectedOptionIndex, FALLBACK_PCTS.length - 1)] ?? 30;
+  const firstDown = selected
+    ? resolveDownPaymentAmount(selected.downPayment, fullPrice)
+    : (fullPrice > 0 ? Math.round((fullPrice * fallbackPct) / 100) : 0);
+  const firstDownPct = fullPrice > 0 ? Math.round((firstDown / fullPrice) * 100) : fallbackPct;
   const remainder = Math.max(0, fullPrice - firstDown);
   return {
     options: optionList,

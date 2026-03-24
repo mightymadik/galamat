@@ -13,7 +13,12 @@ export interface AgreementRow {
   createdAt: string | null;
   customer: { name: string; surname: string; displayName: string };
   manager?: { displayName: string } | null;
-  property: { projectName: string; apartmentNumber: string | number };
+  property: {
+    projectName: string;
+    apartmentNumber: string | number;
+    type?: "property" | "commerce" | "parking" | "pantry";
+    typeLabel?: string;
+  };
   signedAgreement: { signed: boolean; signedAt: string | null } | null;
 }
 
@@ -86,7 +91,8 @@ export default function AgreementsList() {
       if (manager && !(row.manager?.displayName ?? "").toLowerCase().includes(manager)) return false;
       const projectName = (row.property?.projectName ?? "").toLowerCase();
       const apt = row.property?.apartmentNumber != null ? String(row.property.apartmentNumber).toLowerCase() : "";
-      const objectStr = `${projectName} ${apt}`.trim();
+      const type = (row.property?.typeLabel ?? "").toLowerCase();
+      const objectStr = `${projectName} ${type} ${apt}`.trim();
       if (object && !objectStr.includes(object)) return false;
       return true;
     });
@@ -247,10 +253,11 @@ export default function AgreementsList() {
                   <td className="p-4 text-[#000] text-[15px]">{row.customer.displayName || "—"}</td>
                   <td className="p-4 text-[#000] text-[15px]">{row.manager?.displayName || "—"}</td>
                   <td className="p-4 text-[#000] text-[15px]">
-                    {row.property.projectName || "—"}
+                    {(row.property.typeLabel || (row.property.type === "property" ? "Квартира" : "Объект"))} №
                     {row.property.apartmentNumber != null && row.property.apartmentNumber !== ""
-                      ? `, кв. ${row.property.apartmentNumber}`
-                      : ""}
+                      ? row.property.apartmentNumber
+                      : "—"}
+                    {` · ${row.property.projectName || "—"}`}
                   </td>
                   <td className="p-4">
                     <span className="text-[#122C5E] text-[15px]">{row.dealStatus || "—"}</span>

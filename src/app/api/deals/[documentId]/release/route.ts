@@ -3,6 +3,23 @@ import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
 
 /** Отмена брони: если договор ещё не подписан — квартира «свободно», сделка «Отменен». Только менеджер этой сделки или админ. */
+const TYPE_CONFIG = {
+  property: { relation: "property", apiPath: "properties", statusField: "propertyStatus", freeValue: "свободно" },
+  commerce: { relation: "commerce", apiPath: "commerces", statusField: "saleStatus", freeValue: "открыто" },
+  parking: { relation: "parking", apiPath: "parkings", statusField: "saleStatus", freeValue: "открыто" },
+  pantry: { relation: "pantry", apiPath: "pantrys", statusField: "saleStatus", freeValue: "открыто" },
+} as const;
+
+function resolveDealEntity(deal: any) {
+  for (const key of Object.keys(TYPE_CONFIG) as Array<keyof typeof TYPE_CONFIG>) {
+    const cfg = TYPE_CONFIG[key];
+    const rel = deal?.[cfg.relation] ?? deal?.attributes?.[cfg.relation];
+    const id = rel?.documentId ?? rel?.id ?? rel?.data?.documentId ?? rel?.data?.id ?? null;
+    if (id != null) return { cfg, documentId: String(id) };
+  }
+  return null;
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ documentId: string }> }
@@ -25,7 +42,7 @@ export async function POST(
     const headers = getStrapiHeaders();
 
     const dealRes = await strapiAxios.get(
-      `${base}/api/deals/${documentId}?populate[property]=true&populate[manager][fields][0]=id`,
+      `${base}/api/deals/${documentId}?populate[property]=true&populate[commerce]=true&populate[parking]=true&populate[pantry]=true&populate[manager][fields][0]=id`,
       { headers }
     );
     const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
@@ -43,16 +60,15 @@ export async function POST(
       return Response.json({ ok: true, released: false, reason: "deal_in_progress_or_signed" });
     }
 
-    const property = deal?.property ?? deal?.attributes?.property;
-    const propertyDocId = property?.documentId ?? property?.id;
-    if (propertyDocId) {
+    const entity = resolveDealEntity(deal);
+    if (entity?.documentId) {
       await strapiAxios.put(
-        `${base}/api/properties/${propertyDocId}`,
-        { data: { propertyStatus: "свободно" } },
+        `${base}/api/${entity.cfg.apiPath}/${entity.documentId}`,
+        { data: { [entity.cfg.statusField]: entity.cfg.freeValue } },
         { headers }
       );
       try {
-        await strapiAxios.post(`${base}/api/properties/${propertyDocId}/publish`, {}, { headers });
+        await strapiAxios.post(`${base}/api/${entity.cfg.apiPath}/${entity.documentId}/publish`, {}, { headers });
       } catch (_) {}
     }
 

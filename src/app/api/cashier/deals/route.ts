@@ -38,9 +38,15 @@ export async function GET(request: NextRequest) {
         "&pagination[pageSize]=300" +
         "&populate[property][fields][0]=documentId&populate[property][fields][1]=apartmentNumber" +
         "&populate[property][populate][project][fields][0]=projectName" +
+        "&populate[commerce][fields][0]=documentId&populate[commerce][fields][1]=commerceNumber" +
+        "&populate[commerce][populate][project][fields][0]=projectName" +
+        "&populate[parking][fields][0]=documentId&populate[parking][fields][1]=parkingNumber" +
+        "&populate[parking][populate][project][fields][0]=projectName" +
+        "&populate[pantry][fields][0]=documentId&populate[pantry][fields][1]=numberPantry" +
+        "&populate[pantry][populate][project][fields][0]=projectName" +
         "&populate[customer][fields][0]=name&populate[customer][fields][1]=surname&populate[customer][fields][2]=phone" +
         "&populate[manager][fields][0]=name&populate[manager][fields][1]=surname" +
-        "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=paidAmount&fields[4]=paymentMethod",
+        "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=paidAmount&fields[4]=paymentMethod&fields[5]=createdAt",
       { headers }
     );
     let rawDeals: any[] = (dealsRes.data as any)?.data ?? [];
@@ -117,8 +123,17 @@ export async function GET(request: NextRequest) {
 
     const deals = rawDeals.map((d: any) => {
       const docId = String(d?.documentId ?? d?.id ?? "");
-      const prop = d?.property ?? d?.attributes?.property;
-      const propData = (prop as any)?.data ?? prop;
+      const property = (d?.property ?? d?.attributes?.property) as any;
+      const commerce = (d?.commerce ?? d?.attributes?.commerce) as any;
+      const parking = (d?.parking ?? d?.attributes?.parking) as any;
+      const pantry = (d?.pantry ?? d?.attributes?.pantry) as any;
+      const p = (property?.data ?? property) || null;
+      const c = (commerce?.data ?? commerce) || null;
+      const pk = (parking?.data ?? parking) || null;
+      const pt = (pantry?.data ?? pantry) || null;
+      const entityType: "property" | "commerce" | "parking" | "pantry" =
+        p?.documentId ? "property" : c?.documentId ? "commerce" : pk?.documentId ? "parking" : "pantry";
+      const entity = entityType === "property" ? p : entityType === "commerce" ? c : entityType === "parking" ? pk : pt;
       const cust = d?.customer ?? d?.attributes?.customer;
       const custData = (cust as any)?.data ?? cust;
       const clientName = [custData?.surname, custData?.name].filter(Boolean).join(" ").trim() || "—";
@@ -130,12 +145,22 @@ export async function GET(request: NextRequest) {
       return {
         documentId: docId,
         dealStatus: d?.dealStatus ?? d?.attributes?.dealStatus,
+        createdAt: d?.createdAt ?? d?.attributes?.createdAt ?? null,
         dealPrice: d?.dealPrice ?? d?.attributes?.dealPrice,
         paidAmount: d?.paidAmount ?? d?.attributes?.paidAmount ?? 0,
         paymentMethod: d?.paymentMethod ?? d?.attributes?.paymentMethod,
         property: {
-          projectName: propData?.project?.projectName ?? propData?.project?.attributes?.projectName,
-          apartmentNumber: propData?.apartmentNumber ?? propData?.attributes?.apartmentNumber,
+          projectName: entity?.project?.projectName ?? entity?.project?.attributes?.projectName,
+          apartmentNumber:
+            entityType === "property"
+              ? (entity?.apartmentNumber ?? entity?.attributes?.apartmentNumber)
+              : entityType === "commerce"
+                ? (entity?.commerceNumber ?? entity?.attributes?.commerceNumber)
+                : entityType === "parking"
+                  ? (entity?.parkingNumber ?? entity?.attributes?.parkingNumber)
+                  : (entity?.numberPantry ?? entity?.attributes?.numberPantry),
+          type: entityType,
+          typeLabel: entityType === "commerce" ? "Коммерция" : entityType === "parking" ? "Паркинг" : entityType === "pantry" ? "Кладовка" : "Квартира",
         },
         customer: { displayName: clientName, phone: custData?.phone ?? custData?.attributes?.phone },
         manager: managerDisplayName ? { displayName: managerDisplayName } : null,

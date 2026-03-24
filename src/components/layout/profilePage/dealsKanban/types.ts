@@ -25,6 +25,8 @@ export interface DealCardItem {
     documentId: string | null;
     apartmentNumber: string | number;
     projectName: string;
+    type?: "property" | "commerce" | "parking" | "pantry";
+    typeLabel?: string;
     room?: number;
     totalArea?: number;
   };
@@ -48,6 +50,7 @@ export interface DealFull {
     reserveSum: number | null;
     expiresAt: string | null;
     paymentMethod: string | null;
+    realEstateType?: "property" | "commerce" | "parking" | "pantry";
     property: {
       documentId: string;
       projectName: string;
@@ -59,6 +62,8 @@ export interface DealFull {
       house?: number;
       entrance?: string | number;
       section?: string;
+      type?: "property" | "commerce" | "parking" | "pantry";
+      typeLabel?: string;
     } | null;
     customer: {
       documentId?: string;

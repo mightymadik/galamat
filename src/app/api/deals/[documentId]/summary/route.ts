@@ -27,18 +27,19 @@ export async function GET(
     const baseUrl = base.replace(/\/api\/?$/, "");
     const headers = getStrapiHeaders();
 
-    // Запрос с property; по возможности с project (для projectDocumentId — «Отправить на подпись»)
+    // Запрос со всеми типами недвижимости; по возможности с project.
     let deal: any = null;
     let projectDocumentId: string | null = null;
+    let realEstateType: "property" | "commerce" | "parking" | "pantry" = "property";
     try {
       const dealRes = await strapiAxios.get(
-        `${base}/api/deals/${documentId}?populate[property][populate][project][fields][0]=documentId`,
+        `${base}/api/deals/${documentId}?populate[property][populate][project][fields][0]=documentId&populate[commerce][populate][project][fields][0]=documentId&populate[parking][populate][project][fields][0]=documentId&populate[pantry][populate][project][fields][0]=documentId`,
         { headers }
       );
       deal = (dealRes.data as any)?.data ?? dealRes.data;
     } catch {
       const fallbackRes = await strapiAxios.get(
-        `${base}/api/deals/${documentId}?populate[property]=true`,
+        `${base}/api/deals/${documentId}?populate[property]=true&populate[commerce]=true&populate[parking]=true&populate[pantry]=true`,
         { headers }
       );
       deal = (fallbackRes.data as any)?.data ?? fallbackRes.data;
@@ -47,10 +48,25 @@ export async function GET(
 
     const dealStatus = deal?.dealStatus ?? deal?.attributes?.dealStatus;
     const doodocsDocumentId = deal?.doodocsDocumentId ?? deal?.attributes?.doodocsDocumentId ?? null;
-    let property = deal?.property ?? deal?.attributes?.property;
-    if (property && typeof property === "object" && "data" in property)
-      property = (property as { data?: { documentId?: string; project?: { documentId?: string; id?: string } } }).data;
-    const propertyDocumentId = property?.documentId ?? (property as any)?.id ?? null;
+    const candidates = [
+      { type: "property", rel: deal?.property ?? deal?.attributes?.property, apiPath: "properties" },
+      { type: "commerce", rel: deal?.commerce ?? deal?.attributes?.commerce, apiPath: "commerces" },
+      { type: "parking", rel: deal?.parking ?? deal?.attributes?.parking, apiPath: "parkings" },
+      { type: "pantry", rel: deal?.pantry ?? deal?.attributes?.pantry, apiPath: "pantrys" },
+    ] as const;
+    let selectedPath: (typeof candidates)[number]["apiPath"] = "properties";
+    let property: any = null;
+    for (const c of candidates) {
+      const relData = c.rel && typeof c.rel === "object" && "data" in c.rel ? (c.rel as any).data : c.rel;
+      const docId = relData?.documentId ?? relData?.id ?? null;
+      if (docId != null) {
+        property = relData;
+        realEstateType = c.type;
+        selectedPath = c.apiPath;
+        break;
+      }
+    }
+    const propertyDocumentId = property?.documentId ?? property?.id ?? null;
     const project = (property as any)?.project ?? (property as any)?.attributes?.project?.data ?? (property as any)?.attributes?.project;
     if (project?.documentId != null || project?.id != null)
       projectDocumentId = project?.documentId != null ? String(project.documentId) : String(project.id);
@@ -58,7 +74,7 @@ export async function GET(
     if (!projectDocumentId && propertyDocumentId) {
       try {
         const propRes = await strapiAxios.get(
-          `${base}/api/properties/${encodeURIComponent(propertyDocumentId)}?populate[project][fields][0]=documentId`,
+          `${base}/api/${selectedPath}/${encodeURIComponent(propertyDocumentId)}?populate[project][fields][0]=documentId`,
           { headers }
         );
         const prop: any = (propRes.data as any)?.data ?? propRes.data;
@@ -108,6 +124,7 @@ export async function GET(
     return NextResponse.json({
       dealStatus: dealStatus ?? null,
       propertyDocumentId: propertyDocumentId ?? null,
+      realEstateType,
       projectDocumentId: projectDocumentId ?? null,
       doodocsDocumentId: doodocsDocumentId ?? null,
       agreementFileUrl,

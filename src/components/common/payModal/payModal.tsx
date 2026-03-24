@@ -16,10 +16,23 @@ import Deffered from "./deffered/deffered";
 import Hypothec from "./hypothec/hypothec";
 import Contacts from "./contacts/contacts";
 import Sign from "./sign/sign";
+import type { RealEstateType } from "@/types/flat";
+import type { AgreementPayload } from "@/types/agreement";
+
+function normalizeAgreementPayloadForConfirm(payload: AgreementPayload): AgreementPayload {
+    return {
+        ...payload,
+        paymentSchedule: (payload.paymentSchedule || []).map((row) => ({
+            ...row,
+            sum: String(parseInt(String(row?.sum ?? "").replace(/\D/g, ""), 10) || 0),
+        })),
+    };
+}
 
 interface PayModalProps {
     id?: string;
     paymentMethod?: string;
+    realEstateType?: RealEstateType;
 }
 
 interface ComponentFlat {
@@ -204,7 +217,7 @@ const adaptFlat = (flat: FlatType): ComponentFlat => {
     };
 };
 
-export default function PayModal({ id }: PayModalProps) {
+export default function PayModal({ id, realEstateType = "property" }: PayModalProps) {
     const t = useTranslations();
     const dispatch = useDispatch();
     const { isOpen, step, flat, paymentMethod, agreementPayload, dealDocumentId } = useSelector((state: RootState) => state.pay);
@@ -236,7 +249,7 @@ export default function PayModal({ id }: PayModalProps) {
         if (!idStr) return;
         let cancelled = false;
         setLoading(true);
-        fetch(`/api/properties/${idStr}`, { credentials: "include" })
+        fetch(`/api/properties/${idStr}?type=${encodeURIComponent(realEstateType)}`, { credentials: "include" })
             .then((r) => (r.ok ? r.json() : null))
             .then((data: PropertyDetailApi | null) => {
                 if (!cancelled && data?.id != null) setFlat(adaptPropertyToComponentFlat(data));
@@ -244,7 +257,7 @@ export default function PayModal({ id }: PayModalProps) {
             .catch(() => {})
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
-    }, [isOpen, id, flat]);
+    }, [isOpen, id, flat, realEstateType]);
 
     useEffect(() => {
         if (isOpen && dealDocumentId) {
@@ -281,20 +294,33 @@ export default function PayModal({ id }: PayModalProps) {
 
         const handlePaymentNext = async (payload?: import("@/types/agreement").AgreementPayload) => {
             if (payload && dealDocumentId) {
+                const confirmPayload = normalizeAgreementPayloadForConfirm(payload);
                 setPaymentConfirmError(null);
                 setPaymentConfirmLoading(true);
                 try {
-                    const res = await fetch(`/api/deals/${dealDocumentId}/confirm-payment`, {
+                    const confirmRes = await fetch(`/api/deals/${dealDocumentId}/confirm-payment`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         credentials: "include",
-                        body: JSON.stringify({ agreementPayload: payload }),
+                        body: JSON.stringify({ agreementPayload: confirmPayload }),
                     });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) {
-                        setPaymentConfirmError(data?.error ?? t("failed_to_save_payment_conditions"));
-                        setPaymentConfirmLoading(false);
-                        return;
+                    if (!confirmRes.ok) {
+                        const fixRes = await fetch(`/api/deals/${dealDocumentId}/fix-schedule`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify({
+                                paymentSchedule: confirmPayload.paymentSchedule,
+                                paymentMethod: confirmPayload.paymentMethod,
+                                totalSum: confirmPayload.totalSum,
+                            }),
+                        });
+                        const fixData = await fixRes.json().catch(() => ({}));
+                        if (!fixRes.ok) {
+                            setPaymentConfirmError(fixData?.error ?? t("failed_to_save_payment_conditions"));
+                            setPaymentConfirmLoading(false);
+                            return;
+                        }
                     }
                 } catch {
                     setPaymentConfirmError(t("network_error"));
@@ -311,6 +337,7 @@ export default function PayModal({ id }: PayModalProps) {
                 <div className="flex flex-col gap-4 self-stretch">
                     <FullPayment
                         flatData={flatData}
+                        realEstateType={realEstateType}
                         activeButton={activeOption}
                         onNext={handlePaymentNext}
                         isSubmitting={paymentConfirmLoading}
@@ -324,6 +351,7 @@ export default function PayModal({ id }: PayModalProps) {
                 <div className="flex flex-col gap-4 self-stretch">
                     <Installment
                         flatData={flatData}
+                        realEstateType={realEstateType}
                         activeButton={activeOption}
                         onNext={handlePaymentNext}
                         isSubmitting={paymentConfirmLoading}
@@ -337,6 +365,7 @@ export default function PayModal({ id }: PayModalProps) {
                 <div className="flex flex-col gap-4 self-stretch">
                     <Deffered
                         flatData={flatData}
+                        realEstateType={realEstateType}
                         activeButton={activeOption}
                         onNext={handlePaymentNext}
                         isSubmitting={paymentConfirmLoading}
@@ -350,6 +379,7 @@ export default function PayModal({ id }: PayModalProps) {
                 <div className="flex flex-col gap-4 self-stretch">
                     <Hypothec
                         flatData={flatData}
+                        realEstateType={realEstateType}
                         activeButton={activeOption}
                         onNext={handlePaymentNext}
                         isSubmitting={paymentConfirmLoading}
@@ -381,6 +411,7 @@ export default function PayModal({ id }: PayModalProps) {
                 <Sign
                     flatData={flatData}
                     agreementPayload={agreementPayload}
+                    realEstateType={realEstateType}
                     onNext={() => dispatch(closePay())}
                 />
             ),

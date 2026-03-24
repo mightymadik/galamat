@@ -5,6 +5,7 @@ import { Select, SelectItem } from "@heroui/select";
 import { createPortal } from "react-dom";
 import { Spinner } from "@heroui/react";
 import { FlatsFilterParams } from "@/types/flat";
+import type { RealEstateType } from "@/types/flat";
 import { useTranslations } from "next-intl";
 
 // Тип карточки квартиры (как в checkmate — данные из /api/properties)
@@ -169,9 +170,17 @@ interface CheckmateProProps {
     filterParams?: FlatsFilterParams;
     onTotalCountChange?: (count: number) => void;
     onProjectChange?: (project: string | null) => void;
+    realEstateType?: RealEstateType;
+    detailBasePath?: string;
 }
 
-export default function CheckmatePro({ filterParams = {}, onTotalCountChange, onProjectChange }: CheckmateProProps) {
+export default function CheckmatePro({
+    filterParams = {},
+    onTotalCountChange,
+    onProjectChange,
+    realEstateType = "property",
+    detailBasePath = "/flats",
+}: CheckmateProProps) {
     const t = useTranslations();
 
     const selectedComplex = filterParams.project ?? null;
@@ -188,7 +197,7 @@ export default function CheckmatePro({ filterParams = {}, onTotalCountChange, on
     }, []);
 
     useEffect(() => {
-        fetch("/api/properties?metadata=true")
+        fetch(`/api/properties?metadata=true&type=${encodeURIComponent(realEstateType)}`)
             .then((res) => res.json())
             .then((meta: { complexes?: string[] }) => {
                 setComplexes(meta.complexes || []);
@@ -206,6 +215,7 @@ export default function CheckmatePro({ filterParams = {}, onTotalCountChange, on
         params.set("project", selectedComplex);
         params.set("light", "1");
         params.set("allStatuses", "1");
+        params.set("type", realEstateType);
 
         fetch(`/api/properties?${params.toString()}`)
             .then((res) => res.json())
@@ -221,7 +231,7 @@ export default function CheckmatePro({ filterParams = {}, onTotalCountChange, on
                 setFlats([]);
                 setLoading(false);
             });
-    }, [selectedComplex, onTotalCountChange]);
+    }, [selectedComplex, onTotalCountChange, realEstateType]);
 
     useEffect(() => {
         if (!flats.length || !onTotalCountChange) return;
@@ -335,7 +345,7 @@ export default function CheckmatePro({ filterParams = {}, onTotalCountChange, on
                                                                                 return (
                                                                                     <Link
                                                                                         key={flat.id}
-                                                                                        href={`/flats/${flat.documentId ?? flat.id}`}
+                                                                                        href={`${detailBasePath}/${flat.documentId ?? flat.id}`}
                                                                                         onMouseEnter={(e) => {
                                                                                             setHoveredFlat(flat);
                                                                                             const rect = e.currentTarget.getBoundingClientRect();

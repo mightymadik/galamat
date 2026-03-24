@@ -5,6 +5,13 @@ import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiSer
 
 /** Сделки, при которых квартиру нельзя бронировать повторно (в т.ч. «Договор подписан»). */
 const ACTIVE_DEAL_STATUSES = ["Бронь", "Ожидания оплаты", "Ожидания договора", "Договор подписан"];
+type RealEstateType = "property" | "commerce" | "parking" | "pantry";
+const TYPE_CONFIG: Record<RealEstateType, { relation: string; apiPath: string }> = {
+  property: { relation: "property", apiPath: "/api/properties" },
+  commerce: { relation: "commerce", apiPath: "/api/commerces" },
+  parking: { relation: "parking", apiPath: "/api/parkings" },
+  pantry: { relation: "pantry", apiPath: "/api/pantrys" },
+};
 
 /**
  * GET: проверяет, есть ли по квартире активная сделка (бронь/ожидание оплаты/договора).
@@ -16,6 +23,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const url = new URL(request.url);
+    const type = (url.searchParams.get("type") as RealEstateType) || "property";
+    const cfg = TYPE_CONFIG[type] ?? TYPE_CONFIG.property;
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
@@ -35,20 +45,20 @@ export async function GET(
       `&pagination[pageSize]=25` +
       `&populate[customer][fields][0]=id`;
 
-    const res1 = await strapiAxios.get(buildUrl(`filters[property][documentId][$eq]=${encodeURIComponent(id)}`), { headers });
+    const res1 = await strapiAxios.get(buildUrl(`filters[${cfg.relation}][documentId][$eq]=${encodeURIComponent(id)}`), { headers });
     let list: any[] = (res1.data as any)?.data ?? [];
     if (!Array.isArray(list)) list = [];
 
     if (list.length === 0) {
       const propRes = await strapiAxios.get(
-        `${base}/api/properties?filters[documentId][$eq]=${encodeURIComponent(id)}&pagination[pageSize]=1&fields[0]=id`,
+        `${base}${cfg.apiPath}?filters[documentId][$eq]=${encodeURIComponent(id)}&pagination[pageSize]=1&fields[0]=id`,
         { headers }
       );
       const propList = (propRes.data as any)?.data ?? [];
       const prop = Array.isArray(propList) ? propList[0] : null;
       const propInternalId = prop?.id ?? prop?.attributes?.id ?? null;
       if (propInternalId != null) {
-        const res2 = await strapiAxios.get(buildUrl(`filters[property][id][$eq]=${encodeURIComponent(propInternalId)}`), { headers });
+        const res2 = await strapiAxios.get(buildUrl(`filters[${cfg.relation}][id][$eq]=${encodeURIComponent(propInternalId)}`), { headers });
         list = (res2.data as any)?.data ?? [];
         if (!Array.isArray(list)) list = [];
       }

@@ -180,32 +180,37 @@ export default function HeaderClient({ data }: { data: HeaderItem[] }) {
                                         ))}
                                     </DropdownMenu>
                                 </Dropdown>
-                                <Link
-                                    href="/flats"
-                                    className="group hidden lg:!flex transition-all duration-300 hover:!bg-blue-900 hover:text-white items-center justify-center gap-1 h-[36px] min-w-[36px] min-h-[36px] px-[11px] py-[9px] rounded-[12px] border-[1.5px] border-[#F3F3F3] bg-white shadow-[0_1px_3px_rgba(0,0,0,0),0_4px_30px_rgba(0,0,0,0)]"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 16 16"
-                                        fill="none"
-                                        className="transition-all duration-300 group-hover:[&_*]:stroke-white"
-                                    >
-                                        <g clipPath="url(#clip0_622_10641)">
-                                            <path d="M1.66699 4.33317C1.66699 3.07609 1.66699 2.44755 2.05752 2.05703C2.44804 1.6665 3.07658 1.6665 4.33366 1.6665C5.59074 1.6665 6.21928 1.6665 6.6098 2.05703C7.00033 2.44755 7.00033 3.07609 7.00033 4.33317C7.00033 5.59025 7.00033 6.21879 6.6098 6.60931C6.21928 6.99984 5.59074 6.99984 4.33366 6.99984C3.07658 6.99984 2.44804 6.99984 2.05752 6.60931C1.66699 6.21879 1.66699 5.59025 1.66699 4.33317Z" stroke="#1C274C" strokeWidth="1.5" />
-                                            <path d="M9 11.6667C9 10.4096 9 9.78105 9.39052 9.39052C9.78105 9 10.4096 9 11.6667 9C12.9237 9 13.5523 9 13.9428 9.39052C14.3333 9.78105 14.3333 10.4096 14.3333 11.6667C14.3333 12.9237 14.3333 13.5523 13.9428 13.9428C13.5523 14.3333 12.9237 14.3333 11.6667 14.3333C10.4096 14.3333 9.78105 14.3333 9.39052 13.9428C9 13.5523 9 12.9237 9 11.6667Z" stroke="#1C274C" strokeWidth="1.5" />
-                                            <path d="M1.66699 11.6667C1.66699 10.4096 1.66699 9.78105 2.05752 9.39052C2.44804 9 3.07658 9 4.33366 9C5.59074 9 6.21928 9 6.6098 9.39052C7.00033 9.78105 7.00033 10.4096 7.00033 11.6667C7.00033 12.9237 7.00033 13.5523 6.6098 13.9428C6.21928 14.3333 5.59074 14.3333 4.33366 14.3333C3.07658 14.3333 2.44804 14.3333 2.05752 13.9428C1.66699 13.5523 1.66699 12.9237 1.66699 11.6667Z" stroke="#1C274C" strokeWidth="1.5" />
-                                            <path d="M9 4.33317C9 3.07609 9 2.44755 9.39052 2.05703C9.78105 1.6665 10.4096 1.6665 11.6667 1.6665C12.9237 1.6665 13.5523 1.6665 13.9428 2.05703C14.3333 2.44755 14.3333 3.07609 14.3333 4.33317C14.3333 5.59025 14.3333 6.21879 13.9428 6.60931C13.5523 6.99984 12.9237 6.99984 11.6667 6.99984C10.4096 6.99984 9.78105 6.99984 9.39052 6.60931C9 6.21879 9 5.59025 9 4.33317Z" stroke="#1C274C" strokeWidth="1.5" />
-                                        </g>
-                                        <defs>
-                                            <clipPath id="clip0_622_10641">
-                                                <rect width="16" height="16" rx="5" fill="white" />
-                                            </clipPath>
-                                        </defs>
-                                    </svg>
-                                    <p className="transition-all duration-300">{t("nav_real_estate")}</p>
-                                </Link>
+                                <Dropdown>
+                                    <DropdownTrigger>
+                                        <Button className="group hidden lg:!flex transition-all duration-300 hover:!bg-blue-900 hover:text-white items-center justify-center gap-1 h-[36px] min-w-[36px] min-h-[36px] px-[11px] py-[9px] rounded-[12px] border-[1.5px] border-[#F3F3F3] bg-white shadow-[0_1px_3px_rgba(0,0,0,0),0_4px_30px_rgba(0,0,0,0)]">
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                className="transition-all duration-300 group-hover:[&_*]:stroke-white"
+                                            >
+                                                <g clipPath="url(#clip0_622_10641)">
+                                                    <path d="M1.66699 4.33317C1.66699 3.07609 1.66699 2.44755 2.05752 2.05703C2.44804 1.6665 3.07658 1.6665 4.33366 1.6665C5.59074 1.6665 6.21928 1.6665 6.6098 2.05703C7.00033 2.44755 7.00033 3.07609 7.00033 4.33317C7.00033 5.59025 7.00033 6.21879 6.6098 6.60931C6.21928 6.99984 5.59074 6.99984 4.33366 6.99984C3.07658 6.99984 2.44804 6.99984 2.05752 6.60931C1.66699 6.21879 1.66699 5.59025 1.66699 4.33317Z" stroke="#1C274C" strokeWidth="1.5" />
+                                                    <path d="M9 11.6667C9 10.4096 9 9.78105 9.39052 9.39052C9.78105 9 10.4096 9 11.6667 9C12.9237 9 13.5523 9 13.9428 9.39052C14.3333 9.78105 14.3333 10.4096 14.3333 11.6667C14.3333 12.9237 14.3333 13.5523 13.9428 13.9428C13.5523 14.3333 12.9237 14.3333 11.6667 14.3333C10.4096 14.3333 9.78105 14.3333 9.39052 13.9428C9 13.5523 9 12.9237 9 11.6667Z" stroke="#1C274C" strokeWidth="1.5" />
+                                                    <path d="M1.66699 11.6667C1.66699 10.4096 1.66699 9.78105 2.05752 9.39052C2.44804 9 3.07658 9 4.33366 9C5.59074 9 6.21928 9 6.6098 9.39052C7.00033 9.78105 7.00033 10.4096 7.00033 11.6667C7.00033 12.9237 7.00033 13.5523 6.6098 13.9428C6.21928 14.3333 5.59074 14.3333 4.33366 14.3333C3.07658 14.3333 2.44804 14.3333 2.05752 13.9428C1.66699 13.5523 1.66699 12.9237 1.66699 11.6667Z" stroke="#1C274C" strokeWidth="1.5" />
+                                                    <path d="M9 4.33317C9 3.07609 9 2.44755 9.39052 2.05703C9.78105 1.6665 10.4096 1.6665 11.6667 1.6665C12.9237 1.6665 13.5523 1.6665 13.9428 2.05703C14.3333 2.44755 14.3333 3.07609 14.3333 4.33317C14.3333 5.59025 14.3333 6.21879 13.9428 6.60931C13.5523 6.99984 12.9237 6.99984 11.6667 6.99984C10.4096 6.99984 9.78105 6.99984 9.39052 6.60931C9 6.21879 9 5.59025 9 4.33317Z" stroke="#1C274C" strokeWidth="1.5" />
+                                                </g>
+                                                <defs>
+                                                    <clipPath id="clip0_622_10641">
+                                                        <rect width="16" height="16" rx="5" fill="white" />
+                                                    </clipPath>
+                                                </defs>
+                                            </svg>
+                                            <p className="transition-all duration-300">{t("nav_real_estate")}</p>
+                                        </Button>
+                                    </DropdownTrigger>
+                                    <DropdownMenu aria-label="Real estate sections">
+                                        <DropdownItem key="flats" href="/flats">{t("nav_flats")}</DropdownItem>
+                                        <DropdownItem key="parking" href="/parking">{t("nav_parking")}</DropdownItem>
+                                    </DropdownMenu>
+                                </Dropdown>
                             </div>
                             <ul className="navigationLinks hidden lg:!flex h-8 justify-center items-center flex" ref={containerRef}>
                                 {links

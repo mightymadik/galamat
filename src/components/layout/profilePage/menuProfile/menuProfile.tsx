@@ -1,6 +1,6 @@
 'use client'
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useDispatch, useSelector } from "react-redux"
 import { Button } from "@heroui/button"
@@ -54,13 +54,33 @@ const MenuButton: React.FC<MenuButtonProps> = ({ id, iconActive, iconInactive, t
 
 export default function MenuProfile() {
     const t = useTranslations();
-    const [active, setActive] = useState("profile");
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+    const [active, setActive] = useState(() => {
+        const section = searchParams.get("section");
+        return section && section.trim() ? section.trim() : "profile";
+    });
     const router = useRouter();
     const dispatch = useDispatch();
     const user = useSelector((state: RootState) => state.auth.user);
     const isManager = user?.role === "manager" || user?.role === "admin";
     const isCashier = user?.role === "cashier" || user?.role === "admin";
     const isAdmin = user?.role === "admin";
+
+    const setActiveAndSync = (id: string) => {
+        setActive(id);
+        const next = new URLSearchParams(searchParams.toString());
+        if (id === "profile") next.delete("section");
+        else next.set("section", id);
+        const qs = next.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    };
+
+    useEffect(() => {
+        const section = searchParams.get("section");
+        const next = section && section.trim() ? section.trim() : "profile";
+        setActive((prev) => (prev === next ? prev : next));
+    }, [searchParams]);
 
     const handleLogout = () => {
         dispatch(logoutAuth() as any).then(() => {
@@ -99,15 +119,15 @@ export default function MenuProfile() {
         <div className="wrapper flex flex-col-reverse lg:flex-row gap-[32px]">
             <div className="hidden lg:flex max-w-[308px] flex-col items-start gap-[16px]">
                 <div className="flex p-[16px] flex-col items-start self-stretch rounded-[32px] bg-[#F4F6FB]">
-                    <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActive} />
-                    {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActive} />}
-                    {isAdmin && <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActive} />}
-                    {isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActive} />}
-                    {isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActive} />}
-                    {isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActive} />}
-                    <MenuButton id="bonus" iconActive="/img/ticket-white.svg" iconInactive="/img/ticket-black.svg" text={t("gala_bonus_menu")} active={active} setActive={setActive} />
-                    <MenuButton id="objects" iconActive="/img/home-white.svg" iconInactive="/img/home-black.svg" text={t("my_objects")} active={active} setActive={setActive} />
-                    <MenuButton id="favorite" iconActive="/img/lovely-white.svg" iconInactive="/img/lovely-black.svg" text={t("favorites")} active={active} setActive={setActive} />
+                    <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActiveAndSync} />
+                    {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActiveAndSync} />}
+                    {isAdmin && <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />}
+                    {isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
+                    {isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
+                    {isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActiveAndSync} />}
+                    <MenuButton id="bonus" iconActive="/img/ticket-white.svg" iconInactive="/img/ticket-black.svg" text={t("gala_bonus_menu")} active={active} setActive={setActiveAndSync} />
+                    <MenuButton id="objects" iconActive="/img/home-white.svg" iconInactive="/img/home-black.svg" text={t("my_objects")} active={active} setActive={setActiveAndSync} />
+                    <MenuButton id="favorite" iconActive="/img/lovely-white.svg" iconInactive="/img/lovely-black.svg" text={t("favorites")} active={active} setActive={setActiveAndSync} />
                 </div>
 
                 <div className="flex h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch">
@@ -124,15 +144,15 @@ export default function MenuProfile() {
                 </div>
             </div>
             <div className="flex bottom-0 mb-[86px] lg:hidden h-auto w-full min-w-[343px] px-[12px] py-[8px] items-start rounded-[32px] bg-[rgba(28,_39,_76,_0.04)] backdrop-filter backdrop-blur-[10px] overflow-x-auto overflow-y-hidden scrollbar-hide">
-                <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActive} />
-                {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActive} />}
-                {isAdmin && <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActive} />}
-                {isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActive} />}
-                {isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActive} />}
-                {isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActive} />}
-                <MenuButton id="bonus" iconActive="/img/ticket-white.svg" iconInactive="/img/ticket-black.svg" text={t("gala_bonus_menu")} active={active} setActive={setActive} />
-                <MenuButton id="objects" iconActive="/img/home-white.svg" iconInactive="/img/home-black.svg" text={t("my_objects")} active={active} setActive={setActive} />
-                <MenuButton id="favorite" iconActive="/img/lovely-white.svg" iconInactive="/img/lovely-black.svg" text={t("favorites")} active={active} setActive={setActive} />
+                <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActiveAndSync} />
+                {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActiveAndSync} />}
+                {isAdmin && <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />}
+                {isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
+                {isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
+                {isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActiveAndSync} />}
+                <MenuButton id="bonus" iconActive="/img/ticket-white.svg" iconInactive="/img/ticket-black.svg" text={t("gala_bonus_menu")} active={active} setActive={setActiveAndSync} />
+                <MenuButton id="objects" iconActive="/img/home-white.svg" iconInactive="/img/home-black.svg" text={t("my_objects")} active={active} setActive={setActiveAndSync} />
+                <MenuButton id="favorite" iconActive="/img/lovely-white.svg" iconInactive="/img/lovely-black.svg" text={t("favorites")} active={active} setActive={setActiveAndSync} />
             </div>
 
             {renderContent()}

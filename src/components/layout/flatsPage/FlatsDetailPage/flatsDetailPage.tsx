@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@heroui/button"
 import Image from "next/image"
-import { Flat as FlatType, PaymentConditionForFlat } from "@/types/flat";
+import { Flat as FlatType, PaymentConditionForFlat, RealEstateType } from "@/types/flat";
 import { notFound, useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "@/store";
@@ -29,6 +29,7 @@ import {
     getMatchingOptions,
     formatValidToDate,
     monthsBetween,
+    resolveDownPaymentAmount,
 } from "@/lib/paymentFormUtils";
 
 interface FlatDetail {
@@ -97,8 +98,16 @@ type PropertyDetailApi = Partial<{
 }>;
 
 /** Адаптер из ответа /api/properties/[id] в FlatDetail и Flat для PayModal */
-function adaptPropertyDetail(api: PropertyDetailApi): { flatDetail: FlatDetail; originalFlat: FlatType } {
-    const address = api.complexAddress || [api.district, api.projectName].filter(Boolean).join(", ") || "";
+function adaptPropertyDetail(
+    api: PropertyDetailApi,
+    realEstateType: RealEstateType
+): { flatDetail: FlatDetail; originalFlat: FlatType } {
+    const isResidential = realEstateType === "property";
+    const supportsFloor = isResidential;
+    const supportsRooms = isResidential;
+    const supportsPricePerM2 = realEstateType !== "parking";
+    // Для нежилых приоритет: адрес комплекса -> район, и только как fallback название проекта.
+    const address = api.complexAddress || api.district || api.projectName || "";
     const basePrice = api.priceCheckmate ?? 0;
     const totalArea = api.totalArea ?? 0;
     const flatAttrs = {
@@ -111,12 +120,15 @@ function adaptPropertyDetail(api: PropertyDetailApi): { flatDetail: FlatDetail; 
         floorGroup: (api as Record<string, unknown>).floorGroup,
         apartmentNumber: api.apartmentNumber,
     };
-    const discountAmount = getFullPaymentDiscountFromConditions(api.paymentConditions as any, basePrice, totalArea, flatAttrs);
+    const adjustmentArea = realEstateType === "parking" ? 0 : totalArea;
+    const discountAmount = getFullPaymentDiscountFromConditions(api.paymentConditions as any, basePrice, adjustmentArea, flatAttrs);
     const discountPercent = discountAmount > 0 && basePrice > 0 ? Math.round((discountAmount / basePrice) * 100) : undefined;
     const displayPrice = discountAmount > 0 ? Math.max(0, basePrice - discountAmount) : basePrice;
     const priceStr = formatPriceDisplay(displayPrice);
     const originalPriceStr = discountAmount > 0 ? formatPriceDisplay(basePrice) : undefined;
-    const priceM2Str = `${formatPriceDisplay(api.priceM2Checkmate || 0)}/м²`;
+    const priceM2Str = supportsPricePerM2
+        ? `${formatPriceDisplay(api.priceM2Checkmate || 0)}/м²`
+        : "—";
     const images = [...(api.images || []), ...(api.platformPlanImages || [])];
 
     const flatDetail: FlatDetail = {
@@ -130,12 +142,12 @@ function adaptPropertyDetail(api: PropertyDetailApi): { flatDetail: FlatDetail; 
         priceM2: priceM2Str,
         tags: api.tags ?? [],
         images,
-        room: String(api.room ?? "0"),
+        room: supportsRooms && Number(api.room ?? 0) > 0 ? String(api.room) : "",
         area: `${api.totalArea ?? 0} м²`,
-        floor: String(api.floor ?? "0"),
+        floor: supportsFloor && Number(api.floor ?? 0) > 0 ? String(api.floor) : "",
         floorGroup: (api as Record<string, unknown>).floorGroup as string | undefined,
-        section: String(api.section ?? "0"),
-        entrance: String(api.entrance ?? "0"),
+        section: api.section != null && String(api.section) !== "0" ? String(api.section) : "",
+        entrance: api.entrance != null && Number(api.entrance) > 0 ? String(api.entrance) : "",
         complexDueDate: api.complexDueDate ?? "",
         available: api.propertyStatus ?? "свободно",
         saleStatus: api.saleStatus,
@@ -157,11 +169,11 @@ function adaptPropertyDetail(api: PropertyDetailApi): { flatDetail: FlatDetail; 
         priceM2: api.priceM2Checkmate ?? 0,
         tags: Array.isArray(api.tags) ? api.tags.join(",") : "",
         img: images.join(","),
-        room: api.room ?? 0,
+        room: supportsRooms && Number(api.room ?? 0) > 0 ? Number(api.room) : 0,
         area: api.totalArea ?? 0,
-        floor: api.floor ?? 0,
-        section: api.section != null && api.section !== "" ? String(api.section) : "0",
-        entrance: api.entrance ?? 0,
+        floor: supportsFloor && Number(api.floor ?? 0) > 0 ? Number(api.floor) : 0,
+        section: api.section != null && String(api.section) !== "0" ? String(api.section) : "",
+        entrance: api.entrance != null && Number(api.entrance) > 0 ? Number(api.entrance) : 0,
         complexDueDate: api.complexDueDate ?? "",
         available: api.propertyStatus ?? "свободно",
         complexClass: api.complexClass ?? "",
@@ -182,7 +194,7 @@ function adaptPropertyDetail(api: PropertyDetailApi): { flatDetail: FlatDetail; 
     return { flatDetail, originalFlat };
 }
 
-export default function FlatsDetailPage({ id }: { id: string | string[] }) {
+export default function FlatsDetailPage({ id, realEstateType = "property" }: { id: string | string[]; realEstateType?: RealEstateType }) {
     const router = useRouter();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const t = useTranslations();
@@ -193,7 +205,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
     const [activeButton, setActiveButton] = useState<string | null>(null);
     const [selectedInstallmentPvIndex, setSelectedInstallmentPvIndex] = useState(0);
     const [selectedDefferedPvIndex, setSelectedDefferedPvIndex] = useState(0);
-    const [selectedHypothecPvIndex, setSelectedHypothecPvIndex] = useState(0);
+    const [selectedHypothecProgramIndex, setSelectedHypothecProgramIndex] = useState(0);
     const [activePlan, setActivePlan] = useState("Планировка");
     const [shareMessage, setShareMessage] = useState<boolean | null>(null);
     const [payStartLoading, setPayStartLoading] = useState(false);
@@ -203,6 +215,15 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
     const pdfRef = useRef<HTMLDivElement | null>(null);
 
     const dispatch = useDispatch();
+    const unitLabel =
+        realEstateType === "commerce"
+            ? "Коммерция"
+            : realEstateType === "parking"
+                ? "Паркинг"
+                : realEstateType === "pantry"
+                    ? "Кладовка"
+                    : "Квартира";
+    const roomsLabel = Number(flat?.room ?? 0) > 0 ? `${flat?.room} ${t("rooms_count")}` : unitLabel;
     const favoriteFlatIds = useSelector((state: RootState) => state.favorites.flatIds);
     const isFavorite = flat != null && favoriteFlatIds.includes(flat.id);
     const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -268,8 +289,8 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                 }
 
                 const [res, dealRes] = await Promise.all([
-                    fetch(`/api/properties/${flatId}`),
-                    fetch(`/api/properties/${flatId}/active-deal`),
+                    fetch(`/api/properties/${flatId}?type=${encodeURIComponent(realEstateType)}`),
+                    fetch(`/api/properties/${flatId}/active-deal?type=${encodeURIComponent(realEstateType)}`),
                 ]);
                 if (!res.ok) {
                     notFound();
@@ -280,7 +301,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                     notFound();
                     return;
                 }
-                const { flatDetail, originalFlat } = adaptPropertyDetail(flatData);
+                const { flatDetail, originalFlat } = adaptPropertyDetail(flatData, realEstateType);
                 setFlat(flatDetail);
                 setOriginalFlat(originalFlat);
                 const dealJson = await dealRes.json().catch(() => ({}));
@@ -293,7 +314,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         };
 
         fetchFlat();
-    }, [id]);
+    }, [id, realEstateType]);
 
     useEffect(() => {
         const flatId = Array.isArray(id) ? id?.[0] : id;
@@ -301,7 +322,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         const onVisible = async () => {
             const propId = flatId;
             try {
-                const r = await fetch(`/api/properties/${propId}/active-deal`);
+                const r = await fetch(`/api/properties/${propId}/active-deal?type=${encodeURIComponent(realEstateType)}`);
                 const data = await r.json().catch(() => ({}));
                 setHasActiveDeal(data.hasActiveDeal === true);
             } catch {
@@ -311,7 +332,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         const handler = () => { if (document.visibilityState === "visible") onVisible(); };
         document.addEventListener("visibilitychange", handler);
         return () => document.removeEventListener("visibilitychange", handler);
-    }, [id]);
+    }, [id, realEstateType]);
 
     // После перезагрузки: если в sessionStorage есть deal по этой квартире в статусе «Ожидания договора»/«Договор подписан» — показать «Продолжить подписание»
     useEffect(() => {
@@ -385,7 +406,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         payStartInFlightRef.current = true;
         try {
             const propId = originalFlat.documentId;
-            const activeDealRes = await fetch(`/api/properties/${propId}/active-deal`);
+            const activeDealRes = await fetch(`/api/properties/${propId}/active-deal?type=${encodeURIComponent(realEstateType)}`);
             const activeDealJson = await activeDealRes.json().catch(() => ({}));
             if (activeDealJson.hasActiveDeal === true) {
                 if (activeDealJson.canResume === true && activeDealJson.dealDocumentId) {
@@ -409,6 +430,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                 credentials: "include",
                 body: JSON.stringify({
                     propertyId: originalFlat.documentId,
+                    realEstateType,
                     paymentMethod: activeButton,
                 }),
             });
@@ -780,6 +802,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
     const baseFullPrice = flat?.fullPriceBeforeDiscount ?? 0;
     const basePriceM2 = flat?.priceM2 ?? 0;
     const totalArea = flat?.totalArea ?? 0;
+    const adjustmentArea = realEstateType === "parking" ? 0 : totalArea;
     const flatAttrs = useMemo(() => {
         if (!flat) return undefined;
         const areaNum = flat.totalArea ?? (typeof flat.area === "number" ? flat.area : parseFloat(String(flat.area).replace(/[^\d.,]/g, "").replace(",", ".")) || undefined);
@@ -794,48 +817,74 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         };
     }, [flat?.room, flat?.totalArea, flat?.area, flat?.section, flat?.entrance, flat?.floor, flat?.floorGroup, flat?.apartmentNumber]);
     const installmentPreview = useMemo(
-        () => getInstallmentPreview(flat?.paymentConditions ?? [], selectedInstallmentPvIndex, baseFullPrice, totalArea, flatAttrs),
-        [flat?.paymentConditions, selectedInstallmentPvIndex, baseFullPrice, totalArea, flatAttrs]
+        () => getInstallmentPreview(flat?.paymentConditions ?? [], selectedInstallmentPvIndex, baseFullPrice, adjustmentArea, flatAttrs),
+        [flat?.paymentConditions, selectedInstallmentPvIndex, baseFullPrice, adjustmentArea, flatAttrs]
     );
     const defferedPreview = useMemo(
-        () => getDefferedPreview(flat?.paymentConditions ?? [], selectedDefferedPvIndex, baseFullPrice, totalArea, flatAttrs),
-        [flat?.paymentConditions, selectedDefferedPvIndex, baseFullPrice, totalArea, flatAttrs]
+        () => getDefferedPreview(flat?.paymentConditions ?? [], selectedDefferedPvIndex, baseFullPrice, adjustmentArea, flatAttrs),
+        [flat?.paymentConditions, selectedDefferedPvIndex, baseFullPrice, adjustmentArea, flatAttrs]
     );
     const hypothecPreview = useMemo(() => {
+        type MortgageProgram = {
+            key: string;
+            bank: string;
+            programName: string;
+            validTo?: string | null;
+            options: Array<{ downPayment?: string | null; raise?: number | string | null; discount?: number | string | null; paymentRule?: { filters?: { field?: string; operator?: string; value?: unknown }[] } }>;
+        };
         const conditions = (flat?.paymentConditions || []).filter(
             (c) =>
                 isPaymentMethod(c, "hypothec") &&
                 isActivePaymentStatus(c) &&
                 isPaymentConditionValidToday(c)
         );
-        const options = conditions
-            .flatMap((c) => c.paymentCondition || [])
-            .filter((o) => o?.downPayment != null && o?.downPayment !== "");
-        const validTo = conditions[0]?.validTo;
+        const programs = conditions
+            .map((c, idx) => {
+                const options = (c.paymentCondition || []);
+                const matched = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
+                const optionList = matched.length > 0 ? matched : options;
+                return {
+                    key: c.documentId || `${c.banks || "bank"}-${c.hypothec || "program"}-${idx}`,
+                    bank: c.banks || "Банк",
+                    programName: c.hypothec || "Ипотечная программа",
+                    validTo: c.validTo,
+                    options: optionList,
+                };
+            })
+            .filter(Boolean) as MortgageProgram[];
+        const selectedProgram = programs[Math.min(selectedHypothecProgramIndex, Math.max(0, programs.length - 1))] ?? programs[0];
+        const optionList = selectedProgram?.options ?? [];
+        const validTo = selectedProgram?.validTo;
         const validToFormatted = formatValidToDate(validTo);
-        const optionList = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
-        const selected = optionList[Math.min(selectedHypothecPvIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
+        const selected = optionList[0];
         const raiseRaw = parseRaise(selected?.raise);
         const raiseAmount = raiseRaw >= 1 && raiseRaw <= 100
             ? Math.round((baseFullPrice * raiseRaw) / 100)
-            : Math.round(raiseRaw * totalArea);
+            : Math.round(raiseRaw * adjustmentArea);
         const raisePercent = (() => {
             if (raiseRaw > 0 && raiseRaw <= 100) return raiseRaw;
             if (raiseRaw > 100 && baseFullPrice > 0) return (raiseAmount / baseFullPrice) * 100;
             return 0;
         })();
         const fullPrice = Math.max(0, baseFullPrice + Math.max(0, raiseAmount));
-        const firstDownPct = selected
-            ? parseDownPaymentPercent(selected.downPayment) || 30
-            : 30;
-        const firstDown = fullPrice > 0 ? Math.round((fullPrice * firstDownPct) / 100) : 0;
+        const firstDown = Math.max(0, resolveDownPaymentAmount(selected?.downPayment, fullPrice));
         const loanAmount = Math.max(0, fullPrice - firstDown);
         const now = new Date();
         const validToDate = validTo ? new Date(String(validTo).replace(" ", "T")) : null;
         const months = validToDate && validToDate > now ? monthsBetween(now, validToDate) : 240;
         const monthlyPayment = loanAmount > 0 ? Math.round(loanAmount / Math.max(1, months)) : 0;
-        return { options: optionList, validToFormatted, fullPrice, firstDownPct, firstDown, loanAmount, monthlyPayment, raisePercent };
-    }, [flat?.paymentConditions, selectedHypothecPvIndex, baseFullPrice, totalArea, flatAttrs]);
+        return {
+            programs,
+            selectedProgram,
+            options: optionList,
+            validToFormatted,
+            fullPrice,
+            firstDown,
+            loanAmount,
+            monthlyPayment,
+            raisePercent
+        };
+    }, [flat?.paymentConditions, selectedHypothecProgramIndex, baseFullPrice, totalArea, flatAttrs]);
 
     const installmentTableData = useMemo(() => {
         if (!flat || !totalArea) return [];
@@ -849,7 +898,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
 
         const base = flat.fullPriceBeforeDiscount ?? parsePriceString(flat.originalPrice) ?? parsePriceString(flat.price) ?? baseFullPrice;
         if (base > 0) {
-            const fullDiscount = getFullPaymentDiscountFromConditions(flat.paymentConditions as any, base, totalArea, flatAttrs);
+            const fullDiscount = getFullPaymentDiscountFromConditions(flat.paymentConditions as any, base, adjustmentArea, flatAttrs);
             const fullCost = Math.max(0, base - fullDiscount);
             const fullPricePerM2 = totalArea > 0 ? Math.round(fullCost / totalArea) : 0;
             cols.push({
@@ -866,7 +915,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                 const pct = parseDownPaymentPercent(opt.downPayment) || 0;
                 if (!pct) return;
                 const raisePerM2 = parseRaise(opt.raise);
-                const cost = baseFullPrice + raisePerM2 * totalArea;
+                const cost = baseFullPrice + raisePerM2 * adjustmentArea;
                 const firstPayment = cost > 0 ? Math.round((cost * pct) / 100) : 0;
                 const remainder = cost > 0 ? Math.max(0, cost - firstPayment) : 0;
                 const pricePerM2 = totalArea > 0 ? Math.round(cost / totalArea) : 0;
@@ -883,6 +932,40 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         return cols;
     }, [flat, flatAttrs, baseFullPrice, totalArea, installmentPreview.options]);
 
+    const hypothecTableData = useMemo(() => {
+        if (!flat || !totalArea) return [];
+        const conditions = (flat.paymentConditions || []).filter(
+            (c) =>
+                isPaymentMethod(c, "hypothec") &&
+                isActivePaymentStatus(c) &&
+                isPaymentConditionValidToday(c)
+        );
+        return conditions.map((c, idx) => {
+            const options = (c.paymentCondition || []) as Array<{ raise?: number | string | null; downPayment?: string | null; paymentRule?: { filters?: { field?: string; operator?: string; value?: unknown }[] } }>;
+            const matched = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
+            const selected = (matched.length > 0 ? matched[0] : options[0]) ?? {};
+            const raiseRaw = parseRaise(selected?.raise);
+            const raiseAmount = raiseRaw >= 1 && raiseRaw <= 100
+                ? Math.round((baseFullPrice * raiseRaw) / 100)
+                : Math.round(raiseRaw * adjustmentArea);
+            const fullPrice = Math.max(0, baseFullPrice + Math.max(0, raiseAmount));
+            const firstDown = Math.max(0, resolveDownPaymentAmount(selected?.downPayment, fullPrice));
+            const remainder = Math.max(0, fullPrice - firstDown);
+            const raiseLabel = raiseRaw >= 1 && raiseRaw <= 100
+                ? `${raiseRaw}%`
+                : `${formatPriceDisplay(Math.max(0, Math.round(raiseRaw)))}/м²`;
+            return {
+                key: c.documentId ?? `${c.banks ?? "bank"}-${c.hypothec ?? "program"}-${idx}`,
+                bank: c.banks || "—",
+                programName: c.hypothec || "—",
+                raiseLabel,
+                fullPrice,
+                firstDown,
+                remainder,
+            };
+        });
+    }, [flat, flatAttrs, baseFullPrice, totalArea]);
+
     /** Actual total price and price per m² for the selected payment type */
     const displayPriceForPayment = useMemo(() => {
         if (!flat) return { main: "—", crossedOut: undefined as string | undefined, priceM2: "—" };
@@ -891,8 +974,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
         switch (activeButton) {
             case "full": {
                 const base = flat.fullPriceBeforeDiscount ?? parsePriceString(flat.originalPrice) ?? parsePriceString(flat.price) ?? 0;
-                const area = totalArea || 1;
-                const fullDiscount = getFullPaymentDiscountFromConditions(flat.paymentConditions as any, base, area, flatAttrs);
+                const fullDiscount = getFullPaymentDiscountFromConditions(flat.paymentConditions as any, base, adjustmentArea, flatAttrs);
                 const mainNum = Math.max(0, base - fullDiscount);
                 return {
                     main: formatPriceDisplay(mainNum),
@@ -1211,8 +1293,10 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                             ) : (
                                 <div className="flex w-full lg:max-w-[463px] flex-col items-start gap-[16px]">
                                     <div className="flex items-center gap-[24px] self-stretch">
-                                        <h1 className="flex-[1_0_0] text-[#282D3C] text-[24px] not-italic font-medium leading-[32px]">{flat.room} {t("rooms_count")}</h1>
-                                        <span className="text-[#282D3C] text-right text-[24px] not-italic font-normal leading-[32px]">{flat.area}</span>
+                                        <h1 className="flex-[1_0_0] text-[#282D3C] text-[24px] not-italic font-medium leading-[32px]">{roomsLabel}</h1>
+                                        {realEstateType !== "parking" && (
+                                            <span className="text-[#282D3C] text-right text-[24px] not-italic font-normal leading-[32px]">{flat.area}</span>
+                                        )}
                                     </div>
                                     <div className="flex flex-col items-start gap-[12px] self-stretch">
                                         <div className="flex items-end gap-[8px] self-stretch flex-wrap">
@@ -1481,7 +1565,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                                     <div className={`flex justify-between text-[16px] font-medium leading-6 ${activeButton === "hypothec" ? "text-white" : "text-[#1A3C7E]"}`}>Ипотека</div>
                                                     <div className="flex justify-end items-center gap-1">
                                                         <div className={`justify-center text-base font-normal leading-6 ${activeButton === "hypothec" ? "text-white" : "opacity-50 text-[#1A3C7E]"}`}>
-                                                            {hypothecPreview.options.length ? `от ${hypothecPreview.firstDownPct}%` : "от 30%"}
+                                                            {formatPriceDisplay(hypothecPreview.firstDown)}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1490,37 +1574,40 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                                         className={`w-full flex flex-col items-start gap-[24px] overflow-x-auto overflox-y-hidden scrollbar-hide transition-all duration-500 ease-in-out ${activeButton === "hypothec" ? "max-h-auto opacity-100 visible pointer-events-auto" : "max-h-0 opacity-0 invisible pointer-events-none"
                                                             }`}>
                                                         <span className="text-[#FFF] text-[16px]">
+                                                            {hypothecPreview.selectedProgram
+                                                                ? `${hypothecPreview.selectedProgram.bank} - ${hypothecPreview.selectedProgram.programName}`
+                                                                : ""}
+                                                        </span>
+                                                        <span className="text-[#FFF] text-[16px]">
                                                             {t("hypothec_from")} {hypothecPreview.raisePercent > 0 ? `${hypothecPreview.raisePercent.toFixed(2).replace(/\.00$/, "")}%` : "0%"}
                                                         </span>
                                                         <p className="text-[#FFF] text-[14px] not-italic font-normal leading-[14px] opacity-60">
-                                                            {hypothecPreview.validToFormatted ? `${t("valid_to_date")} ${hypothecPreview.validToFormatted}` : t("valid_to_date_program")}
+                                                            {hypothecPreview.validToFormatted ? `${t("valid_to_date")} ${hypothecPreview.validToFormatted}` : t("valid_to_date")}
                                                         </p>
                                                         <div className="flex flex-col items-start gap-[12px]">
+                                                            {hypothecPreview.programs.length > 0 && (
+                                                                <div className="flex items-start gap-[8px] flex-wrap">
+                                                                    {hypothecPreview.programs.map((program, i) => {
+                                                                        const isSelected = selectedHypothecProgramIndex === i;
+                                                                        return (
+                                                                            <button
+                                                                                key={program.key}
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setSelectedHypothecProgramIndex(i);
+                                                                                }}
+                                                                                className={`flex px-[10px] py-[4px] rounded-[32px] text-[14px] leading-[20px] font-normal transition-colors ${isSelected ? "bg-[#2655AF] text-white" : "bg-[#FFF] text-[#2655AF]"}`}
+                                                                            >
+                                                                                {program.bank} - {program.programName}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
                                                             <p className="text-[#FFF] text-[14px] not-italic font-normal leading-[14px] opacity-60">
-                                                                {t("select_initial_payment_amount")}
+                                                                {t("minimum_initial_payment")}
                                                             </p>
-                                                            <div className="flex items-start gap-[8px] flex-wrap">
-                                                                {hypothecPreview.options.length ? hypothecPreview.options.map((opt, i) => {
-                                                                    const label = `${parseDownPaymentPercent(opt.downPayment)}%`;
-                                                                    const isSelected = selectedHypothecPvIndex === i;
-                                                                    return (
-                                                                        <button
-                                                                            key={i}
-                                                                            type="button"
-                                                                            onClick={(e) => { e.stopPropagation(); setSelectedHypothecPvIndex(i); }}
-                                                                            className={`flex px-[10px] py-[4px] rounded-[32px] text-[16px] leading-[24px] font-normal transition-colors ${isSelected ? "bg-[#2655AF] text-white" : "bg-[#FFF] text-[#2655AF]"}`}
-                                                                        >
-                                                                            {label}
-                                                                        </button>
-                                                                    );
-                                                                }) : (
-                                                                    [30, 50, 70].map((pct) => (
-                                                                        <span key={pct} className="flex px-[10px] py-[4px] rounded-[32px] text-[16px] leading-[24px] font-normal bg-[#FFF] text-[#2655AF]">
-                                                                            {pct}%
-                                                                        </span>
-                                                                    ))
-                                                                )}
-                                                            </div>
                                                         </div>
 
                                                         <div className="flex items-start gap-[10px] w-full">
@@ -1528,7 +1615,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                                                 <div className="w-full h-[8px] rounded-[32px] bg-[#FFF]"></div>
                                                                 <div className="flex h-[80px] flex-col justify-between items-start self-stretch">
                                                                     <p className="self-stretch text-[#FFF] text-[14px] leading-[16px] opacity-70 min-w-[0]">
-                                                                        {t("initial_payment")} {hypothecPreview.firstDownPct}%
+                                                                        {t("initial_payment")}
                                                                     </p>
                                                                     <span className="text-[#FFF] text-[14px] font-medium leading-[16px]">{formatPriceDisplay(hypothecPreview.firstDown)}</span>
                                                                 </div>
@@ -1550,28 +1637,6 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                         </div>
                                     )}
                                 </div>
-                                {resumeDealId && (
-                                    <div className="self-stretch p-3 rounded-2xl bg-[#E8EEF7] border border-[#1A3C7E]/20 flex flex-col gap-2">
-                                        <p className="text-[#122C5E] text-sm">
-                                            У вас есть договор по этой квартире. Продолжить подписание или проверить статус?
-                                        </p>
-                                        <Button
-                                            onPress={() => {
-                                                if (originalFlat && resumeDealId) {
-                                                    dispatch(openPay({
-                                                        flat: originalFlat,
-                                                        paymentMethod: "full",
-                                                        step: "sign",
-                                                        dealDocumentId: resumeDealId,
-                                                    }));
-                                                }
-                                            }}
-                                            className="self-start bg-[#1A3C7E] text-white"
-                                        >
-                                            Продолжить подписание
-                                        </Button>
-                                    </div>
-                                )}
                                 {payStartError && (
                                     <p className="text-red-600 text-sm">{payStartError}</p>
                                 )}
@@ -1632,7 +1697,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                     <div className="text-right justify-start text-color-blue-14 text-base font-normal leading-8">{flat.entrance}</div>
                                 </div>
                             )}
-                            {flat.floor && (
+                            {realEstateType === "property" && flat.floor && (
                                 <div className="self-stretch border-b border-black/10 inline-flex justify-between items-center overflow-hidden">
                                     <div className="justify-start text-color-blue-14 text-base font-normal leading-8">{t("floor")}</div>
                                     <div className="text-right justify-start text-color-blue-14 text-base font-normal leading-8">{flat.floor}</div>
@@ -1640,11 +1705,11 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                             )}
                             {flat.apartmentNumber && (
                                 <div className="self-stretch border-b border-black/10 inline-flex justify-between items-center overflow-hidden">
-                                    <div className="justify-start text-color-blue-14 text-base font-normal leading-8">{t("apartment_number")}</div>
+                                    <div className="justify-start text-color-blue-14 text-base font-normal leading-8">{realEstateType === "property" ? t("apartment_number") : t("object_number")}</div>
                                     <div className="text-right justify-start text-color-blue-14 text-base font-normal leading-8">{flat.apartmentNumber ?? flat.id}</div>
                                 </div>
                             )}
-                            {flat.area && (
+                            {realEstateType !== "parking" && flat.area && (
                                 <div className="self-stretch border-b border-black/10 inline-flex justify-between items-center overflow-hidden">
                                     <div className="justify-start text-color-blue-14 text-base font-normal leading-8">{t("total_area")}</div>
                                     <div className="text-right justify-start text-color-blue-14 text-base font-normal leading-8">{flat.area}</div>
@@ -1708,7 +1773,7 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                     <div className="flex flex-col gap-4">
                                         <div className="flex flex-col gap-2">
                                             <div className="text-[30px] font-bold leading-[34px] tracking-[-0.02em]">
-                                                {flat.room}-комнатная квартира
+                                                {Number(flat.room ?? 0) > 0 ? `${flat.room}-комнатная квартира` : unitLabel}
                                             </div>
                                             <div className="text-[16px] leading-[20px] text-black/60 font-medium">
                                                 Площадь: {flat.area || "—"}
@@ -1893,6 +1958,39 @@ export default function FlatsDetailPage({ id }: { id: string | string[] }) {
                                                                 {row.render(col)}
                                                             </td>
                                                         ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                            {hypothecTableData.length > 0 && (
+                                <div className="rounded-[24px] border border-black/10 bg-white p-4 mt-6">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="text-[14px] font-semibold leading-5">Условия ипотеки</div>
+                                    </div>
+                                    <div className="overflow-hidden rounded-[18px]">
+                                        <table className="w-full border-collapse text-[11px]">
+                                            <thead>
+                                                <tr className="bg-[#F6F8FB]">
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-black/70 border-b border-r border-black/10">Банк</th>
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-black/70 border-b border-r border-black/10">Программа</th>
+                                                    <th className="px-3 py-2.5 text-center font-semibold text-black/70 border-b border-r border-black/10">Надбавка</th>
+                                                    <th className="px-3 py-2.5 text-center font-semibold text-black/70 border-b border-r border-black/10">Стоимость</th>
+                                                    <th className="px-3 py-2.5 text-center font-semibold text-black/70 border-b border-r border-black/10">Перв. взнос</th>
+                                                    <th className="px-3 py-2.5 text-center font-semibold text-black/70 border-b border-black/10">Остаток</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {hypothecTableData.map((row, idx) => (
+                                                    <tr key={row.key} className={idx % 2 === 0 ? "bg-white" : "bg-[#FCFCFD]"}>
+                                                        <td className="px-3 py-2.5 border-t border-r border-black/10">{row.bank}</td>
+                                                        <td className="px-3 py-2.5 border-t border-r border-black/10">{row.programName}</td>
+                                                        <td className="px-3 py-2.5 text-center border-t border-r border-black/10">{row.raiseLabel}</td>
+                                                        <td className="px-3 py-2.5 text-center border-t border-r border-black/10">{formatPriceDisplay(row.fullPrice)}</td>
+                                                        <td className="px-3 py-2.5 text-center border-t border-r border-black/10">{formatPriceDisplay(row.firstDown)}</td>
+                                                        <td className="px-3 py-2.5 text-center border-t border-black/10">{formatPriceDisplay(row.remainder)}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>

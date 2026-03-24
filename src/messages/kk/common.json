@@ -1,6 +1,7 @@
 {
   "nav_projects": "Жобалар",
   "nav_flats": "Пәтерлер",
+  "nav_parking": "Автотұрақтар",
   "nav_why_us": "Неге біз",
   "nav_gala_bonus": "Gala Bonus",
   "nav_main": "Бастапқы",
@@ -130,6 +131,7 @@
   "due_date": "Тапсыру мерзімі",
   "class": "Класс",
   "apartment_number": "Пәтер нөмірі",
+  "object_number": "Нысан нөмірі",
   "total_area": "Жалпы аудан",
   "all_characteristics": "Барлық сипаттамалар",
   "next": "Келесі",
@@ -179,7 +181,7 @@
   "change_number": "Нөмірді өзгерту",
   "confirmed": "Расталған",
   "confirm": "Растау",
-  "apartment_price": "Пәтердің бағасы",
+  "apartment_price": "Бағасы",
   "price": "Бағасы",
   "price_per_square_meter": "Баға, ₸/м2",
   "reservation": "Бронь",
@@ -216,6 +218,8 @@
   "until": "дейін",
   "deferred_payment_conditions": "Кейінге қалдырылған төлем шарттары",
   "deffered_until": "Кейінге қалдырылған төлем қолжетімді",
+  "available_hypothec_programs": "Қолжетімді ипотека бағдарламалар",
+  "hypothec_payment_conditions": "Ипотека шарттары",
   "hypothec_until": "Ипотека қолжетімді",
   "make_deffered_payment_until": "Бастапқы төлемді төлеңіз",
   "male": "Ер",
@@ -302,6 +306,7 @@
   "my_objects": "Нысандар",
   "load_error": "Жүктеу қатесі",
   "object_default": "Объект",
+  "objects": "нысандар",
   "room_rooms": "бөлмелі",
   "first_payment": "Бірінші төлем",
   "last_payment": "Соңғы төлем",
@@ -499,5 +504,10 @@
   "hypothec_from": "Ипотекалық несие",
   "generated_documents": "Жасалған құжаттар",
   "awaiting_signature": "Қолтаңба күтуде",
-  "signed_documents": "Қол қойылған құжаттар"
+  "signed_documents": "Қол қойылған құжаттар",
+  "minimum_initial_payment": "Минималды бастапқы төлем",
+  "available_hypothec_programs": "Қолжетімді ипотека бағдарламалар",
+  "overpayment_of_the_minimum_payment": "Сүйімді минималды төлем",
+  "minimum_initial_payment_amount": "Сүйімді минималды төлем",
+  "down_payment_by_program": "Бастапқы төлем"
 }

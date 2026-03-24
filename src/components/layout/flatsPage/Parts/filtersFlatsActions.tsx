@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 
 interface FiltersFlatsActionsProps {
   totalProjects: number;
+  resultNoun?: string;
   onReset?: () => void;
   onMap?: () => void;
   onSubmit?: () => void;
@@ -10,11 +11,13 @@ interface FiltersFlatsActionsProps {
 
 export const FiltersFlatsActions: React.FC<FiltersFlatsActionsProps> = ({
   totalProjects,
+  resultNoun,
   onReset,
   onMap,
   onSubmit,
 }) => {
   const t = useTranslations();
+  const noun = resultNoun ?? t("objects");
   return (
     <>
       <div className="mainPageFilterResults hidden lg:flex justify-end items-end gap-3 w-full">
@@ -46,7 +49,7 @@ export const FiltersFlatsActions: React.FC<FiltersFlatsActionsProps> = ({
             onClick={onSubmit}
             className="flex h-[44px] min-w-[44px] min-h-[44px] p-[11px] text-white justify-center items-center rounded-[12px] bg-[#1A3C7E] cursor-pointer transition-all duration-300 hover:opacity-90 hover:text-white"
           >
-            <p>{t("found")} {totalProjects} {t("flats")}</p>
+            <p>{t("found")} {totalProjects} {noun}</p>
           </button>
         </div>
       </div>
@@ -80,7 +83,7 @@ export const FiltersFlatsActions: React.FC<FiltersFlatsActionsProps> = ({
           onClick={onSubmit}
           className="flex w-full h-11 p-3 text-white justify-center items-center rounded-[12px] bg-[#1A3C7E] cursor-pointer transition-all duration-300 hover:opacity-90"
         >
-          <p>{t("found")} {totalProjects} {t("flats")}</p>
+          <p>{t("found")} {totalProjects} {noun}</p>
         </button>
       </div>
     </>

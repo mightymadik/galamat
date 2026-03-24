@@ -123,6 +123,19 @@ export async function POST(request: NextRequest) {
     );
     const result = res.data as any;
 
+    try {
+      await strapiAxios.post(
+        `${base}/api/deals/actions/send-webhook/${encodeURIComponent(dealDocumentId)}`,
+        {
+          status: "pay",
+          oplata: String(amount),
+        },
+        { headers }
+      );
+    } catch (webhookError: any) {
+      console.error("[cashier/confirm-payment] send-webhook error:", webhookError?.response?.data ?? webhookError?.message);
+    }
+
     return NextResponse.json({
       status: "ok",
       paymentDocumentId:

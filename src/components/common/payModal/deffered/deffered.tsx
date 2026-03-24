@@ -28,6 +28,7 @@ import {
 } from "@/lib/paymentFormUtils";
 import { withMask } from "use-mask-input";
 import { useTranslations } from "next-intl";
+import type { RealEstateType } from "@/types/flat";
 
 function calendarDateToRu(date: CalendarDate): string {
     const d = String(date.day).padStart(2, "0");
@@ -75,13 +76,16 @@ interface DefferedProps {
         riseRow?: number;
         windowView?: string;
     } | null;
+    realEstateType?: RealEstateType;
     activeButton: string | null;
     onNext: (payload?: AgreementPayload) => void;
     isSubmitting?: boolean;
 }
 
-export default function Deffered({ flatData, activeButton, onNext, isSubmitting = false }: DefferedProps) {
+export default function Deffered({ flatData, realEstateType = "property", activeButton, onNext, isSubmitting = false }: DefferedProps) {
     const t = useTranslations();
+    const isResidential = realEstateType === "property";
+    const unitLabel = realEstateType === "commerce" ? "Коммерция" : realEstateType === "parking" ? "Паркинг" : realEstateType === "pantry" ? "Кладовка" : "Квартира";
     const user = useSelector((state: RootState) => state.auth.user);
     const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin";
     const [galaBonus, setGalaBonus] = useState<string>("0 ₸");
@@ -242,8 +246,10 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
             body: JSON.stringify({
                 code,
                 projectDocumentId: flatData.projectDocumentId,
+                objectDocumentId: flatData.documentId,
                 flat: flatPayload,
                 payment: "Deferred",
+                realEstateType,
             }),
         })
             .then((res) => res.json())
@@ -259,7 +265,7 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
             .catch(() => {
                 setPromocodeResult({ valid: false, error: t("code_verification_error") });
             });
-    }, [promocodeInput, flatData?.projectDocumentId, flatData?.apartmentNumber, flatData?.house, flatData?.section, flatData?.entrance, flatData?.floor, flatData?.room]);
+    }, [promocodeInput, flatData?.projectDocumentId, flatData?.documentId, flatData?.apartmentNumber, flatData?.house, flatData?.section, flatData?.entrance, flatData?.floor, flatData?.room, realEstateType]);
 
     // Deferred never uses full-payment discounted price: use base price only.
     const basePrice =
@@ -304,9 +310,10 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
     const downPercent = selectedOption ? parseDownPaymentPercent(selectedOption.downPayment) || defaultDownPercent : defaultDownPercent;
     const raisePerM2 = parseRaise(selectedOption?.raise);
     const totalArea = flatData?.totalArea ?? 0;
-    const totalPriceBeforeDiscounts = basePrice + raisePerM2 * totalArea;
+    const adjustmentArea = realEstateType === "parking" ? 0 : totalArea;
+    const totalPriceBeforeDiscounts = basePrice + raisePerM2 * adjustmentArea;
     const promocodeDiscount = promocodeResult?.valid
-        ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, totalArea)
+        ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, adjustmentArea)
         : 0;
     const totalPrice = Math.max(0, totalPriceBeforeDiscounts - promocodeDiscount);
     const downLabel = `${downPercent}%`;
@@ -429,10 +436,12 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                     <div className="flex w-full flex-col justify-between items-start self-stretch">
                         <div className="flex justify-between items-start self-stretch">
                             <h1 className="text-[#000] text-[20px] not-italic font-medium leading-[24px]">{flatData?.title || ''}</h1>
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px] opacity-30">№{flatData?.apartmentNumber || ''}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px] opacity-30">№{flatData?.apartmentNumber || ""}</span>
                         </div>
                         <div className="flex justify-between items-start self-stretch">
-                            <h1 className="text-[#000] text-[16px] not-italic font-normal leading-[24px]">{flatData?.room || ''} {t("rooms")}</h1>
+                            <h1 className="text-[#000] text-[16px] not-italic font-normal leading-[24px]">
+                                {isResidential ? `${flatData?.room || ""} ${t("rooms")}` : unitLabel}
+                            </h1>
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[24px]">{flatData?.area || ''}</span>
                         </div>
                         <div className="flex items-end gap-[5px] self-stretch">
@@ -461,20 +470,26 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("due_date")}</span>
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatComplexDueDate(flatData?.complexDueDate) || ""}</span>
                         </div>
+                        {Boolean(flatData?.section) && (
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("section")}</span>
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.section || ''}</span>
                         </div>
+                        )}
+                        {Boolean(flatData?.entrance) && (
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("entrance")}</span>
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.entrance || ''}</span>
                         </div>
+                        )}
+                        {isResidential && Boolean(flatData?.floor) && (
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("floor")}</span>
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.floor || ''}</span>
                         </div>
+                        )}
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("apartment")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{isResidential ? t("apartment") : "Номер"}</span>
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">№{flatData?.apartmentNumber || ''}</span>
                         </div>
                     </div>
@@ -539,10 +554,12 @@ export default function Deffered({ flatData, activeButton, onNext, isSubmitting 
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("apartment_price")}</span>
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(totalPrice)}</span>
                     </div>
+                    {realEstateType !== "parking" && (
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("price_per_square_meter")}</span>
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{totalSumM2Display}</span>
                     </div>
+                    )}
                     <div className="flex items-center justify-between w-full flex-row gap-3 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] py-[8px]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
                             {t("payment_schedule")}

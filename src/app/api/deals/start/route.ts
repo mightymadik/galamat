@@ -11,6 +11,19 @@ const PAYMENT_METHOD_MAP: Record<string, string> = {
 
 /** Сделки, при которых квартиру нельзя бронировать повторно */
 const ACTIVE_DEAL_STATUSES = ["Бронь", "Ожидания оплаты", "Ожидания договора", "Договор подписан"];
+type RealEstateType = "property" | "commerce" | "parking" | "pantry";
+const TYPE_CONFIG: Record<RealEstateType, { relation: string; apiPath: string }> = {
+  property: { relation: "property", apiPath: "properties" },
+  commerce: { relation: "commerce", apiPath: "commerces" },
+  parking: { relation: "parking", apiPath: "parkings" },
+  pantry: { relation: "pantry", apiPath: "pantrys" },
+};
+
+function parseType(raw: unknown): RealEstateType {
+  const v = String(raw ?? "").trim().toLowerCase();
+  if (v === "commerce" || v === "parking" || v === "pantry") return v;
+  return "property";
+}
 
 export async function POST(request: Request) {
   try {
@@ -46,6 +59,8 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const propertyId = body?.propertyId;
+    const realEstateType = parseType(body?.realEstateType);
+    const cfg = TYPE_CONFIG[realEstateType];
     const paymentMethodKey = body?.paymentMethod;
 
     if (!propertyId || typeof propertyId !== "string")
@@ -60,29 +75,29 @@ export async function POST(request: Request) {
 
     // Idempotency: загружаем все сделки по квартире, в коде выбираем первую с активным статусом
     // (не полагаемся на фильтр dealStatus в Strapi — он может вести себя по-разному).
-    const buildDealsByPropertyUrl = (propertyFilter: string) =>
+    const buildDealsByEntityUrl = (entityFilter: string) =>
       `${base}/api/deals` +
-      `?${propertyFilter}` +
+      `?${entityFilter}` +
       `&sort[0]=createdAt:desc` +
       `&pagination[pageSize]=25` +
       `&populate[customer][fields][0]=id`;
 
     let dealsList: any[] = [];
-    const url1 = buildDealsByPropertyUrl(`filters[property][documentId][$eq]=${encodeURIComponent(propertyId)}`);
+    const url1 = buildDealsByEntityUrl(`filters[${cfg.relation}][documentId][$eq]=${encodeURIComponent(propertyId)}`);
     const res1 = await strapiAxios.get(url1, { headers });
     dealsList = (res1.data as any)?.data ?? [];
     if (!Array.isArray(dealsList)) dealsList = [];
 
     if (dealsList.length === 0) {
       const propRes = await strapiAxios.get(
-        `${base}/api/properties?filters[documentId][$eq]=${encodeURIComponent(propertyId)}&pagination[pageSize]=1&fields[0]=id`,
+        `${base}/api/${cfg.apiPath}?filters[documentId][$eq]=${encodeURIComponent(propertyId)}&pagination[pageSize]=1&fields[0]=id`,
         { headers }
       );
       const propList = (propRes.data as any)?.data ?? [];
       const prop = Array.isArray(propList) ? propList[0] : null;
       const propInternalId = prop?.id ?? prop?.attributes?.id ?? null;
       if (propInternalId != null) {
-        const url2 = buildDealsByPropertyUrl(`filters[property][id][$eq]=${encodeURIComponent(propInternalId)}`);
+        const url2 = buildDealsByEntityUrl(`filters[${cfg.relation}][id][$eq]=${encodeURIComponent(propInternalId)}`);
         const res2 = await strapiAxios.get(url2, { headers });
         const list2 = (res2.data as any)?.data ?? [];
         if (Array.isArray(list2)) dealsList = list2;
@@ -129,7 +144,7 @@ export async function POST(request: Request) {
 
     const res = await strapiAxios.post(
       `${base}/api/deals?start=true`,
-      { data: { property: { connect: [propertyId] }, ...dealPayload } },
+      { data: { [cfg.relation]: { connect: [propertyId] }, realEstateType, ...dealPayload } },
       { headers }
     );
 
@@ -166,7 +181,7 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     return Response.json(
-      { error: process.env.NODE_ENV === "development" && message ? String(message) : "Не удалось забронировать квартиру" },
+      { error: process.env.NODE_ENV === "development" && message ? String(message) : "Не удалось забронировать объект" },
       { status: 500 }
     );
   }

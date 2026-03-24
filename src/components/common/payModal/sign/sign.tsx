@@ -9,6 +9,7 @@ import type { RootState } from "@/store";
 import { setAgreementFileUrl } from "@/store/paySlice";
 import { formatPriceDisplay } from "@/lib/paymentFormUtils";
 import { useTranslations } from "next-intl";
+import type { RealEstateType } from "@/types/flat";
 
 function formatSignedAt(iso: string | null | undefined): string {
     if (!iso) return "";
@@ -22,6 +23,7 @@ function formatSignedAt(iso: string | null | undefined): string {
 
 interface DocStatus {
     templateType: string;
+    documentName?: string;
     doodocsDocumentId?: string;
     signUrl?: string;
     signed: boolean;
@@ -47,11 +49,14 @@ interface SignProps {
         totalPrice?: number;
     } | null;
     agreementPayload: AgreementPayload | null;
+    realEstateType?: RealEstateType;
     onNext: () => void;
 }
 
-export default function Sign({ flatData, agreementPayload, onNext }: SignProps) {
+export default function Sign({ flatData, agreementPayload, realEstateType = "property", onNext }: SignProps) {
     const t = useTranslations();
+    const isResidential = realEstateType === "property";
+    const unitLabel = realEstateType === "commerce" ? "Коммерция" : realEstateType === "parking" ? "Паркинг" : realEstateType === "pantry" ? "Кладовка" : "Квартира";
     const dispatch = useDispatch();
     const [completing, setCompleting] = useState(false);
     const [sendingToSign, setSendingToSign] = useState(false);
@@ -71,12 +76,21 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
     const allDocsSigned = docStatuses.length > 0 && docStatuses.every((d) => d.signed);
 
     useEffect(() => {
+        setSentToSign(false);
+        setDocStatuses([]);
         if (!dealDocumentId) return;
         fetch(`/api/deals/${dealDocumentId}/summary`, { credentials: "include" })
             .then((r) => r.json().catch(() => ({})))
             .then((data: any) => {
                 if (data?.agreementFileUrl) dispatch(setAgreementFileUrl(data.agreementFileUrl));
-                if (data?.doodocsDocumentId || data?.dealStatus === "Ожидания договора") {
+                const status = String(data?.dealStatus ?? "").trim();
+                const isSigningFlowStatus =
+                    status === "Ожидания договора" ||
+                    status === "Договор подписан" ||
+                    status === "Оплачено";
+                // Old/cancelled deals can keep doodocsDocumentId in history.
+                // Consider link as "sent" only when the deal is in signing flow statuses.
+                if (Boolean(data?.doodocsDocumentId) && isSigningFlowStatus) {
                     setSentToSign(true);
                 }
                 if (!data?.agreementFileUrl) {
@@ -123,6 +137,7 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
             if (Array.isArray(startJson.documents)) {
                 setDocStatuses(startJson.documents.map((d: any) => ({
                     templateType: d.templateType,
+                    documentName: d.documentName,
                     doodocsDocumentId: d.doodocsDocumentId,
                     signUrl: d.signUrl,
                     signed: false,
@@ -155,7 +170,14 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                 setDocStatuses((prev) =>
                     prev.map((d) => {
                         const remote = data.documents.find((dd: any) => dd.doodocsDocumentId === d.doodocsDocumentId || dd.templateType === d.templateType);
-                        if (remote) return { ...d, signed: remote.signed, signedAt: remote.signedAt ?? d.signedAt };
+                        if (remote) {
+                            return {
+                                ...d,
+                                documentName: remote.documentName ?? d.documentName,
+                                signed: remote.signed,
+                                signedAt: remote.signedAt ?? d.signedAt
+                            };
+                        }
                         return d;
                     })
                 );
@@ -182,6 +204,7 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                 credentials: "include",
                 body: JSON.stringify({
                     propertyDocumentId: payFlatDocumentId ?? agreementPayload?.propertyDocumentId ?? flatData?.documentId,
+                    realEstateType,
                     dealDocumentId: dealDocumentId ?? undefined,
                     usedPromocodeCode: agreementPayload?.usedPromocodeCode,
                     usedGalaBonusAmount: agreementPayload?.usedGalaBonusAmount,
@@ -203,7 +226,7 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
 
     const templateTypeLabel = (type: string) => {
         if (type === "ДДУ") return "ДДУ";
-        if (type === "Доп соглашение") return "Доп. соглашение";
+        if (type === "Доп соглашение") return "Доп соглашение";
         if (type === "Соглашение о задатке") return "Соглашение о задатке";
         if (type === "Расторжение") return "Расторжение";
         if (type === "Переоформление") return "Переоформление";
@@ -237,7 +260,9 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                                 <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px] opacity-30">№{flatData?.apartmentNumber || ''}</span>
                             </div>
                             <div className="flex justify-between items-start self-stretch">
-                                <h1 className="text-[#000] text-[16px] not-italic font-normal leading-[24px]">{flatData?.room || ''} {t("rooms")}</h1>
+                                <h1 className="text-[#000] text-[16px] not-italic font-normal leading-[24px]">
+                                    {isResidential ? `${flatData?.room || ""} ${t("rooms_count")}` : unitLabel}
+                                </h1>
                                 <span className="text-[#000] text-[16px] not-italic font-normal leading-[24px]">{flatData?.area || ''}</span>
                             </div>
                             <div className="flex items-end gap-[5px] self-stretch">
@@ -268,7 +293,7 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                     <div className="flex flex-col gap-1 self-stretch">
                         <p className="text-[#122C5E] text-[14px] font-medium">{t("generated_documents")}:</p>
                         {agreementFiles.map((f, i) => {
-                            const label = `${templateTypeLabel(f.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
+                            const label = f.documentName?.replace(/\.(docx|pdf)$/i, "") || `${templateTypeLabel(f.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
                             return (
                                 <a key={i} href={f.fileUrl}
                                     download={`${label}.docx`}
@@ -322,7 +347,7 @@ export default function Sign({ flatData, agreementPayload, onNext }: SignProps) 
                         {docStatuses
                             .filter((d) => d.signed && d.doodocsDocumentId)
                             .map((d, i) => {
-                                const label = `${templateTypeLabel(d.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
+                                const label = d.documentName?.replace(/\.(docx|pdf)$/i, "") || `${templateTypeLabel(d.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
                                 return (
                                     <a
                                         key={i}

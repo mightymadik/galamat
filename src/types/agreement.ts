@@ -22,4 +22,9 @@ export interface AgreementPayload {
   usedGalaBonusAmount?: number;
   /** documentId квартиры (для привязки промокода к property при «Завершить») */
   propertyDocumentId?: string;
+  /**
+   * Для рассрочки: значение `downPayment` выбранного варианта (например «ПВ 50%»),
+   * чтобы бэкенд применил ту же надбавку и % ПВ, что и в интерфейсе.
+   */
+  installmentDownPaymentRaw?: string;
 }

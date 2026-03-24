@@ -529,6 +529,8 @@ function mapPaymentConditions(raw: any): PaymentConditionForFlat[] {
     .map((c: any) => ({
       documentId: c.documentId ?? undefined,
       paymentMethod: c.paymentMethod ?? "Installment",
+      banks: c.banks ?? null,
+      hypothec: c.hypothec ?? null,
       paymentStatus: c.paymentStatus ?? undefined,
       validFrom: c.validFrom ?? null,
       validTo: c.validTo ?? null,
@@ -536,6 +538,7 @@ function mapPaymentConditions(raw: any): PaymentConditionForFlat[] {
         ? c.paymentCondition.map((pc: any) => ({
           downPayment: pc?.downPayment ?? null,
           raise: pc?.raise != null ? Number(pc.raise) : null,
+          discount: pc?.discount != null ? Number(pc.discount) : null,
           paymentRule: pc?.paymentRule ?? undefined,
         }))
         : undefined,

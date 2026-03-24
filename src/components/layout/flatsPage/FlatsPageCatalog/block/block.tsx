@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@heroui/button"
@@ -9,6 +9,7 @@ import { RootState } from "@/store";
 import { openAuth } from "@/store/authSlice";
 import { toggleFavorite } from "@/store/favoritesSlice";
 import { FlatsFilterParams } from "../../../../../types/flat";
+import type { RealEstateType } from "../../../../../types/flat";
 import { useTranslations } from "next-intl";
 
 function FlatCardSkeleton() {
@@ -78,6 +79,7 @@ interface ComponentFlat {
   floor: string;
   section: string;
   entrance: string;
+  objectNumber: string;
   deadline: string;
   available: string;
 }
@@ -110,11 +112,12 @@ const adaptProperty = (property: any): ComponentFlat => {
     priceM2: formattedPriceM2,
     tags: property.tags || [],
     images: [...(property.images || []), ...(property.platformPlanImages || [])],
-    room: property.room?.toString() || "0",
-    area: `${property.totalArea ?? 0} м²`,
-    floor: property.floor?.toString() || "0",
+    room: property.room?.toString() || "",
+    area: property.totalArea != null && Number(property.totalArea) > 0 ? `${property.totalArea} м²` : "",
+    floor: property.floor != null && Number(property.floor) > 0 ? property.floor.toString() : "",
     section: property.section || "",
     entrance: property.entrance?.toString() || "0",
+    objectNumber: property.apartmentNumber != null ? String(property.apartmentNumber) : String(property.id ?? ""),
     deadline: "", // Property API не содержит deadline
     available: "1", // Все property со статусом "свободно" доступны
   };
@@ -124,9 +127,17 @@ interface BlockProps {
   sortKey?: string;
   filterParams?: FlatsFilterParams;
   onTotalCountChange?: (count: number) => void;
+  realEstateType?: RealEstateType;
+  detailBasePath?: string;
 }
 
-export default function Block({ sortKey = "lowestPrice", filterParams = {}, onTotalCountChange }: BlockProps) {
+export default function Block({
+  sortKey = "lowestPrice",
+  filterParams = {},
+  onTotalCountChange,
+  realEstateType = "property",
+  detailBasePath = "/flats",
+}: BlockProps) {
   const [flats, setFlats] = useState<ComponentFlat[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
@@ -189,6 +200,7 @@ export default function Block({ sortKey = "lowestPrice", filterParams = {}, onTo
     if (filterParams.district) params.set("district", filterParams.district);
     if (filterParams.project) params.set("project", filterParams.project);
     if (filterParams.tags && filterParams.tags.length > 0) params.set("tags", filterParams.tags.join(","));
+    params.set("type", realEstateType);
     params.set("page", "1");
     params.set("pageSize", String(PAGE_SIZE));
 
@@ -220,7 +232,7 @@ export default function Block({ sortKey = "lowestPrice", filterParams = {}, onTo
         }
       });
     return () => abortController.abort();
-  }, [loading, filterKey, localeKey, onTotalCountChange]);
+  }, [loading, filterKey, localeKey, onTotalCountChange, realEstateType]);
 
   const handleShowMore = () => {
     if (loadingMore || flats.length >= totalCount) return;
@@ -234,6 +246,7 @@ export default function Block({ sortKey = "lowestPrice", filterParams = {}, onTo
     if (filterParams.district) params.set("district", filterParams.district);
     if (filterParams.project) params.set("project", filterParams.project);
     if (filterParams.tags && filterParams.tags.length > 0) params.set("tags", filterParams.tags.join(","));
+    params.set("type", realEstateType);
     params.set("page", String(currentPage + 1));
     params.set("pageSize", String(PAGE_SIZE));
 
@@ -290,7 +303,7 @@ export default function Block({ sortKey = "lowestPrice", filterParams = {}, onTo
           {flats.length > 0 && !loading && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[24px] w-full animate-fadeOut">
               {sortedFlats.map((flat, index) => (
-                <FlatCard key={flat.id || index} flat={flat} />
+                <FlatCard key={flat.id || index} flat={flat} detailBasePath={detailBasePath} realEstateType={realEstateType} />
               ))}
             </div>
           )}
@@ -325,7 +338,7 @@ export default function Block({ sortKey = "lowestPrice", filterParams = {}, onTo
               animationDelay: `${Math.min(index * 50, 300)}ms`,
             }}
           >
-            <FlatCard flat={flat} />
+            <FlatCard flat={flat} detailBasePath={detailBasePath} realEstateType={realEstateType} />
           </div>
         ))}
       </div>
@@ -345,7 +358,7 @@ export default function Block({ sortKey = "lowestPrice", filterParams = {}, onTo
   );
 }
 
-function FlatCard({ flat }: { flat: ComponentFlat }) {
+function FlatCard({ flat, detailBasePath, realEstateType }: { flat: ComponentFlat; detailBasePath: string; realEstateType: RealEstateType }) {
   const t = useTranslations();
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
@@ -375,7 +388,19 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
     }
   };
 
-  const flatHref = `/flats/${flat.documentId}`;
+  const flatHref = `${detailBasePath}/${flat.documentId}`;
+  const typeLabel =
+    realEstateType === "commerce" ? "Коммерция" :
+    realEstateType === "parking" ? "Паркинг" :
+    realEstateType === "pantry" ? "Кладовка" : `${flat.room} ${t("rooms_count")}`;
+  const showPriceM2 = realEstateType !== "parking" && Boolean(flat.priceM2 && !flat.priceM2.startsWith("0 "));
+  const detailItems = [
+    typeLabel,
+    realEstateType !== "property" && flat.objectNumber ? `№${flat.objectNumber}` : "",
+    realEstateType !== "property" && flat.entrance && flat.entrance !== "0" ? `${t("entrance")} ${flat.entrance}` : "",
+    flat.area,
+    flat.floor ? `${flat.floor} ${t("floor")}` : "",
+  ].filter(Boolean);
   return (
     <>
     <div className="flex p-[16px] flex-col items-center gap-[24px] flex-[1_0_0] rounded-[18px] border-[2px] border-solid border-[#E3E3E3] bg-[#FFF] w-full h-full">
@@ -450,18 +475,19 @@ function FlatCard({ flat }: { flat: ComponentFlat }) {
         <div className="flex flex-col items-start gap-[12px] self-stretch w-full">
           <div className="flex flex-col items-start gap-[4px] self-stretch">
             <h1 className="text-[#07071F] text-[24px] font-medium">{flat.price}</h1>
-            <span className="text-[#07071F] text-[16px] opacity-45">{flat.priceM2}</span>
+            {showPriceM2 && <span className="text-[#07071F] text-[16px] opacity-45">{flat.priceM2}</span>}
           </div>
           <div className="flex items-center gap-[8px] self-stretch">
-            <span className="text-[#07071F] text-[16px]">{flat.room} {t("rooms_count")}</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="6" height="6">
-              <circle cx="3" cy="3" r="3" fill="#CCCCCC" />
-            </svg>
-            <span className="text-[#07071F] text-[16px]">{flat.area}</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="6" height="6">
-              <circle cx="3" cy="3" r="3" fill="#CCCCCC" />
-            </svg>
-            <span className="text-[#07071F] text-[16px]">{flat.floor} {t("floor")}</span>
+            {detailItems.map((item, idx) => (
+              <Fragment key={`${item}-${idx}`}>
+                {idx > 0 && (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="6" height="6">
+                    <circle cx="3" cy="3" r="3" fill="#CCCCCC" />
+                  </svg>
+                )}
+                <span className="text-[#07071F] text-[16px]">{item}</span>
+              </Fragment>
+            ))}
           </div>
         </div>
       </Link>

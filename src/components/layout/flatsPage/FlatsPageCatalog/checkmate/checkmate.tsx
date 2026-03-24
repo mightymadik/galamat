@@ -5,6 +5,7 @@ import { Select, SelectItem } from "@heroui/select";
 import { createPortal } from "react-dom";
 import { Button, Spinner } from "@heroui/react";
 import { FlatsFilterParams } from "@/types/flat";
+import type { RealEstateType } from "@/types/flat";
 import { useTranslations } from "next-intl";
 
 // Тип карточки квартиры (как в list/block — данные из /api/properties)
@@ -193,9 +194,17 @@ interface CheckmateProps {
     filterParams?: FlatsFilterParams;
     onTotalCountChange?: (count: number) => void;
     onProjectChange?: (project: string | null) => void;
+    realEstateType?: RealEstateType;
+    detailBasePath?: string;
 }
 
-export default function Checkmate({ filterParams = {}, onTotalCountChange, onProjectChange }: CheckmateProps) {
+export default function Checkmate({
+    filterParams = {},
+    onTotalCountChange,
+    onProjectChange,
+    realEstateType = "property",
+    detailBasePath = "/flats",
+}: CheckmateProps) {
     const t = useTranslations();
 
     const selectedComplex = filterParams.project ?? null;
@@ -211,7 +220,7 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange, onPro
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        fetch("/api/properties?metadata=true")
+        fetch(`/api/properties?metadata=true&type=${encodeURIComponent(realEstateType)}`)
             .then((res) => res.json())
             .then((meta: { complexes?: string[] }) => {
                 setComplexes(meta.complexes || []);
@@ -229,6 +238,7 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange, onPro
         params.set("project", selectedComplex);
         params.set("light", "1");
         params.set("allStatuses", "1");
+        params.set("type", realEstateType);
 
         fetch(`/api/properties?${params.toString()}`)
             .then((res) => res.json())
@@ -244,7 +254,7 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange, onPro
                 setFlats([]);
                 setLoading(false);
             });
-    }, [selectedComplex, onTotalCountChange]);
+    }, [selectedComplex, onTotalCountChange, realEstateType]);
 
     // При смене фильтров пересчитываем количество свободных квартир, подходящих под фильтры
     useEffect(() => {
@@ -401,7 +411,7 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange, onPro
                                                                                     isDesktop ? (
                                                                                         <Link
                                                                                             key={flat.id}
-                                                                                            href={`/flats/${flat.documentId ?? flat.id}`}
+                                                                                            href={`${detailBasePath}/${flat.documentId ?? flat.id}`}
                                                                                             onMouseEnter={(e) => {
                                                                                                 setHoveredFlat(flat);
                                                                                                 const rect = e.currentTarget.getBoundingClientRect();
@@ -512,7 +522,7 @@ export default function Checkmate({ filterParams = {}, onTotalCountChange, onPro
                         {/* Кнопка */}
                             <div className="flex flex-col justify-end items-end gap-[12px] self-stretch">
                             <Link
-                                href={`/flats/${mobileDrawerFlat.documentId ?? mobileDrawerFlat.id}`}
+                                href={`${detailBasePath}/${mobileDrawerFlat.documentId ?? mobileDrawerFlat.id}`}
                                 className="flex text-white h-[44px] p-[13px] justify-center items-center self-stretch rounded-[12px] bg-[#1A3C7E]"
                             >
                                 Подробнее

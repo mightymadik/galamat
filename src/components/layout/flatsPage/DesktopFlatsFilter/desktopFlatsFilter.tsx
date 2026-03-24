@@ -31,9 +31,11 @@ interface DesktopFlatsFilterProps {
     rooms: string[];
     selectedRooms: Set<string>;
     setSelectedRooms: (rooms: Set<string>) => void;
+    showRooms?: boolean;
 
     sliders: any[];
     totalProjects: number;
+    resultNoun?: string;
     onReset: () => void;
     onMap: () => void;
     onSubmit?: () => void;
@@ -51,8 +53,10 @@ const DesktopFlatsFilter: React.FC<DesktopFlatsFilterProps> = ({
     rooms,
     selectedRooms,
     setSelectedRooms,
+    showRooms = true,
     sliders,
     totalProjects,
+    resultNoun,
     onReset,
     onMap,
     onSubmit,
@@ -78,12 +82,14 @@ const DesktopFlatsFilter: React.FC<DesktopFlatsFilterProps> = ({
                                 itemClassName="mainPageFilterSelectorDropdownItem flex items-start self-stretch"
                             />
                         ))}
-                        <RoomSelector
-                            label={t("select_rooms")}
-                            rooms={rooms}
-                            selectedRooms={selectedRooms}
-                            setSelectedRooms={setSelectedRooms}
-                        />
+                        {showRooms && (
+                            <RoomSelector
+                                label={t("select_rooms")}
+                                rooms={rooms}
+                                selectedRooms={selectedRooms}
+                                setSelectedRooms={setSelectedRooms}
+                            />
+                        )}
                     </div>
                 </div>
                 <div className="flex h-[64px] justify-center items-start gap-[32px] self-stretch">
@@ -108,6 +114,7 @@ const DesktopFlatsFilter: React.FC<DesktopFlatsFilterProps> = ({
                 />
                 <FiltersFlatsActions
                     totalProjects={totalProjects}
+                    resultNoun={resultNoun}
                     onReset={onReset}
                     onMap={onMap}
                     onSubmit={onSubmit}

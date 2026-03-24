@@ -91,7 +91,11 @@ export default function DealDrawer({
                 const propId = json?.deal?.property?.documentId;
                 if (propId) {
                     try {
-                        const pRes = await fetch(`/api/properties/${encodeURIComponent(propId)}`, { credentials: "include" });
+                        const type = json?.deal?.property?.type ?? json?.deal?.realEstateType ?? "property";
+                        const pRes = await fetch(
+                            `/api/properties/${encodeURIComponent(propId)}?type=${encodeURIComponent(type)}`,
+                            { credentials: "include" }
+                        );
                         if (pRes.ok) {
                             const prop = await pRes.json();
                             const img = prop?.images?.[0] ?? prop?.platformPlanImages?.[0];
@@ -159,6 +163,9 @@ export default function DealDrawer({
     const isReserve = data?.deal?.dealStatus === "Бронь";
     const canRenewOrTerminate =
         data?.deal?.dealStatus === "Оплачено" || data?.deal?.dealStatus === "Договор подписан";
+    const propertyType = data?.deal?.property?.type ?? data?.deal?.realEstateType ?? "property";
+    const propertyTypeLabel = data?.deal?.property?.typeLabel ?? "Объект недвижимости";
+    const isResidential = propertyType === "property";
     const stepsOrder: RenewalStep[] = ["contacts", "cost", "sign"];
     const currentRenewalIndex = renewalStep ? stepsOrder.indexOf(renewalStep) : -1;
 
@@ -377,7 +384,13 @@ export default function DealDrawer({
                                                         <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px] opacity-30">№{data.deal.property?.apartmentNumber ?? "-"}</p>
                                                     </div>
                                                     <div className="flex w-full justify-between items-center self-stretch">
-                                                        <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.property?.room ?? "—"} комнатная</p>
+                                                        <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                                                            {isResidential
+                                                                ? (Number(data.deal.property?.room ?? 0) > 0
+                                                                    ? `${data.deal.property?.room} комнатная`
+                                                                    : "Объект недвижимости")
+                                                                : propertyTypeLabel}
+                                                        </p>
                                                         <p className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.property?.totalArea ?? "—"} м²</p>
                                                     </div>
                                                     <div className="flex w-full justify-between items-center self-stretch">
