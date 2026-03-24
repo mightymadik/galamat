@@ -151,7 +151,7 @@ export default function Block({
         .split("; ")
         .find((row) => row.startsWith("locale="))
         ?.split("=")[1] || "ru";
-      
+
       if (cookieLocale !== localeKey) {
         setLocaleKey(cookieLocale);
       }
@@ -308,9 +308,9 @@ export default function Block({
             </div>
           )}
           {/* Skeleton loader */}
-            <div className="animate-fadeInFast">
-              <FlatsGridSkeleton count={12} />
-            </div>
+          <div className="animate-fadeInFast">
+            <FlatsGridSkeleton count={12} />
+          </div>
         </div>
       </div>
     );
@@ -391,8 +391,8 @@ function FlatCard({ flat, detailBasePath, realEstateType }: { flat: ComponentFla
   const flatHref = `${detailBasePath}/${flat.documentId}`;
   const typeLabel =
     realEstateType === "commerce" ? "Коммерция" :
-    realEstateType === "parking" ? "Паркинг" :
-    realEstateType === "pantry" ? "Кладовка" : `${flat.room} ${t("rooms_count")}`;
+      realEstateType === "parking" ? "Паркинг" :
+        realEstateType === "pantry" ? "Кладовка" : `${flat.room} ${t("rooms_count")}`;
   const showPriceM2 = realEstateType !== "parking" && Boolean(flat.priceM2 && !flat.priceM2.startsWith("0 "));
   const detailItems = [
     typeLabel,
@@ -403,111 +403,123 @@ function FlatCard({ flat, detailBasePath, realEstateType }: { flat: ComponentFla
   ].filter(Boolean);
   return (
     <>
-    <div className="flex p-[16px] flex-col items-center gap-[24px] flex-[1_0_0] rounded-[18px] border-[2px] border-solid border-[#E3E3E3] bg-[#FFF] w-full h-full">
-      <Link href={flatHref} className="flex flex-col items-center gap-[24px] self-stretch flex-1 min-w-0 w-full">
-        {/* Верхняя часть */}
-        <div className="flex flex-col items-start gap-[12px] self-stretch w-full">
-          <div className="flex items-center gap-[12px] self-stretch">
-            <h1 className="flex-[1_0_0] text-[#07071F] text-[24px] font-medium">
-              {flat.title}
-            </h1>
-            <div className="flex justify-end items-center gap-[4px] flex-[1_0_0] flex-wrap">
-              {flat.tags.map((tag: string, i: number) => (
+      <div className="flex p-[16px] flex-col items-center gap-[24px] flex-[1_0_0] rounded-[18px] border-[2px] border-solid border-[#E3E3E3] bg-[#FFF] w-full h-full">
+        <Link href={flatHref} className="flex flex-col items-center gap-[24px] self-stretch flex-1 min-w-0 w-full">
+          {/* Верхняя часть */}
+          <div className="flex flex-col items-start gap-[12px] self-stretch w-full">
+            <div className="flex items-center gap-[12px] self-stretch">
+              <h1 className="flex-[1_0_0] text-[#07071F] text-[24px] font-medium">
+                {flat.title}
+              </h1>
+              <div className="flex justify-end items-center gap-[4px] flex-[1_0_0] flex-wrap">
+                {flat.tags.map((tag: string, i: number) => (
+                  <div
+                    key={i}
+                    className={`flex text-[10px] p-[4px] justify-center items-center rounded-[16px] leading-full ${tag === "Ипотека" ? "bg-[#3682F5] text-[#FFF]"
+                        : tag === "Рассрочка" || tag === "Отложенный платеж" ? "bg-[#1A3C7E] text-[#FFF]"
+                          : "bg-[#F4F5F9] text-[#282D3C]"
+                      }`}
+                  >
+                    {tag}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-[#122C5E] text-[12px]">{flat.address}</p>
+          </div>
+
+          {/* Изображение */}
+          <div className="relative h-[205px] w-full flex flex-col justify-center items-center gap-[8px] self-stretch min-h-0 overflow-hidden rounded-[12px]">
+            <div
+              className="absolute left-0 top-0 h-full w-1/2 z-10 cursor-pointer"
+              onMouseEnter={() => handleHover("left")}
+            ></div>
+            <div
+              className="absolute right-0 top-0 h-full w-1/2 z-10 cursor-pointer"
+              onMouseEnter={() => handleHover("right")}
+            ></div>
+
+            {flat.images && flat.images.length > 0 && flat.images[activeIndex] ? (
+              <div className="relative w-full h-full min-w-0 min-h-0 flex items-center justify-center">
+                <Image
+                  src={flat.images[activeIndex]}
+                  alt={flat.title}
+                  width={216}
+                  height={193}
+                  className="transition-all duration-500 object-contain max-h-full max-w-full w-auto h-auto"
+                />
+              </div>
+            ) : (
+              <div className="w-full h-full min-h-[193px] bg-gray-200 rounded-[12px] flex items-center justify-center">
+                {realEstateType !== "parking" && (
+                  <span className="text-gray-500">No image</span>
+                )}
+                {realEstateType === "parking" && (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="84" height="84" viewBox="0 0 28 31" fill="none">
+                    <g clipPath="url(#clip0_3514_135045)">
+                      <path d="M6.01172 8.16797L0.28125 13.8633C-0.09375 14.25 -0.09375 14.8711 0.28125 15.2578C0.667969 15.6328 1.28906 15.6445 1.67578 15.2578L6.01172 10.9219V8.16797ZM13.5703 30.2578C19.4883 30.2578 22.0078 28.957 22.0078 25.7695V5.42578C22.0078 2.00391 18.9023 0 13.5703 0C8.25 0 5.13281 2.00391 5.13281 5.42578V25.7695C5.13281 28.957 7.66406 30.2578 13.5703 30.2578ZM13.5703 28.3125C9.04688 28.3125 7.08984 27.5508 7.08984 25.6758V5.42578C7.08984 3.23438 9.48047 1.95703 13.5703 1.95703C17.6719 1.95703 20.0508 3.23438 20.0508 5.42578V25.6758C20.0508 27.5508 18.1055 28.3125 13.5703 28.3125ZM13.5703 12.5859C14.625 12.5859 16.3945 12.668 16.9922 12.668C17.8711 12.668 18.2578 12.3281 18.3281 11.4141L18.5273 9.21094C18.6797 7.52344 17.4961 6.84375 13.5703 6.84375C9.65625 6.84375 8.47266 7.52344 8.625 9.21094L8.8125 11.4141C8.89453 12.3281 9.26953 12.668 10.1602 12.668C10.7461 12.668 12.457 12.5859 13.5703 12.5859ZM13.5703 25.0898C17.5195 25.0898 18.7266 24.5039 18.4805 22.7812L18.3281 21.7148C18.1406 20.3086 16.9688 19.8398 13.5703 19.8398C10.1836 19.8398 9.01172 20.3086 8.82422 21.7148L8.67188 22.7812C8.42578 24.5039 9.63281 25.0898 13.5703 25.0898ZM21.1289 17.0273V19.7812L25.4648 24.1172C25.8633 24.5039 26.4727 24.4922 26.8594 24.1172C27.2344 23.7305 27.2344 23.0977 26.8594 22.7227L21.1289 17.0273Z" fill="black" fillOpacity="0.45" />
+                    </g>
+                    <defs>
+                      <clipPath id="clip0_3514_135045">
+                        <rect width="27.1406" height="30.2695" fill="white" />
+                      </clipPath>
+                    </defs>
+                  </svg>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Индикатор фото / планировок */}
+          {flat.images && flat.images.length > 1 && (
+            <div className="flex h-[4px] justify-center items-center gap-[9px] self-stretch">
+              {flat.images.map((_, i) => (
                 <div
                   key={i}
-                  className={`flex text-[10px] p-[4px] justify-center items-center rounded-[16px] leading-full ${
-                    tag === "Ипотека" ? "bg-[#3682F5] text-[#FFF]"
-                    : tag === "Рассрочка" || tag === "Отложенный платеж" ? "bg-[#1A3C7E] text-[#FFF]"
-                    : "bg-[#F4F5F9] text-[#282D3C]"
-                  }`}
-                >
-                  {tag}
-                </div>
+                  className={`h-[4px] rounded-full transition-all duration-200 ${i === activeIndex ? "w-[26px] bg-[#122C5E]" : "w-[4px] bg-[#E3E3E3]"
+                    }`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Цена и детали */}
+          <div className="flex flex-col items-start gap-[12px] self-stretch w-full">
+            <div className="flex flex-col items-start gap-[4px] self-stretch">
+              <h1 className="text-[#07071F] text-[24px] font-medium">{flat.price}</h1>
+              {showPriceM2 && <span className="text-[#07071F] text-[16px] opacity-45">{flat.priceM2}</span>}
+            </div>
+            <div className="flex items-center gap-[8px] self-stretch">
+              {detailItems.map((item, idx) => (
+                <Fragment key={`${item}-${idx}`}>
+                  {idx > 0 && (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="6" height="6">
+                      <circle cx="3" cy="3" r="3" fill="#CCCCCC" />
+                    </svg>
+                  )}
+                  <span className="text-[#07071F] text-[16px]">{item}</span>
+                </Fragment>
               ))}
             </div>
           </div>
-          <p className="text-[#122C5E] text-[12px]">{flat.address}</p>
-        </div>
+        </Link>
 
-        {/* Изображение */}
-        <div className="relative h-[205px] w-full flex flex-col justify-center items-center gap-[8px] self-stretch min-h-0 overflow-hidden rounded-[12px]">
-          <div
-            className="absolute left-0 top-0 h-full w-1/2 z-10 cursor-pointer"
-            onMouseEnter={() => handleHover("left")}
-          ></div>
-          <div
-            className="absolute right-0 top-0 h-full w-1/2 z-10 cursor-pointer"
-            onMouseEnter={() => handleHover("right")}
-          ></div>
-
-          {flat.images && flat.images.length > 0 && flat.images[activeIndex] ? (
-            <div className="relative w-full h-full min-w-0 min-h-0 flex items-center justify-center">
-              <Image
-                src={flat.images[activeIndex]}
-                alt={flat.title}
-                width={216}
-                height={193}
-                className="transition-all duration-500 object-contain max-h-full max-w-full w-auto h-auto"
+        {/* Кнопки — вне Link, чтобы клик не вызывал навигацию */}
+        <div className="flex items-center gap-[4px] self-stretch w-full">
+          <Button
+            type="button"
+            className={`flex w-full h-[44px] p-[13px] justify-center items-center rounded-[12px] transition-all duration-300 ${isFavorite ? "bg-[#DB1D31]/10" : "bg-[#F4F6FB]"}`}
+            onClick={handleLoveClick}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+              <path
+                d="M1.333 6.091C1.333 9.333 4.013 11.061 5.975 12.607C6.667 13.153 7.333 13.667 8 13.667C8.667 13.667 9.333 13.153 10.026 12.607C11.987 11.061 14.667 9.333 14.667 6.091C14.667 2.849 11 0.55 8 3.667C5 0.55 1.333 2.849 1.333 6.091Z"
+                fill={isFavorite ? "#DB1D31" : "#1C274C"}
               />
-            </div>
-          ) : (
-            <div className="w-full h-full min-h-[193px] bg-gray-200 rounded-[12px] flex items-center justify-center">
-              <span className="text-gray-500">No image</span>
-            </div>
-          )}
+            </svg>
+          </Button>
         </div>
-
-        {/* Индикатор фото / планировок */}
-        {flat.images && flat.images.length > 1 && (
-          <div className="flex h-[4px] justify-center items-center gap-[9px] self-stretch">
-            {flat.images.map((_, i) => (
-              <div
-                key={i}
-                className={`h-[4px] rounded-full transition-all duration-200 ${
-                  i === activeIndex ? "w-[26px] bg-[#122C5E]" : "w-[4px] bg-[#E3E3E3]"
-                }`}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Цена и детали */}
-        <div className="flex flex-col items-start gap-[12px] self-stretch w-full">
-          <div className="flex flex-col items-start gap-[4px] self-stretch">
-            <h1 className="text-[#07071F] text-[24px] font-medium">{flat.price}</h1>
-            {showPriceM2 && <span className="text-[#07071F] text-[16px] opacity-45">{flat.priceM2}</span>}
-          </div>
-          <div className="flex items-center gap-[8px] self-stretch">
-            {detailItems.map((item, idx) => (
-              <Fragment key={`${item}-${idx}`}>
-                {idx > 0 && (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="6" height="6">
-                    <circle cx="3" cy="3" r="3" fill="#CCCCCC" />
-                  </svg>
-                )}
-                <span className="text-[#07071F] text-[16px]">{item}</span>
-              </Fragment>
-            ))}
-          </div>
-        </div>
-      </Link>
-
-      {/* Кнопки — вне Link, чтобы клик не вызывал навигацию */}
-      <div className="flex items-center gap-[4px] self-stretch w-full">
-        <Button
-          type="button"
-          className={`flex w-full h-[44px] p-[13px] justify-center items-center rounded-[12px] transition-all duration-300 ${isFavorite ? "bg-[#DB1D31]/10" : "bg-[#F4F6FB]"}`}
-          onClick={handleLoveClick}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
-            <path
-              d="M1.333 6.091C1.333 9.333 4.013 11.061 5.975 12.607C6.667 13.153 7.333 13.667 8 13.667C8.667 13.667 9.333 13.153 10.026 12.607C11.987 11.061 14.667 9.333 14.667 6.091C14.667 2.849 11 0.55 8 3.667C5 0.55 1.333 2.849 1.333 6.091Z"
-              fill={isFavorite ? "#DB1D31" : "#1C274C"}
-            />
-          </svg>
-        </Button>
       </div>
-    </div>
     </>
   );
 }
