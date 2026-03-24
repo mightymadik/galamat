@@ -1820,7 +1820,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                     <div className="min-w-[220px] rounded-[20px] bg-white border border-black/10 px-5 py-4 flex flex-col items-end">
                                         <div className="text-[12px] text-black/50 leading-4 mb-2">Стоимость квартиры</div>
                                         <div className="text-[32px] font-bold leading-[34px] tracking-[-0.02em] text-right">
-                                            {flat.originalPrice}
+                                            {flat.originalPrice ?? flat.price}
                                         </div>
                                         <div className="text-[12px] leading-4 text-black/45 mt-2">
                                             {flat.priceM2}
