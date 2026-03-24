@@ -255,6 +255,9 @@ export default function Hypothec({ flatData, realEstateType = "property", onNext
             agreementProjectDueDate: validToFormatted || "",
             propertyDocumentId: flatData?.documentId,
             usedPromocodeCode: promocodeResult?.valid ? promocodeResult.code : undefined,
+            hypothecBank: selectedProgram?.bank,
+            hypothecProgram: selectedProgram?.programName,
+            paymentConditionDownPaymentRaw: selectedOption?.downPayment ?? undefined,
         });
     };
 

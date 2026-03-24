@@ -27,4 +27,10 @@ export interface AgreementPayload {
    * чтобы бэкенд применил ту же надбавку и % ПВ, что и в интерфейсе.
    */
   installmentDownPaymentRaw?: string;
+  /** Текст ПВ из выбранного варианта (отложенный платёж, ипотека и т.д.) */
+  paymentConditionDownPaymentRaw?: string;
+  /** Условие ипотеки: банк (как в Strapi `banks`) */
+  hypothecBank?: string;
+  /** Условие ипотеки: программа (как в Strapi `hypothec`) */
+  hypothecProgram?: string;
 }

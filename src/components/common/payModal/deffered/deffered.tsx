@@ -409,6 +409,7 @@ export default function Deffered({ flatData, realEstateType = "property", active
             agreementProjectDueDate: dueDateStr,
             usedPromocodeCode: promocodeResult?.valid ? promocodeResult.code : undefined,
             propertyDocumentId: flatData?.documentId,
+            paymentConditionDownPaymentRaw: selectedOption?.downPayment ?? undefined,
         };
         onNext(payload);
     };
