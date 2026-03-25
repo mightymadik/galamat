@@ -198,9 +198,13 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
         setCompleting(true);
         setSignError(null);
         try {
+            const idempotencyKey =
+                (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+                    ? crypto.randomUUID()
+                    : `pay_complete_${Date.now()}_${Math.random().toString(16).slice(2)}`;
             const res = await fetch("/api/pay/complete", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
                 credentials: "include",
                 body: JSON.stringify({
                     propertyDocumentId: payFlatDocumentId ?? agreementPayload?.propertyDocumentId ?? flatData?.documentId,
@@ -212,7 +216,6 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
             });
             if (res.ok) {
                 onNext();
-                window.location.reload();
                 return;
             }
             const json = await res.json().catch(() => ({}));

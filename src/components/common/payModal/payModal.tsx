@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, store } from "@/store";
 import { Drawer, DrawerContent, DrawerHeader, DrawerBody, Button } from "@heroui/react";
@@ -8,6 +8,7 @@ import { closePay, setStep, setAgreementPayload } from "@/store/paySlice";
 import { useTranslations } from "next-intl";
 
 const PAY_DEAL_STORAGE_KEY = "payDealId";
+const PAY_DEAL_CONTEXT_STORAGE_KEY = "payDealContext";
 import { Flat as FlatType, PaymentConditionForFlat } from "@/types/flat";
 
 import FullPayment from "./full/full";
@@ -229,6 +230,21 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
     const [flatData, setFlat] = useState<ComponentFlat | null>(null);
     const stepsOrder = ['payment', 'contacts', 'sign'];
     const currentIndex = stepsOrder.indexOf(step);
+    const pendingCloseReasonRef = useRef<"user" | "success" | null>(null);
+    const wasOpenRef = useRef(false);
+
+    const currentDealContext = useMemo(() => {
+        const idStr = dealDocumentId ? String(dealDocumentId) : null;
+        const entityId =
+            flatData?.documentId != null
+                ? String(flatData.documentId)
+                : flat?.documentId != null
+                    ? String(flat.documentId)
+                    : id != null
+                        ? String(Array.isArray(id) ? id[0] : id)
+                        : null;
+        return idStr ? { dealDocumentId: idStr, entityDocumentId: entityId, realEstateType } : null;
+    }, [dealDocumentId, flatData?.documentId, flat?.documentId, id, realEstateType]);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -260,25 +276,84 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
     }, [isOpen, id, flat, realEstateType]);
 
     useEffect(() => {
-        if (isOpen && dealDocumentId) {
-            sessionStorage.setItem(PAY_DEAL_STORAGE_KEY, dealDocumentId);
-        }
-    }, [isOpen, dealDocumentId]);
+        if (!isOpen) return;
+        if (typeof sessionStorage === "undefined") return;
+        if (!dealDocumentId) return;
 
-    // При закрытии модалки/обновлении страницы вызываем release. Бэкенд не отменяет сделку, если статус «Ожидания договора»/«Договор подписан»/«Оплачено». Если сделку не отменили — не чистим sessionStorage, чтобы после возврата на квартиру можно было продолжить подписание.
-    useEffect(() => {
-        if (!isOpen && typeof sessionStorage !== "undefined") {
-            const savedId = sessionStorage.getItem(PAY_DEAL_STORAGE_KEY);
-            if (savedId) {
-                fetch(`/api/deals/${savedId}/release`, { method: "POST", credentials: "include" })
-                    .then((r) => r.json().catch(() => ({})))
-                    .then((data: { released?: boolean }) => {
-                        if (data?.released === true) sessionStorage.removeItem(PAY_DEAL_STORAGE_KEY);
-                    })
-                    .catch(() => {});
-            }
+        sessionStorage.setItem(PAY_DEAL_STORAGE_KEY, String(dealDocumentId)); // backward-compat
+        if (currentDealContext) {
+            sessionStorage.setItem(PAY_DEAL_CONTEXT_STORAGE_KEY, JSON.stringify(currentDealContext));
         }
+    }, [isOpen, dealDocumentId, currentDealContext]);
+
+    const requestClose = (reason: "user" | "success") => {
+        pendingCloseReasonRef.current = reason;
+        dispatch(closePay());
+    };
+
+    // При закрытии модалки/обновлении страницы вызываем release, но НЕ при успешном завершении.
+    // Если сделку не отменили — не чистим sessionStorage, чтобы после возврата на квартиру можно было продолжить подписание.
+    useEffect(() => {
+        const wasOpen = wasOpenRef.current;
+        wasOpenRef.current = isOpen;
+        if (!wasOpen || isOpen) return;
+
+        if (typeof sessionStorage === "undefined") return;
+        const reason = pendingCloseReasonRef.current ?? "user";
+        pendingCloseReasonRef.current = null;
+
+        if (reason === "success") {
+            sessionStorage.removeItem(PAY_DEAL_STORAGE_KEY);
+            sessionStorage.removeItem(PAY_DEAL_CONTEXT_STORAGE_KEY);
+            return;
+        }
+
+        const savedId =
+            (() => {
+                try {
+                    const raw = sessionStorage.getItem(PAY_DEAL_CONTEXT_STORAGE_KEY);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (parsed?.dealDocumentId) return String(parsed.dealDocumentId);
+                    }
+                } catch { }
+                return sessionStorage.getItem(PAY_DEAL_STORAGE_KEY);
+            })();
+        if (!savedId) return;
+
+        fetch(`/api/deals/${savedId}/release`, { method: "POST", credentials: "include" })
+            .then((r) => r.json().catch(() => ({})))
+            .then((data: { released?: boolean }) => {
+                if (data?.released === true) {
+                    sessionStorage.removeItem(PAY_DEAL_STORAGE_KEY);
+                    sessionStorage.removeItem(PAY_DEAL_CONTEXT_STORAGE_KEY);
+                }
+            })
+            .catch(() => {});
     }, [isOpen]);
+
+    // Best-effort release on tab close / reload while pay modal is open.
+    // Uses keepalive to increase chances the request is sent.
+    useEffect(() => {
+        if (!isOpen) return;
+        if (!dealDocumentId) return;
+
+        const dealId = String(dealDocumentId);
+        const onPageHide = () => {
+            // If we already closed successfully, do not release.
+            if (pendingCloseReasonRef.current === "success") return;
+            try {
+                fetch(`/api/deals/${encodeURIComponent(dealId)}/release`, {
+                    method: "POST",
+                    credentials: "include",
+                    keepalive: true,
+                }).catch(() => { });
+            } catch { }
+        };
+
+        window.addEventListener("pagehide", onPageHide);
+        return () => window.removeEventListener("pagehide", onPageHide);
+    }, [isOpen, dealDocumentId]);
 
     // Бронь 2 часа — подставляем для отображения в шаге оплаты
     useEffect(() => {
@@ -412,7 +487,7 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
                     flatData={flatData}
                     agreementPayload={agreementPayload}
                     realEstateType={realEstateType}
-                    onNext={() => dispatch(closePay())}
+                    onNext={() => requestClose("success")}
                 />
             ),
         };
@@ -421,19 +496,7 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
         return stepsMap[stepKey as keyof typeof stepsMap] ?? null;
     };
 
-    const handleCloseDrawer = () => {
-        const dealId = store.getState().pay.dealDocumentId;
-        if (dealId) {
-            fetch(`/api/deals/${dealId}/release`, { method: "POST", credentials: "include" })
-                .then((r) => r.json().catch(() => ({})))
-                .then((data: { released?: boolean }) => {
-                    if (data?.released === true && typeof sessionStorage !== "undefined")
-                        sessionStorage.removeItem(PAY_DEAL_STORAGE_KEY);
-                })
-                .catch(() => {});
-        }
-        dispatch(closePay());
-    };
+    const handleCloseDrawer = () => requestClose("user");
 
     const showCloseButton = step !== "sign";
     const canGoBack = step === "contacts";
@@ -453,17 +516,7 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
             isOpen={isOpen}
             onOpenChange={(open) => {
                 if (!open) {
-                    const dealId = store.getState().pay.dealDocumentId;
-                    if (dealId) {
-                        fetch(`/api/deals/${dealId}/release`, { method: "POST", credentials: "include" })
-                            .then((r) => r.json().catch(() => ({})))
-                            .then((data: { released?: boolean }) => {
-                                if (data?.released === true && typeof sessionStorage !== "undefined")
-                                    sessionStorage.removeItem(PAY_DEAL_STORAGE_KEY);
-                            })
-                            .catch(() => {});
-                    }
-                    dispatch(closePay());
+                    requestClose("user");
                 }
             }}
         >

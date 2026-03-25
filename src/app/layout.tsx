@@ -67,6 +67,22 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 })(window,document,'script','dataLayer','GTM-KTS8G3K9');`,
           }}
         />
+
+        {/* Yandex.Metrika */}
+        <Script
+          id="yandex-metrika-tag"
+          src="https://mc.yandex.ru/metrika/tag.js"
+          strategy="afterInteractive"
+        />
+        <Script
+          id="yandex-metrika-init"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `window.ym=window.ym||function(){(window.ym.a=window.ym.a||[]).push(arguments)};
+window.ym.l=1*new Date();
+ym(108235655, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});`,
+          }}
+        />
       </head>
       <body>
         {/* Google Tag Manager (noscript) */}
@@ -77,6 +93,17 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             width="0"
             style={{ display: "none", visibility: "hidden" }}
           />
+        </noscript>
+
+        {/* Yandex.Metrika (noscript) */}
+        <noscript>
+          <div>
+            <img
+              src="https://mc.yandex.ru/watch/108235655"
+              style={{ position: "absolute", left: "-9999px" }}
+              alt=""
+            />
+          </div>
         </noscript>
         <NextIntlClientProvider>
           <ReduxProvider store={store}>
