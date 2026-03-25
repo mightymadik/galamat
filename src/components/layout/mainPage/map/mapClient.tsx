@@ -43,9 +43,8 @@ export default function MapClient({ mapData, onModalClose }: { mapData: Map[]; o
 
     useEffect(() => {
         const handleResize = () => {
-            if (window.innerWidth < 1025) {
-                setShowMapModal(true);
-            } else {
+            // Don't auto-open the map modal on mobile; only close it when switching to desktop.
+            if (window.innerWidth >= 1025) {
                 setShowMapModal(false);
             }
         };
