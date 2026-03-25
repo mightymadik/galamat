@@ -232,6 +232,7 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
     const currentIndex = stepsOrder.indexOf(step);
     const pendingCloseReasonRef = useRef<"user" | "success" | null>(null);
     const wasOpenRef = useRef(false);
+    const completedDealIdRef = useRef<string | null>(null);
 
     const currentDealContext = useMemo(() => {
         const idStr = dealDocumentId ? String(dealDocumentId) : null;
@@ -288,6 +289,11 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
 
     const requestClose = (reason: "user" | "success") => {
         pendingCloseReasonRef.current = reason;
+        if (reason === "success") {
+            completedDealIdRef.current = dealDocumentId ? String(dealDocumentId) : completedDealIdRef.current;
+        } else {
+            completedDealIdRef.current = null;
+        }
         dispatch(closePay());
     };
 
@@ -340,8 +346,9 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
 
         const dealId = String(dealDocumentId);
         const onPageHide = () => {
-            // If we already closed successfully, do not release.
+            // If we already completed successfully in this session, never release.
             if (pendingCloseReasonRef.current === "success") return;
+            if (completedDealIdRef.current && completedDealIdRef.current === dealId) return;
             try {
                 fetch(`/api/deals/${encodeURIComponent(dealId)}/release`, {
                     method: "POST",
