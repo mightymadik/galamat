@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Button } from "@heroui/button"
 import Image from "next/image"
 import { Flat as FlatType, PaymentConditionForFlat, RealEstateType } from "@/types/flat";
@@ -26,10 +26,13 @@ import {
     getFullPaymentDiscountFromConditions,
     parsePriceString,
     parseRaise,
+    resolveRaiseSurchargeValue,
+    formatRaiseLabel,
     getMatchingOptions,
     formatValidToDate,
     monthsBetween,
     resolveDownPaymentAmount,
+    formatDownPaymentLabel,
 } from "@/lib/paymentFormUtils";
 
 interface FlatDetail {
@@ -836,6 +839,26 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
         () => getDefferedPreview(flat?.paymentConditions ?? [], selectedDefferedPvIndex, baseFullPrice, adjustmentArea, flatAttrs),
         [flat?.paymentConditions, selectedDefferedPvIndex, baseFullPrice, adjustmentArea, flatAttrs]
     );
+
+    const formatDownPaymentAsPercent = useCallback((downPaymentRaw: string | number | null | undefined, fullPrice: number) => {
+        const downAmount = resolveDownPaymentAmount(downPaymentRaw, fullPrice);
+        const pct = fullPrice > 0 ? Math.round((downAmount / fullPrice) * 100) : 0;
+        return `${Math.max(0, pct)}%`;
+    }, []);
+
+    const getMinDownPaymentHint = useCallback((options: Array<{ downPayment?: string | null; raise?: number | string | null }>) => {
+        if (!options.length) return "от 30%";
+        const pcts = options
+            .map((o) => {
+                const raiseRaw = parseRaise(o.raise);
+                const fullPriceForOpt = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+                const downAmount = resolveDownPaymentAmount(o.downPayment, fullPriceForOpt);
+                const pct = fullPriceForOpt > 0 ? Math.round((downAmount / fullPriceForOpt) * 100) : 0;
+                return pct > 0 ? pct : 0;
+            })
+            .filter((p) => p > 0);
+        return pcts.length ? `от ${Math.min(...pcts)}%` : "от 30%";
+    }, [baseFullPrice, adjustmentArea]);
     const hypothecPreview = useMemo(() => {
         type MortgageProgram = {
             key: string;
@@ -870,9 +893,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
         const validToFormatted = formatValidToDate(validTo);
         const selected = optionList[0];
         const raiseRaw = parseRaise(selected?.raise);
-        const raiseAmount = raiseRaw >= 1 && raiseRaw <= 100
-            ? Math.round((baseFullPrice * raiseRaw) / 100)
-            : Math.round(raiseRaw * adjustmentArea);
+        const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
         const raisePercent = (() => {
             if (raiseRaw > 0 && raiseRaw <= 100) return raiseRaw;
             if (raiseRaw > 100 && baseFullPrice > 0) return (raiseAmount / baseFullPrice) * 100;
@@ -926,8 +947,8 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
             installmentPreview.options.slice(0, 4).forEach((opt) => {
                 const pct = parseDownPaymentPercent(opt.downPayment) || 0;
                 if (!pct) return;
-                const raisePerM2 = parseRaise(opt.raise);
-                const cost = baseFullPrice + raisePerM2 * adjustmentArea;
+                const raiseRaw = parseRaise(opt.raise);
+                const cost = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
                 const firstPayment = cost > 0 ? Math.round((cost * pct) / 100) : 0;
                 const remainder = cost > 0 ? Math.max(0, cost - firstPayment) : 0;
                 const pricePerM2 = totalArea > 0 ? Math.round(cost / totalArea) : 0;
@@ -957,15 +978,11 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
             const matched = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
             const selected = (matched.length > 0 ? matched[0] : options[0]) ?? {};
             const raiseRaw = parseRaise(selected?.raise);
-            const raiseAmount = raiseRaw >= 1 && raiseRaw <= 100
-                ? Math.round((baseFullPrice * raiseRaw) / 100)
-                : Math.round(raiseRaw * adjustmentArea);
+            const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
             const fullPrice = Math.max(0, baseFullPrice + Math.max(0, raiseAmount));
             const firstDown = Math.max(0, resolveDownPaymentAmount(selected?.downPayment, fullPrice));
             const remainder = Math.max(0, fullPrice - firstDown);
-            const raiseLabel = raiseRaw >= 1 && raiseRaw <= 100
-                ? `${raiseRaw}%`
-                : `${formatPriceDisplay(Math.max(0, Math.round(raiseRaw)))}/м²`;
+            const raiseLabel = formatRaiseLabel(raiseRaw);
             return {
                 key: c.documentId ?? `${c.banks ?? "bank"}-${c.hypothec ?? "program"}-${idx}`,
                 bank: c.banks || "—",
@@ -1441,7 +1458,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                     <div className={`flex justify-between text-[16px] font-medium leading-6 ${activeButton === "installment" ? "text-white" : "text-[#1A3C7E]"}`}>Рассрочка</div>
                                                     <div className="flex justify-end items-center gap-1">
                                                         <div className={`justify-center text-base font-normal leading-6 ${activeButton === "installment" ? "opacity-0" : "text-[#1A3C7E] opacity-50"}`}>
-                                                            {installmentPreview.options.length ? (() => { const pcts = installmentPreview.options.map((o) => parseDownPaymentPercent(o.downPayment)).filter((p: number) => p > 0); return pcts.length ? `от ${Math.min(...pcts)}%` : "от 30%"; })() : "от 30%"}
+                                                            {getMinDownPaymentHint(installmentPreview.options)}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1459,7 +1476,9 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                             </p>
                                                             <div className="flex items-start gap-[8px] flex-wrap">
                                                                 {installmentPreview.options.length ? installmentPreview.options.map((opt, i) => {
-                                                                    const label = `${parseDownPaymentPercent(opt.downPayment)}%`;
+                                                                    const raiseRaw = parseRaise(opt.raise);
+                                                                    const fullPriceForOpt = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+                                                                    const label = formatDownPaymentAsPercent(opt.downPayment, fullPriceForOpt);
                                                                     const isSelected = selectedInstallmentPvIndex === i;
                                                                     return (
                                                                         <button
@@ -1525,7 +1544,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                     <div className={`flex justify-between text-[16px] font-medium leading-6 ${activeButton === "deffered" ? "text-white" : "text-[#1A3C7E]"}`}>{t("deffered")}</div>
                                                     <div className="flex justify-end items-center gap-1">
                                                         <div className={`justify-center text-base font-normal leading-6 ${activeButton === "deffered" ? "hidden" : "opacity-50 text-[#1A3C7E]"}`}>
-                                                            {defferedPreview.options.length ? (() => { const pcts = defferedPreview.options.map((o) => parseDownPaymentPercent(o.downPayment)).filter((p) => p > 0); return pcts.length ? `от ${Math.min(...pcts)}%` : "от 30%"; })() : "от 30%"}
+                                                            {getMinDownPaymentHint(defferedPreview.options)}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1543,7 +1562,9 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                             </p>
                                                             <div className="flex items-start gap-[8px] flex-wrap">
                                                                 {defferedPreview.options.length ? defferedPreview.options.map((opt, i) => {
-                                                                    const label = `${parseDownPaymentPercent(opt.downPayment)}%`;
+                                                                    const raiseRaw = parseRaise(opt.raise);
+                                                                    const fullPriceForOpt = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+                                                                    const label = formatDownPaymentAsPercent(opt.downPayment, fullPriceForOpt);
                                                                     const isSelected = selectedDefferedPvIndex === i;
                                                                     return (
                                                                         <button
@@ -1637,6 +1658,18 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                                 <div className="flex items-start gap-[8px] flex-wrap">
                                                                     {hypothecPreview.programs.map((program, i) => {
                                                                         const isSelected = selectedHypothecProgramIndex === i;
+                                                                        const minPct = (() => {
+                                                                            const pcts = (program.options || [])
+                                                                                .map((opt) => {
+                                                                                    const raiseRaw = parseRaise(opt.raise);
+                                                                                    const fullPriceForOpt = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+                                                                                    const downAmount = resolveDownPaymentAmount(opt.downPayment, fullPriceForOpt);
+                                                                                    const pct = fullPriceForOpt > 0 ? Math.round((downAmount / fullPriceForOpt) * 100) : 0;
+                                                                                    return pct > 0 ? pct : 0;
+                                                                                })
+                                                                                .filter((p) => p > 0);
+                                                                            return pcts.length ? Math.min(...pcts) : 0;
+                                                                        })();
                                                                         return (
                                                                             <button
                                                                                 key={program.key}

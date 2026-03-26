@@ -3,9 +3,15 @@ import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
 
+function toDownloadUrl(rawUrl: string, _name: string, baseUrl: string): string {
+  return rawUrl.startsWith("http")
+    ? rawUrl
+    : `${baseUrl}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+}
+
 /**
  * GET: возвращает URL подписанного договора по сделке (для скачивания).
- * Доступно только клиенту этой сделки или менеджеру/админу.
+ * Доступно клиенту этой сделки, менеджеру, кассиру или админу.
  */
 export async function GET(
   _request: Request,
@@ -76,31 +82,68 @@ export async function GET(
     const roleLower = String(effectiveRole || "").toLowerCase();
     const isAdmin = roleLower === "admin";
     const isManager = roleLower === "manager";
-    if (!isCustomer && !isAdmin && !isManager) {
+    const isCashier = roleLower === "cashier";
+    if (!isCustomer && !isAdmin && !isManager && !isCashier) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
-    const saRes = await strapiAxios.get(
-      `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(documentId)}&sort[0]=createdAt:desc&pagination[pageSize]=1&populate[signedAgreement][fields][0]=url`,
-      { headers }
-    );
-    const saList: any[] = (saRes.data as any)?.data ?? [];
-    const sa = Array.isArray(saList) ? saList[0] : null;
-    if (!sa) return NextResponse.json({ error: "Договор не найден" }, { status: 404 });
+    const agreements: Array<{
+      url: string;
+      name: string;
+      templateType: string;
+      agreementType: string | null;
+      agreementNumber: string | null;
+      signedAt: string | null;
+      createdAt: string | null;
+    }> = [];
+    const pageSize = 200;
+    let page = 1;
+    let pageCount = 1;
 
-    const file = sa?.signedAgreement ?? sa?.attributes?.signedAgreement;
-    const fileData = (file as any)?.data ?? file;
-    const url = fileData?.url ?? fileData?.attributes?.url;
-    if (!url || typeof url !== "string") {
+    do {
+      const saRes = await strapiAxios.get(
+        `${base}/api/signed-agreements` +
+          `?filters[deal][documentId][$eq]=${encodeURIComponent(documentId)}` +
+          `&sort[0]=createdAt:desc` +
+          `&pagination[page]=${page}&pagination[pageSize]=${pageSize}` +
+          `&fields[0]=signedAt&fields[1]=createdAt&fields[2]=templateType&fields[3]=agreementType&fields[4]=agreementNumber` +
+          `&populate[signedAgreement][fields][0]=url`,
+        { headers }
+      );
+      const saList: any[] = (saRes.data as any)?.data ?? [];
+      const meta = (saRes.data as any)?.meta?.pagination;
+      pageCount = Number(meta?.pageCount ?? 1);
+      page += 1;
+
+      for (const sa of saList) {
+        const file = sa?.signedAgreement ?? sa?.attributes?.signedAgreement;
+        const fileData = (file as any)?.data ?? file;
+        const rawUrl = fileData?.url ?? fileData?.attributes?.url;
+        const name = String(fileData?.name ?? fileData?.attributes?.name ?? "").trim();
+        const templateType = String(sa?.templateType ?? sa?.attributes?.templateType ?? "Договор").trim() || "Договор";
+        const agreementTypeRaw = sa?.agreementType ?? sa?.attributes?.agreementType ?? null;
+        const agreementNumberRaw = sa?.agreementNumber ?? sa?.attributes?.agreementNumber ?? null;
+        if (!rawUrl || typeof rawUrl !== "string") continue;
+        agreements.push({
+          url: toDownloadUrl(rawUrl, name || `${templateType}.pdf`, baseUrl),
+          name: name || `${templateType}.pdf`,
+          templateType,
+          agreementType: agreementTypeRaw ? String(agreementTypeRaw) : null,
+          agreementNumber: agreementNumberRaw ? String(agreementNumberRaw) : null,
+          signedAt: sa?.signedAt ?? sa?.attributes?.signedAt ?? null,
+          createdAt: sa?.createdAt ?? sa?.attributes?.createdAt ?? null,
+        });
+      }
+    } while (page <= pageCount);
+
+    if (agreements.length === 0) {
       return NextResponse.json({ error: "Файл договора не найден" }, { status: 404 });
     }
-
-    const path = url.startsWith("http") ? new URL(url).pathname : (url.startsWith("/") ? url : `/${url}`);
-    const fileUrl = path.startsWith("/uploads/")
-      ? `/api/strapi-file?path=${encodeURIComponent(path)}`
-      : (url.startsWith("http") ? url : `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`);
-
-    return NextResponse.json({ url: fileUrl });
+    return NextResponse.json({
+      url: agreements[0].url,
+      urls: agreements.map((a) => a.url),
+      agreements,
+    });
   } catch (err: any) {
     const status = err?.response?.status;
     if (status === 404) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });

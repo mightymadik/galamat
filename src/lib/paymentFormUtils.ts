@@ -63,10 +63,10 @@ export function formatComplexDueDate(value: string | undefined): string {
 
 /** Извлекает процент из "ПВ 30%", "30%", "30" и т.д. */
 export function parseDownPaymentPercent(val: string | number | null | undefined): number {
-  if (val == null) return 0;
-  const s = String(val).trim();
-  const match = s.match(/(\d+)/);
-  return match ? Math.min(100, parseInt(match[1], 10)) : 0;
+  const value = parseDownPaymentValue(val);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  // Only treat 1..100 as percent. Fixed amounts (>100) should not be forced to 100%.
+  return value >= 1 && value <= 100 ? Math.min(100, Math.round(value)) : 0;
 }
 
 /** Числовое значение ПВ: 1..100 = проценты, >=101 = фиксированная сумма в тенге. */
@@ -327,6 +327,49 @@ export function resolveFullPaymentDiscountValue(
   return 0;
 }
 
+/**
+ * Интерпретация значения надбавки (raise) для не-100% оплаты:
+ * - 1–100: процент от стоимости → amount = basePrice * (value / 100)
+ * - 101–50_000: надбавка за м² → amount = value * totalArea
+ * - 50_001 и выше: фиксированная надбавка от стоимости → amount = value
+ */
+export function resolveRaiseSurchargeValue(
+  rawValue: number,
+  basePrice: number,
+  totalArea: number
+): number {
+  if (rawValue <= 0 || !Number.isFinite(rawValue)) return 0;
+  if (rawValue >= 1 && rawValue <= 100) {
+    return basePrice > 0 ? Math.round((basePrice * rawValue) / 100) : 0;
+  }
+  if (rawValue >= 101 && rawValue <= 50_000) {
+    return totalArea > 0 ? Math.round(rawValue * totalArea) : 0;
+  }
+  return Math.round(rawValue);
+}
+
+/** Лейбл надбавки для UI. */
+export function formatRaiseLabel(rawRaise: number | string | null | undefined): string {
+  const v = parseRaise(rawRaise);
+  if (!v || !Number.isFinite(v)) return "—";
+  if (v >= 1 && v <= 100) return `${Math.round(v)}%`;
+  if (v >= 101 && v <= 50_000) return `${formatPriceDisplay(Math.round(v))}/м²`;
+  return formatPriceDisplay(Math.round(v));
+}
+
+/** Всегда отображать надбавку как эквивалент ₸/м². */
+export function formatRaisePerM2Label(
+  rawRaise: number | string | null | undefined,
+  basePrice: number,
+  totalArea: number
+): string {
+  if (!totalArea || totalArea <= 0) return "—";
+  const raw = parseRaise(rawRaise);
+  const amount = resolveRaiseSurchargeValue(raw, basePrice, totalArea);
+  const perM2 = amount > 0 ? Math.round(amount / totalArea) : 0;
+  return `${formatPriceDisplay(perM2)}/м²`;
+}
+
 /** Скидка за полную оплату из условий (Полная оплата / Full). Используем discount, fallback на legacy raise. */
 export function getFullPaymentDiscountFromConditions(
   paymentConditions: PaymentConditionWithOptions[] | undefined,
@@ -403,8 +446,9 @@ export function getInstallmentPreview(
   const validToFormatted = formatValidToDate(validTo);
   const optionList = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
   const selected = optionList[Math.min(selectedOptionIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
-  const raisePerM2 = parseRaise(selected?.raise);
-  const fullPrice = baseFullPrice + raisePerM2 * totalArea;
+  const raiseRaw = parseRaise(selected?.raise);
+  const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, totalArea);
+  const fullPrice = baseFullPrice + raiseAmount;
   const fallbackPct = FALLBACK_PCTS[Math.min(selectedOptionIndex, FALLBACK_PCTS.length - 1)] ?? 30;
   const firstDown = selected
     ? resolveDownPaymentAmount(selected.downPayment, fullPrice)
@@ -454,8 +498,9 @@ export function getDefferedPreview(
   const validToFormatted = formatValidToDate(validTo);
   const optionList = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
   const selected = optionList[Math.min(selectedOptionIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
-  const raisePerM2 = parseRaise(selected?.raise);
-  const fullPrice = baseFullPrice + raisePerM2 * totalArea;
+  const raiseRaw = parseRaise(selected?.raise);
+  const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, totalArea);
+  const fullPrice = baseFullPrice + raiseAmount;
   const fallbackPct = FALLBACK_PCTS[Math.min(selectedOptionIndex, FALLBACK_PCTS.length - 1)] ?? 30;
   const firstDown = selected
     ? resolveDownPaymentAmount(selected.downPayment, fullPrice)

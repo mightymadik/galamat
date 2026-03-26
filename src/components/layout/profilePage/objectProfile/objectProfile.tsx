@@ -77,6 +77,7 @@ const STATUS_TO_KEY: Record<string, string> = {
     "Ожидания договора": "status_awaiting_contract",
     "Договор подписан": "status_contract_signed",
     "Отменен": "status_canceled",
+    "Просрочен": "status_overdue",
 };
 
 const BUYTYPE_TO_KEY: Record<string, string> = {
@@ -154,11 +155,51 @@ function ObjectProfileSkeleton() {
 }
 
 export default function ObjectProfile() {
+    type DownloadAgreementItem = {
+        url: string;
+        name?: string;
+        templateType?: string;
+    };
+    const agreementLabel = (a: DownloadAgreementItem): string => {
+        const name = (a.name ?? "").trim();
+        const type = (a.templateType ?? "").trim();
+        if (!name && !type) return "Договор";
+        if (!name) return type;
+        if (!type) return name;
+        if (name.toLowerCase().includes(type.toLowerCase())) return name;
+        if (name.toLowerCase() === "dogovor.pdf" || name.toLowerCase() === "договор.pdf") return type;
+        return `${type} - ${name}`;
+    };
     const t = useTranslations();
     const [expanded, setExpanded] = useState<ExpandedState>({});
     const [data, setData] = useState<DataItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [agreementLoadingDealId, setAgreementLoadingDealId] = useState<string | null>(null);
+    const [agreementsByDeal, setAgreementsByDeal] = useState<Record<string, DownloadAgreementItem[]>>({});
+
+    const loadDealAgreements = async (dealDocumentId: string) => {
+        if (agreementLoadingDealId) return;
+        setAgreementLoadingDealId(dealDocumentId);
+        try {
+            const res = await fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/signed-agreement`, { credentials: "include" });
+            const json = await res.json().catch(() => ({}));
+            const agreements: DownloadAgreementItem[] = Array.isArray(json?.agreements)
+                ? json.agreements.filter((a: unknown): a is DownloadAgreementItem => !!a && typeof (a as DownloadAgreementItem).url === "string")
+                : [];
+            if (agreements.length > 0) {
+                setAgreementsByDeal((prev) => ({ ...prev, [dealDocumentId]: agreements }));
+            } else if (res.status === 404) {
+                alert(t("agreement_not_found"));
+            } else {
+                alert(json?.error ?? t("failed_to_get_agreement"));
+            }
+        } catch {
+            alert(t("load_error"));
+        } finally {
+            setAgreementLoadingDealId(null);
+        }
+    };
 
     const toggleExpanded = (key: string) => {
         setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
@@ -533,22 +574,31 @@ export default function ObjectProfile() {
                             <div className="flex gap-[16px] flex-col lg:flex-row">
                                 <Button
                                     className="bg-[#1A3C7E] text-white rounded-[32px] h-[44px] px-[13px]"
-                                    onPress={async () => {
-                                        try {
-                                            const res = await fetch(`/api/deals/${encodeURIComponent(item.dealDocumentId)}/signed-agreement`, { credentials: "include" });
-                                            const json = await res.json().catch(() => ({}));
-                                            const url = json?.url;
-                                            if (url) window.open(url, "_blank", "noopener,noreferrer");
-                                            else if (res.status === 404) alert(t("agreement_not_found"));
-                                            else alert(json?.error ?? t("failed_to_get_agreement"));
-                                        } catch {
-                                            alert(t("load_error"));
-                                        }
-                                    }}
+                                    isLoading={agreementLoadingDealId === item.dealDocumentId}
+                                    isDisabled={agreementLoadingDealId !== null}
+                                    onPress={() => loadDealAgreements(item.dealDocumentId)}
                                 >
                                     <Image src="/img/agreement.svg" width={16} height={16} alt="Agreement" />
-                                    <span className="text-[15px]">{t("download_contract")}</span>
+                                    <span className="text-[15px]">
+                                        {(agreementsByDeal[item.dealDocumentId] ?? []).length > 0 ? "Обновить договоры" : t("download_contract")}
+                                    </span>
                                 </Button>
+                                {(agreementsByDeal[item.dealDocumentId] ?? []).length > 0 && (
+                                    <div className="flex flex-col gap-1">
+                                        {(agreementsByDeal[item.dealDocumentId] ?? []).map((a) => (
+                                            <a
+                                                key={`${item.dealDocumentId}-${a.url}`}
+                                                href={a.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-[#1A3C7E] underline underline-offset-2"
+                                                title={agreementLabel(a)}
+                                            >
+                                                {agreementLabel(a)}
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
 
                                 {item.managerPhone ? (
                                     <Button

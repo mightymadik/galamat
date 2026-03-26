@@ -42,6 +42,13 @@ export interface CashierDeal {
   payments: CashierPaymentRow[];
 }
 
+type DealAgreementItem = {
+  url: string;
+  name?: string;
+  templateType?: string;
+  agreementNumber?: string | null;
+};
+
 const formatMoney = (n: number) =>
   `${Math.round(Number(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ₸`;
 
@@ -68,6 +75,16 @@ function StatusBadge({ status }: { status: string }) {
       {label}
     </span>
   );
+}
+
+function agreementLabel(a: DealAgreementItem): string {
+  const templateType = (a.templateType ?? "").trim();
+  const agreementNumber = (a.agreementNumber ?? "").trim();
+  const byFields = `${templateType}${agreementNumber ? ` ${agreementNumber}` : ""}`.trim();
+  if (byFields) return byFields;
+  const name = (a.name ?? "").trim();
+  if (name) return name;
+  return "Договор";
 }
 
 /**
@@ -151,6 +168,8 @@ export default function CashierPayments() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [agreementLoadingDealId, setAgreementLoadingDealId] = useState<string | null>(null);
+  const [agreementsByDeal, setAgreementsByDeal] = useState<Record<string, DealAgreementItem[]>>({});
   const [filterProject, setFilterProject] = useState("");
   const [filterApartment, setFilterApartment] = useState("");
   const [filterManager, setFilterManager] = useState("");
@@ -284,6 +303,29 @@ export default function CashierPayments() {
       setSubmitError(t("network_error"));
     } finally {
       setSubmittingPayment(false);
+    }
+  };
+
+  const loadDealAgreements = async (dealDocumentId: string) => {
+    if (agreementLoadingDealId) return;
+    setAgreementLoadingDealId(dealDocumentId);
+    try {
+      const res = await fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/signed-agreement`, { credentials: "include" });
+      const json = await res.json().catch(() => ({}));
+      const agreements: DealAgreementItem[] = Array.isArray(json?.agreements)
+        ? json.agreements.filter((a: unknown): a is DealAgreementItem => !!a && typeof (a as DealAgreementItem).url === "string")
+        : [];
+      if (agreements.length > 0) {
+        setAgreementsByDeal((prev) => ({ ...prev, [dealDocumentId]: agreements }));
+      } else if (res.status === 404) {
+        alert("Договор не найден");
+      } else {
+        alert(json?.error ?? "Не удалось получить договор");
+      }
+    } catch {
+      alert(t("load_error"));
+    } finally {
+      setAgreementLoadingDealId(null);
     }
   };
 
@@ -555,6 +597,41 @@ export default function CashierPayments() {
                         </table>
                       </div>
                     </section>
+                  </div>
+
+                  <div className="mt-4 rounded-[12px] border border-[#122C5E]/10 bg-white p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-[#122C5E]">Договоры</span>
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        color="primary"
+                        className="rounded-[10px]"
+                        isLoading={agreementLoadingDealId === deal.documentId}
+                        isDisabled={agreementLoadingDealId !== null}
+                        onPress={() => loadDealAgreements(deal.documentId)}
+                      >
+                        {(agreementsByDeal[deal.documentId] ?? []).length > 0 ? "Обновить договоры" : "Показать договоры"}
+                      </Button>
+                    </div>
+                    {(agreementsByDeal[deal.documentId] ?? []).length > 0 ? (
+                      <div className="mt-2 flex flex-col gap-1">
+                        {(agreementsByDeal[deal.documentId] ?? []).map((a) => (
+                          <a
+                            key={`${deal.documentId}-${a.url}`}
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-[#1A3C7E] underline underline-offset-2"
+                            title={agreementLabel(a)}
+                          >
+                            {agreementLabel(a)}
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-[#122C5E]/60">Нажмите «Показать договоры», чтобы увидеть список файлов.</p>
+                    )}
                   </div>
 
                   {confirmingDealId === deal.documentId ? (

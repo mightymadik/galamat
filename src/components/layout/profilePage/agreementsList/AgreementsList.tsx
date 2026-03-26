@@ -22,6 +22,29 @@ export interface AgreementRow {
   signedAgreement: { signed: boolean; signedAt: string | null } | null;
 }
 
+type DownloadAgreementItem = {
+  url: string;
+  name?: string;
+  templateType?: string;
+  agreementType?: string | null;
+  agreementNumber?: string | null;
+  signedAt?: string | null;
+};
+
+function agreementLabel(a: DownloadAgreementItem): string {
+  const name = (a.name ?? "").trim();
+  const type = (a.templateType ?? "").trim();
+  const agreementNumber = (a.agreementNumber ?? "").trim();
+  const byAgreementFields = `${type}${agreementNumber ? ` ${agreementNumber}` : ""}`.trim();
+  if (byAgreementFields) return byAgreementFields;
+  if (!name && !type) return "Договор";
+  if (!name) return type;
+  if (!type) return name;
+  if (name.toLowerCase().includes(type.toLowerCase())) return name;
+  if (name.toLowerCase() === "dogovor.pdf" || name.toLowerCase() === "договор.pdf") return type;
+  return `${type} - ${name}`;
+}
+
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -35,6 +58,7 @@ export default function AgreementsList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [agreementsByDeal, setAgreementsByDeal] = useState<Record<string, DownloadAgreementItem[]>>({});
   const [filterClient, setFilterClient] = useState("");
   const [filterManager, setFilterManager] = useState("");
   const [filterObject, setFilterObject] = useState("");
@@ -114,9 +138,11 @@ export default function AgreementsList() {
     try {
       const res = await fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/signed-agreement`, { credentials: "include" });
       const json = await res.json().catch(() => ({}));
-      const url = json?.url;
-      if (url && typeof url === "string") {
-        window.open(url, "_blank", "noopener,noreferrer");
+      const agreements: DownloadAgreementItem[] = Array.isArray(json?.agreements)
+        ? json.agreements.filter((a: unknown): a is DownloadAgreementItem => !!a && typeof (a as DownloadAgreementItem).url === "string")
+        : [];
+      if (agreements.length > 0) {
+        setAgreementsByDeal((prev) => ({ ...prev, [dealDocumentId]: agreements }));
       } else if (res.status === 404) {
         alert(t("agreement_not_found_or_not_ready"));
       } else {
@@ -268,17 +294,31 @@ export default function AgreementsList() {
                       : "—"}
                   </td>
                   <td className="p-4">
-                    <Button
-                      size="sm"
-                      variant="flat"
-                      color="primary"
-                      className="rounded-[12px]"
-                      isLoading={downloadingId === row.dealDocumentId}
-                      isDisabled={downloadingId !== null}
-                      onPress={() => handleDownload(row.dealDocumentId)}
-                    >
-                      {t("download")}
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        color="primary"
+                        className="rounded-[12px]"
+                        isLoading={downloadingId === row.dealDocumentId}
+                        isDisabled={downloadingId !== null}
+                        onPress={() => handleDownload(row.dealDocumentId)}
+                      >
+                        {agreementsByDeal[row.dealDocumentId]?.length ? "Обновить список" : t("download")}
+                      </Button>
+                      {(agreementsByDeal[row.dealDocumentId] ?? []).map((a) => (
+                        <a
+                          key={`${row.dealDocumentId}-${a.url}`}
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-[#1A3C7E] underline underline-offset-2"
+                          title={agreementLabel(a)}
+                        >
+                          {agreementLabel(a)}
+                        </a>
+                      ))}
+                    </div>
                   </td>
                 </tr>
               ))}

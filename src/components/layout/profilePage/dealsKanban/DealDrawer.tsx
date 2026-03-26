@@ -45,6 +45,23 @@ function formatDate(iso: string | null | undefined): string {
     return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+type DownloadAgreementItem = {
+    url: string;
+    name?: string;
+    templateType?: string;
+};
+
+function agreementLabel(a: DownloadAgreementItem): string {
+    const name = (a.name ?? "").trim();
+    const type = (a.templateType ?? "").trim();
+    if (!name && !type) return "Договор";
+    if (!name) return type;
+    if (!type) return name;
+    if (name.toLowerCase().includes(type.toLowerCase())) return name;
+    if (name.toLowerCase() === "dogovor.pdf" || name.toLowerCase() === "договор.pdf") return type;
+    return `${type} - ${name}`;
+}
+
 export default function DealDrawer({
     dealDocumentId,
     onClose,
@@ -61,6 +78,7 @@ export default function DealDrawer({
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [agreementDownloadLoading, setAgreementDownloadLoading] = useState(false);
+    const [agreementFiles, setAgreementFiles] = useState<DownloadAgreementItem[]>([]);
     const [isMobile, setIsMobile] = useState(false);
     type RenewalStep = "contacts" | "cost" | "sign";
     const [renewalStep, setRenewalStep] = useState<RenewalStep | null>(null);
@@ -80,6 +98,7 @@ export default function DealDrawer({
         setLoading(true);
         setError(null);
         setPlanImage(null);
+        setAgreementFiles([]);
         fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/full`, { credentials: "include" })
             .then((res) => {
                 if (!res.ok) throw new Error(res.status === 404 ? "Сделка не найдена" : "Ошибка загрузки");
@@ -147,9 +166,11 @@ export default function DealDrawer({
                 alert(json?.error ?? "Договор не найден или ещё не подписан");
                 return;
             }
-            const url = json?.url;
-            if (url && typeof url === "string") {
-                window.open(url, "_blank", "noopener,noreferrer");
+            const agreements: DownloadAgreementItem[] = Array.isArray(json?.agreements)
+                ? json.agreements.filter((a: unknown): a is DownloadAgreementItem => !!a && typeof (a as DownloadAgreementItem).url === "string")
+                : [];
+            if (agreements.length > 0) {
+                setAgreementFiles(agreements);
             } else {
                 alert("Договор не найден");
             }
@@ -442,17 +463,31 @@ export default function DealDrawer({
                                             </div>
                                             <div className="flex px-[0] py-[8px] justify-between items-center gap-3 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                                                 <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Договор:</span>
-                                                <Button
-                                                    size="sm"
-                                                    variant="flat"
-                                                    color="primary"
-                                                    className="shrink-0"
-                                                    isLoading={agreementDownloadLoading}
-                                                    isDisabled={agreementDownloadLoading}
-                                                    onPress={handleDownloadAgreement}
-                                                >
-                                                    Скачать договор
-                                                </Button>
+                                                <div className="flex max-w-[320px] flex-col items-end gap-1">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="flat"
+                                                        color="primary"
+                                                        className="shrink-0"
+                                                        isLoading={agreementDownloadLoading}
+                                                        isDisabled={agreementDownloadLoading}
+                                                        onPress={handleDownloadAgreement}
+                                                    >
+                                                        {agreementFiles.length ? "Обновить договоры" : "Показать договоры"}
+                                                    </Button>
+                                                    {agreementFiles.map((a) => (
+                                                        <a
+                                                            key={a.url}
+                                                            href={a.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="max-w-full truncate text-right text-xs text-[#1A3C7E] underline underline-offset-2"
+                                                            title={agreementLabel(a)}
+                                                        >
+                                                            {agreementLabel(a)}
+                                                        </a>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     </section>

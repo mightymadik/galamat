@@ -8,6 +8,7 @@ import { getStrapiBaseUrl } from "@/lib/strapiServer";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const path = searchParams.get("path");
+  const name = searchParams.get("name")?.trim() || "";
   if (!path || !path.startsWith("/uploads/")) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
@@ -29,6 +30,11 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": contentType,
+        ...(name
+          ? {
+              "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(name)}`,
+            }
+          : {}),
         "Cache-Control": "public, max-age=3600",
       },
     });

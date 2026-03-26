@@ -25,6 +25,9 @@ import {
     parseRaise,
     getMatchingOptions,
     resolvePromocodeDiscountValue,
+    resolveDownPaymentAmount,
+    resolveRaiseSurchargeValue,
+    formatRaisePerM2Label,
 } from "@/lib/paymentFormUtils";
 import { withMask } from "use-mask-input";
 import { useTranslations } from "next-intl";
@@ -294,7 +297,7 @@ export default function Deffered({ flatData, realEstateType = "property", active
         : allOptions;
     const options = Array.from(
         new Map(
-            matchedOptions.map((o) => [`${parseDownPaymentPercent(o?.downPayment)}|${parseRaise(o?.raise)}`, o])
+            matchedOptions.map((o) => [`${String(o?.downPayment ?? "")}|${parseRaise(o?.raise)}`, o])
         ).values()
     );
 
@@ -307,17 +310,21 @@ export default function Deffered({ flatData, realEstateType = "property", active
     const [selectedPvIndex, setSelectedPvIndex] = useState(0);
     const selectedOption = options[selectedPvIndex] ?? options[0];
     const defaultDownPercent = 30;
-    const downPercent = selectedOption ? parseDownPaymentPercent(selectedOption.downPayment) || defaultDownPercent : defaultDownPercent;
-    const raisePerM2 = parseRaise(selectedOption?.raise);
     const totalArea = flatData?.totalArea ?? 0;
     const adjustmentArea = realEstateType === "parking" ? 0 : totalArea;
-    const totalPriceBeforeDiscounts = basePrice + raisePerM2 * adjustmentArea;
+    const raiseRaw = parseRaise(selectedOption?.raise);
+    const raisePerM2 = raiseRaw >= 101 && raiseRaw <= 50_000 ? raiseRaw : 0;
+    const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, basePrice, adjustmentArea);
+    const totalPriceBeforeDiscounts = basePrice + raiseAmount;
     const promocodeDiscount = promocodeResult?.valid
         ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, adjustmentArea)
         : 0;
     const totalPrice = Math.max(0, totalPriceBeforeDiscounts - promocodeDiscount);
+    const downAmount = selectedOption
+        ? resolveDownPaymentAmount(selectedOption.downPayment, totalPrice)
+        : (totalPrice > 0 ? Math.round((totalPrice * defaultDownPercent) / 100) : 0);
+    const downPercent = totalPrice > 0 ? Math.round((downAmount / totalPrice) * 100) : defaultDownPercent;
     const downLabel = `${downPercent}%`;
-    const downAmount = Math.round(totalPrice * (downPercent / 100));
     const remainingPrice = totalPrice - downAmount;
 
     const formattedFullPrice = formatMoney(totalPrice);
@@ -534,7 +541,16 @@ export default function Deffered({ flatData, realEstateType = "property", active
                         </p>
                         <div className="flex flex-wrap gap-2">
                             {options.map((opt, i) => {
-                                const pctLabel = `${parseDownPaymentPercent(opt.downPayment)}%`;
+                                const raiseRaw = parseRaise(opt.raise);
+                                const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, basePrice, adjustmentArea);
+                                const priceBeforeDiscounts = basePrice + raiseAmount;
+                                const promoDisc = promocodeResult?.valid
+                                    ? resolvePromocodeDiscountValue(promocodeResult?.value, priceBeforeDiscounts, adjustmentArea)
+                                    : 0;
+                                const fullPriceForOpt = Math.max(0, priceBeforeDiscounts - promoDisc);
+                                const downAmount = resolveDownPaymentAmount(opt.downPayment, fullPriceForOpt);
+                                const pct = fullPriceForOpt > 0 ? Math.round((downAmount / fullPriceForOpt) * 100) : 0;
+                                const pctLabel = `${Math.max(0, pct)}%`;
                                 const isSelected = selectedPvIndex === i;
                                 return (
                                     <button
@@ -642,7 +658,9 @@ export default function Deffered({ flatData, realEstateType = "property", active
                     </div>
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("raise_per_square_meter")}</span>
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(raisePerM2)}</span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                            {formatRaisePerM2Label(raiseRaw, basePrice, adjustmentArea)}
+                        </span>
                     </div>
                     {promocodeResult?.valid && promocodeResult?.code != null && (
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">

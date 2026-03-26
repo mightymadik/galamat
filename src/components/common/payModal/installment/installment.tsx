@@ -23,6 +23,9 @@ import {
     parseRaise,
     getMatchingOptions,
     resolvePromocodeDiscountValue,
+    resolveDownPaymentAmount,
+    resolveRaiseSurchargeValue,
+    formatRaisePerM2Label,
 } from "@/lib/paymentFormUtils";
 import { withMask } from "use-mask-input";
 import type { DateValue } from "@react-types/calendar";
@@ -287,17 +290,21 @@ export default function Installment({ flatData, realEstateType = "property", act
     const [selectedPvIndex, setSelectedPvIndex] = useState(0);
     const selectedOption = options[Math.min(selectedPvIndex, options.length - 1)] ?? options[0];
     const defaultDownPercent = 30;
-    const downPercent = selectedOption ? parseDownPaymentPercent(selectedOption.downPayment) || defaultDownPercent : defaultDownPercent;
-    const raisePerM2 = parseRaise(selectedOption?.raise);
     const totalArea = flatData?.totalArea ?? 0;
     const adjustmentArea = realEstateType === "parking" ? 0 : totalArea;
-    const totalPriceBeforeDiscounts = basePrice + raisePerM2 * adjustmentArea;
+    const raiseRaw = parseRaise(selectedOption?.raise);
+    const raisePerM2 = raiseRaw >= 101 && raiseRaw <= 50_000 ? raiseRaw : 0;
+    const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, basePrice, adjustmentArea);
+    const totalPriceBeforeDiscounts = basePrice + raiseAmount;
     const promocodeDiscount = promocodeResult?.valid
         ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, adjustmentArea)
         : 0;
     const totalPrice = Math.max(0, totalPriceBeforeDiscounts - promocodeDiscount);
+    const downAmount = selectedOption
+        ? resolveDownPaymentAmount(selectedOption.downPayment, totalPrice)
+        : (totalPrice > 0 ? Math.round((totalPrice * defaultDownPercent) / 100) : 0);
+    const downPercent = totalPrice > 0 ? Math.round((downAmount / totalPrice) * 100) : defaultDownPercent;
     const downLabel = `${downPercent}%`;
-    const downAmount = Math.round(totalPrice * (downPercent / 100));
     const remainingPrice = totalPrice - downAmount;
     const monthlyPayment = monthsCount > 0 ? Math.round(remainingPrice / monthsCount) : 0;
 
@@ -335,15 +342,24 @@ export default function Installment({ flatData, realEstateType = "property", act
         const schedule: AgreementPaymentRow[] = [];
         const now = new Date();
         schedule.push({ index: 1, date: formatScheduleDate(now), sum: formattedDown });
-        for (let i = 0; i < monthsCount; i++) {
+
+        // Важно: из-за округления по месяцам сумма траншей может не совпасть с остатком на пару ₸.
+        // Делаем первые (monthsCount - 1) равными, а всю разницу добавляем/убираем в последний платёж.
+        const remainderTotal = Math.max(0, remainingPrice);
+        const months = Math.max(1, monthsCount);
+        const baseMonthly = Math.floor(remainderTotal / months);
+        const lastMonthly = remainderTotal - baseMonthly * (months - 1);
+
+        for (let i = 0; i < months; i++) {
             const monthDate = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
             const lastDay = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
             const day = Math.min(paymentDayOfMonth, lastDay);
             const paymentDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+            const tranche = i === months - 1 ? lastMonthly : baseMonthly;
             schedule.push({
                 index: schedule.length + 1,
                 date: formatScheduleDate(paymentDate),
-                sum: formattedMonthly,
+                sum: formatMoney(tranche),
             });
         }
         const payload: AgreementPayload = {
@@ -480,7 +496,16 @@ export default function Installment({ flatData, realEstateType = "property", act
                         <div className="flex flex-wrap gap-2">
                             {options.map((opt, i) => {
                                 const isSelected = selectedPvIndex === i;
-                                const pctLabel = `${parseDownPaymentPercent(opt.downPayment)}%`;
+                                const raiseRaw = parseRaise(opt.raise);
+                                const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, basePrice, adjustmentArea);
+                                const priceBeforeDiscounts = basePrice + raiseAmount;
+                                const promoDisc = promocodeResult?.valid
+                                    ? resolvePromocodeDiscountValue(promocodeResult?.value, priceBeforeDiscounts, adjustmentArea)
+                                    : 0;
+                                const fullPriceForOpt = Math.max(0, priceBeforeDiscounts - promoDisc);
+                                const downAmount = resolveDownPaymentAmount(opt.downPayment, fullPriceForOpt);
+                                const pct = fullPriceForOpt > 0 ? Math.round((downAmount / fullPriceForOpt) * 100) : 0;
+                                const pctLabel = `${Math.max(0, pct)}%`;
                                 return (
                                     <button
                                         key={i}
@@ -538,7 +563,9 @@ export default function Installment({ flatData, realEstateType = "property", act
                     )}
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("raise_per_square_meter")}</span>
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(raisePerM2)}</span>
+                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                            {formatRaisePerM2Label(raiseRaw, basePrice, adjustmentArea)}
+                        </span>
                     </div>
                     {promocodeResult?.valid && promocodeResult?.code != null && (
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
