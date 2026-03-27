@@ -151,6 +151,8 @@ export interface PaymentOption {
   downPayment?: string | null;
   raise?: number | string | null;
   discount?: number | string | null;
+  raiseUnit?: "percent" | "perM2" | "fixed" | null;
+  unit?: "percent" | "perM2" | "fixed" | null;
   /** Правило попадания квартиры в это условие (для выбора условия по атрибутам квартиры). */
   paymentRule?: { filters?: PaymentRuleFilter[] };
 }
@@ -312,9 +314,13 @@ export function getMatchingOption<T extends PaymentOption>(
 export function resolveFullPaymentDiscountValue(
   rawValue: number,
   basePrice: number,
-  totalArea: number
+  totalArea: number,
+  unit?: "percent" | "perM2" | "fixed"
 ): number {
   if (rawValue <= 0 || !Number.isFinite(rawValue)) return 0;
+  if (unit === "percent") return basePrice > 0 ? Math.round((basePrice * rawValue) / 100) : 0;
+  if (unit === "perM2") return totalArea > 0 ? Math.round(rawValue * totalArea) : 0;
+  if (unit === "fixed") return Math.round(rawValue);
   if (rawValue >= 1 && rawValue <= 100) {
     return basePrice > 0 ? Math.round((basePrice * rawValue) / 100) : 0;
   }
@@ -336,9 +342,13 @@ export function resolveFullPaymentDiscountValue(
 export function resolveRaiseSurchargeValue(
   rawValue: number,
   basePrice: number,
-  totalArea: number
+  totalArea: number,
+  unit?: "percent" | "perM2" | "fixed"
 ): number {
   if (rawValue <= 0 || !Number.isFinite(rawValue)) return 0;
+  if (unit === "percent") return basePrice > 0 ? Math.round((basePrice * rawValue) / 100) : 0;
+  if (unit === "perM2") return totalArea > 0 ? Math.round(rawValue * totalArea) : 0;
+  if (unit === "fixed") return Math.round(rawValue);
   if (rawValue >= 1 && rawValue <= 100) {
     return basePrice > 0 ? Math.round((basePrice * rawValue) / 100) : 0;
   }
@@ -349,23 +359,54 @@ export function resolveRaiseSurchargeValue(
 }
 
 /** Лейбл надбавки для UI. */
-export function formatRaiseLabel(rawRaise: number | string | null | undefined): string {
+export function formatRaiseLabel(
+  rawRaise: number | string | null | undefined,
+  unit?: "percent" | "perM2" | "fixed"
+): string {
   const v = parseRaise(rawRaise);
   if (!v || !Number.isFinite(v)) return "—";
+  if (unit === "percent") return `${Math.round(v)}%`;
+  if (unit === "perM2") return `${formatPriceDisplay(Math.round(v))}/м²`;
+  if (unit === "fixed") return formatPriceDisplay(Math.round(v));
   if (v >= 1 && v <= 100) return `${Math.round(v)}%`;
   if (v >= 101 && v <= 50_000) return `${formatPriceDisplay(Math.round(v))}/м²`;
   return formatPriceDisplay(Math.round(v));
+}
+
+export function getPaymentValueUnit(opt: PaymentOption | undefined): "percent" | "perM2" | "fixed" | undefined {
+  const raw = opt?.raiseUnit ?? opt?.unit;
+  return raw === "percent" || raw === "perM2" || raw === "fixed" ? raw : undefined;
+}
+
+export function resolveOptionTotalPrice(
+  basePrice: number,
+  totalArea: number,
+  opt: PaymentOption | undefined
+): number {
+  const unit = getPaymentValueUnit(opt);
+  const discountRaw = parseRaise(opt?.discount);
+  if (discountRaw > 0) {
+    const discountAmount = resolveRaiseSurchargeValue(discountRaw, basePrice, totalArea, unit);
+    return Math.max(0, basePrice - discountAmount);
+  }
+  const raiseRaw = parseRaise(opt?.raise);
+  if (raiseRaw > 0) {
+    const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, basePrice, totalArea, unit);
+    return Math.max(0, basePrice + raiseAmount);
+  }
+  return Math.max(0, basePrice);
 }
 
 /** Всегда отображать надбавку как эквивалент ₸/м². */
 export function formatRaisePerM2Label(
   rawRaise: number | string | null | undefined,
   basePrice: number,
-  totalArea: number
+  totalArea: number,
+  unit?: "percent" | "perM2" | "fixed"
 ): string {
   if (!totalArea || totalArea <= 0) return "—";
   const raw = parseRaise(rawRaise);
-  const amount = resolveRaiseSurchargeValue(raw, basePrice, totalArea);
+  const amount = resolveRaiseSurchargeValue(raw, basePrice, totalArea, unit);
   const perM2 = amount > 0 ? Math.round(amount / totalArea) : 0;
   return `${formatPriceDisplay(perM2)}/м²`;
 }
@@ -383,7 +424,7 @@ export function getFullPaymentDiscountFromConditions(
   const option = getMatchingOption(options, flatAttrs);
   const raw = parseRaise(option?.discount ?? option?.raise);
   if (!raw) return 0;
-  return resolveFullPaymentDiscountValue(raw, basePrice, totalArea);
+  return resolveFullPaymentDiscountValue(raw, basePrice, totalArea, getPaymentValueUnit(option));
 }
 
 /** Число из raise (API может вернуть строку) */
@@ -446,9 +487,7 @@ export function getInstallmentPreview(
   const validToFormatted = formatValidToDate(validTo);
   const optionList = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
   const selected = optionList[Math.min(selectedOptionIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
-  const raiseRaw = parseRaise(selected?.raise);
-  const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, totalArea);
-  const fullPrice = baseFullPrice + raiseAmount;
+  const fullPrice = resolveOptionTotalPrice(baseFullPrice, totalArea, selected);
   const fallbackPct = FALLBACK_PCTS[Math.min(selectedOptionIndex, FALLBACK_PCTS.length - 1)] ?? 30;
   const firstDown = selected
     ? resolveDownPaymentAmount(selected.downPayment, fullPrice)
@@ -498,9 +537,7 @@ export function getDefferedPreview(
   const validToFormatted = formatValidToDate(validTo);
   const optionList = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
   const selected = optionList[Math.min(selectedOptionIndex, Math.max(0, optionList.length - 1))] ?? optionList[0];
-  const raiseRaw = parseRaise(selected?.raise);
-  const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, totalArea);
-  const fullPrice = baseFullPrice + raiseAmount;
+  const fullPrice = resolveOptionTotalPrice(baseFullPrice, totalArea, selected);
   const fallbackPct = FALLBACK_PCTS[Math.min(selectedOptionIndex, FALLBACK_PCTS.length - 1)] ?? 30;
   const firstDown = selected
     ? resolveDownPaymentAmount(selected.downPayment, fullPrice)

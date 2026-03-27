@@ -15,6 +15,7 @@ import {
     formatMoney,
     formatPromoInput,
     parseRaise,
+    resolveRaiseSurchargeValue,
     resolveDownPaymentAmount,
     formatDownPaymentLabel,
     parsePriceString,
@@ -25,6 +26,8 @@ import {
     formatValidToDate,
     formatComplexDueDate,
     resolvePromocodeDiscountValue,
+    getPaymentValueUnit,
+    resolveOptionTotalPrice,
 } from "@/lib/paymentFormUtils";
 import { useTranslations } from "next-intl";
 import type { RealEstateType } from "@/types/flat";
@@ -141,19 +144,11 @@ export default function Hypothec({ flatData, realEstateType = "property", onNext
     const options = selectedProgram?.options ?? [];
     const selectedOption = options[0];
     const raiseRaw = parseRaise(selectedOption?.raise);
-    const raiseAmount = raiseRaw >= 1 && raiseRaw <= 100
-        ? Math.round((basePrice * raiseRaw) / 100)
-        : Math.round(raiseRaw * adjustmentArea);
+    const raiseAmount = resolveOptionTotalPrice(basePrice, adjustmentArea, selectedOption) - basePrice;
     const raisePerSquareAmount = (() => {
-        if (raiseRaw >= 1 && raiseRaw <= 100) {
-            return totalArea > 0 ? Math.round(((basePrice * raiseRaw) / 100) / totalArea) : 0;
-        }
-        if (raiseRaw >= 101) {
-            return Math.round(raiseRaw);
-        }
-        return 0;
+        return totalArea > 0 ? Math.round(raiseAmount / totalArea) : 0;
     })();
-    const totalPriceBeforeDiscounts = Math.max(0, basePrice + Math.max(0, raiseAmount));
+    const totalPriceBeforeDiscounts = Math.max(0, basePrice + raiseAmount);
     const promocodeDiscount = promocodeResult?.valid
         ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, adjustmentArea)
         : 0;

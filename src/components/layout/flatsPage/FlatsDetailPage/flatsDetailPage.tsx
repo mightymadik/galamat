@@ -28,6 +28,8 @@ import {
     parseRaise,
     resolveRaiseSurchargeValue,
     formatRaiseLabel,
+    getPaymentValueUnit,
+    resolveOptionTotalPrice,
     getMatchingOptions,
     formatValidToDate,
     monthsBetween,
@@ -851,7 +853,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
         const pcts = options
             .map((o) => {
                 const raiseRaw = parseRaise(o.raise);
-                const fullPriceForOpt = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+                const fullPriceForOpt = resolveOptionTotalPrice(baseFullPrice, adjustmentArea, o);
                 const downAmount = resolveDownPaymentAmount(o.downPayment, fullPriceForOpt);
                 const pct = fullPriceForOpt > 0 ? Math.round((downAmount / fullPriceForOpt) * 100) : 0;
                 return pct > 0 ? pct : 0;
@@ -893,7 +895,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
         const validToFormatted = formatValidToDate(validTo);
         const selected = optionList[0];
         const raiseRaw = parseRaise(selected?.raise);
-        const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+        const raiseAmount = resolveOptionTotalPrice(baseFullPrice, adjustmentArea, selected) - baseFullPrice;
         const raisePercent = (() => {
             if (raiseRaw > 0 && raiseRaw <= 100) return raiseRaw;
             if (raiseRaw > 100 && baseFullPrice > 0) return (raiseAmount / baseFullPrice) * 100;
@@ -947,8 +949,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
             installmentPreview.options.slice(0, 4).forEach((opt) => {
                 const pct = parseDownPaymentPercent(opt.downPayment) || 0;
                 if (!pct) return;
-                const raiseRaw = parseRaise(opt.raise);
-                const cost = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+                const cost = resolveOptionTotalPrice(baseFullPrice, adjustmentArea, opt);
                 const firstPayment = cost > 0 ? Math.round((cost * pct) / 100) : 0;
                 const remainder = cost > 0 ? Math.max(0, cost - firstPayment) : 0;
                 const pricePerM2 = totalArea > 0 ? Math.round(cost / totalArea) : 0;
@@ -978,11 +979,11 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
             const matched = flatAttrs ? getMatchingOptions(options, flatAttrs) : options;
             const selected = (matched.length > 0 ? matched[0] : options[0]) ?? {};
             const raiseRaw = parseRaise(selected?.raise);
-            const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+            const raiseAmount = resolveOptionTotalPrice(baseFullPrice, adjustmentArea, selected) - baseFullPrice;
             const fullPrice = Math.max(0, baseFullPrice + Math.max(0, raiseAmount));
             const firstDown = Math.max(0, resolveDownPaymentAmount(selected?.downPayment, fullPrice));
             const remainder = Math.max(0, fullPrice - firstDown);
-            const raiseLabel = formatRaiseLabel(raiseRaw);
+            const raiseLabel = formatRaiseLabel(raiseRaw, getPaymentValueUnit(selected));
             return {
                 key: c.documentId ?? `${c.banks ?? "bank"}-${c.hypothec ?? "program"}-${idx}`,
                 bank: c.banks || "—",
@@ -1477,7 +1478,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                             <div className="flex items-start gap-[8px] flex-wrap">
                                                                 {installmentPreview.options.length ? installmentPreview.options.map((opt, i) => {
                                                                     const raiseRaw = parseRaise(opt.raise);
-                                                                    const fullPriceForOpt = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+                                                                    const fullPriceForOpt = resolveOptionTotalPrice(baseFullPrice, adjustmentArea, opt);
                                                                     const label = formatDownPaymentAsPercent(opt.downPayment, fullPriceForOpt);
                                                                     const isSelected = selectedInstallmentPvIndex === i;
                                                                     return (
@@ -1563,7 +1564,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                             <div className="flex items-start gap-[8px] flex-wrap">
                                                                 {defferedPreview.options.length ? defferedPreview.options.map((opt, i) => {
                                                                     const raiseRaw = parseRaise(opt.raise);
-                                                                    const fullPriceForOpt = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+                                                                    const fullPriceForOpt = resolveOptionTotalPrice(baseFullPrice, adjustmentArea, opt);
                                                                     const label = formatDownPaymentAsPercent(opt.downPayment, fullPriceForOpt);
                                                                     const isSelected = selectedDefferedPvIndex === i;
                                                                     return (
@@ -1662,7 +1663,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                                             const pcts = (program.options || [])
                                                                                 .map((opt) => {
                                                                                     const raiseRaw = parseRaise(opt.raise);
-                                                                                    const fullPriceForOpt = baseFullPrice + resolveRaiseSurchargeValue(raiseRaw, baseFullPrice, adjustmentArea);
+                                                                                    const fullPriceForOpt = resolveOptionTotalPrice(baseFullPrice, adjustmentArea, opt);
                                                                                     const downAmount = resolveDownPaymentAmount(opt.downPayment, fullPriceForOpt);
                                                                                     const pct = fullPriceForOpt > 0 ? Math.round((downAmount / fullPriceForOpt) * 100) : 0;
                                                                                     return pct > 0 ? pct : 0;

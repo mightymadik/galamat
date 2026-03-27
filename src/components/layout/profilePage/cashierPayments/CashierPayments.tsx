@@ -144,7 +144,7 @@ function computePaymentScheduleIndexes(
 }
 
 const CASHIER_ONLY_KEY = "cashier_only_access";
-const CASHIER_DEAL_STATUSES = ["Ожидания оплаты", "Договор подписан"] as const;
+const CASHIER_DEAL_STATUSES = ["Ожидания оплаты", "Договор подписан", "Просрочено"] as const;
 const SCHEDULE_CONFIRMABLE_STATUSES = ["Ожидание", "Просрочено"];
 const PAGE_SIZE = 10;
 

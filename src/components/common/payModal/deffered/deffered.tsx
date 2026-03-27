@@ -28,6 +28,8 @@ import {
     resolveDownPaymentAmount,
     resolveRaiseSurchargeValue,
     formatRaisePerM2Label,
+    getPaymentValueUnit,
+    resolveOptionTotalPrice,
 } from "@/lib/paymentFormUtils";
 import { withMask } from "use-mask-input";
 import { useTranslations } from "next-intl";
@@ -297,7 +299,7 @@ export default function Deffered({ flatData, realEstateType = "property", active
         : allOptions;
     const options = Array.from(
         new Map(
-            matchedOptions.map((o) => [`${String(o?.downPayment ?? "")}|${parseRaise(o?.raise)}`, o])
+            matchedOptions.map((o) => [`${String(o?.downPayment ?? "")}|${parseRaise(o?.raise)}|${getPaymentValueUnit(o) ?? ""}`, o])
         ).values()
     );
 
@@ -314,8 +316,7 @@ export default function Deffered({ flatData, realEstateType = "property", active
     const adjustmentArea = realEstateType === "parking" ? 0 : totalArea;
     const raiseRaw = parseRaise(selectedOption?.raise);
     const raisePerM2 = raiseRaw >= 101 && raiseRaw <= 50_000 ? raiseRaw : 0;
-    const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, basePrice, adjustmentArea);
-    const totalPriceBeforeDiscounts = basePrice + raiseAmount;
+    const totalPriceBeforeDiscounts = resolveOptionTotalPrice(basePrice, adjustmentArea, selectedOption);
     const promocodeDiscount = promocodeResult?.valid
         ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, adjustmentArea)
         : 0;
@@ -542,8 +543,7 @@ export default function Deffered({ flatData, realEstateType = "property", active
                         <div className="flex flex-wrap gap-2">
                             {options.map((opt, i) => {
                                 const raiseRaw = parseRaise(opt.raise);
-                                const raiseAmount = resolveRaiseSurchargeValue(raiseRaw, basePrice, adjustmentArea);
-                                const priceBeforeDiscounts = basePrice + raiseAmount;
+                                const priceBeforeDiscounts = resolveOptionTotalPrice(basePrice, adjustmentArea, opt);
                                 const promoDisc = promocodeResult?.valid
                                     ? resolvePromocodeDiscountValue(promocodeResult?.value, priceBeforeDiscounts, adjustmentArea)
                                     : 0;
@@ -659,7 +659,7 @@ export default function Deffered({ flatData, realEstateType = "property", active
                     <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("raise_per_square_meter")}</span>
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
-                            {formatRaisePerM2Label(raiseRaw, basePrice, adjustmentArea)}
+                            {formatRaisePerM2Label(raiseRaw, basePrice, adjustmentArea, getPaymentValueUnit(selectedOption))}
                         </span>
                     </div>
                     {promocodeResult?.valid && promocodeResult?.code != null && (
