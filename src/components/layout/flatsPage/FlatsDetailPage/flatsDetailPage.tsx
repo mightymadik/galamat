@@ -1375,9 +1375,11 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                 </span>
                                             )}
                                         </div>
+                                        {realEstateType !== "parking" && (
                                         <h2 className="text-[#1A3C7E] text-[20px] not-italic font-medium leading-[24px] opacity-80">
-                                            {displayPriceForPayment.priceM2}
-                                        </h2>
+                                                {displayPriceForPayment.priceM2}
+                                            </h2>
+                                        )}
                                         {displayPriceForPayment.crossedOut && (
                                             <div className="self-stretch inline-flex justify-start items-start gap-3">
                                                 <div className="px-2.5 py-1.5 bg-orange-600 rounded-[32px] flex justify-center items-center gap-2">

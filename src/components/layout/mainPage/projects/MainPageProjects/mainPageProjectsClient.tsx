@@ -410,7 +410,7 @@ export default function MainPageProjectsClient({
                     </div>
                 </div>
                 {block ? (
-                    <div className="flex flex-col lg:grid w-full h-full gap-[32px] lg:grid-rows-1 grid-cols-3 mx-auto">
+                    <div className={`flex flex-col lg:grid w-full h-full gap-[32px] lg:grid-rows-1 grid-cols-3 mx-auto ${!isMainPage ? 'pb-20 lg:pb-0' : 'pb-0'}`}>
                         {isLoading ? (
                             <ProjectsGridSkeleton />
                         ) : displayProjects.length > 0 ? (
