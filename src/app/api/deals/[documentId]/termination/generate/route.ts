@@ -60,6 +60,12 @@ export async function POST(
       `${base}/api/deals/${dealDocumentId}` +
         "?populate[property][populate][project][populate][developer]=true" +
         "&populate[property][populate][project][populate][complexes][fields][0]=complexAddress" +
+        "&populate[commerce][populate][project][populate][developer]=true" +
+        "&populate[commerce][populate][project][populate][complexes][fields][0]=complexAddress" +
+        "&populate[parking][populate][project][populate][developer]=true" +
+        "&populate[parking][populate][project][populate][complexes][fields][0]=complexAddress" +
+        "&populate[pantry][populate][project][populate][developer]=true" +
+        "&populate[pantry][populate][project][populate][complexes][fields][0]=complexAddress" +
         "&populate[customer][populate][bank]=true",
       { headers }
     );
@@ -75,8 +81,17 @@ export async function POST(
     if (!custData?.documentId && !custData?.id)
       return NextResponse.json({ error: "У сделки нет клиента" }, { status: 400 });
 
-    const prop = deal?.property ?? deal?.attributes?.property;
-    const propData = (prop as any)?.data ?? prop;
+    const realEstateCandidates = [
+      deal?.property ?? deal?.attributes?.property,
+      deal?.commerce ?? deal?.attributes?.commerce,
+      deal?.parking ?? deal?.attributes?.parking,
+      deal?.pantry ?? deal?.attributes?.pantry,
+    ];
+    const selectedRealEstate =
+      realEstateCandidates
+        .map((rel) => ((rel as any)?.data ?? rel))
+        .find((entity: any) => entity?.documentId || entity?.id) ?? null;
+    const propData = selectedRealEstate;
     const project = propData?.project ?? propData?.attributes?.project?.data ?? propData?.attributes?.project;
     const projectDocumentId = project?.documentId ?? project?.id;
     if (!projectDocumentId)

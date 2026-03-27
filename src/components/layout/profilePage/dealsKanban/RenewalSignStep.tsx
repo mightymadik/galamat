@@ -176,6 +176,20 @@ export function RenewalSignStep({
   };
 
   const prop = data?.deal?.property;
+  const propertyType = prop?.type ?? data?.deal?.realEstateType ?? "property";
+  const propertyTypeLabelMap: Record<"property" | "commerce" | "parking" | "pantry", string> = {
+    property: "Квартира",
+    commerce: "Коммерция",
+    parking: "Паркинг",
+    pantry: "Кладовка",
+  };
+  const objectTypeLabel = prop?.typeLabel ?? propertyTypeLabelMap[propertyType];
+  const propertyMetaLabel =
+    propertyType === "property"
+      ? Number(prop?.room ?? 0) > 0
+        ? `${prop?.room} комнатная`
+        : objectTypeLabel
+      : objectTypeLabel;
   const dealPrice = data?.deal?.dealPrice;
 
   return (
@@ -195,7 +209,7 @@ export function RenewalSignStep({
               <span className="text-[#000] text-base opacity-30">№{prop?.apartmentNumber ?? "—"}</span>
             </div>
             <div className="flex justify-between items-center self-stretch">
-              <span className="text-[#000] text-base">{prop?.room ?? "—"} комнатная</span>
+              <span className="text-[#000] text-base">{propertyMetaLabel}</span>
               <span className="text-[#000] text-base">{prop?.totalArea ?? "—"} м²</span>
             </div>
             <div className="text-[#2655AF] text-xl font-medium">
