@@ -144,7 +144,7 @@ function computePaymentScheduleIndexes(
 }
 
 const CASHIER_ONLY_KEY = "cashier_only_access";
-const CASHIER_DEAL_STATUSES = ["Ожидания оплаты", "Договор подписан", "Просрочено"] as const;
+const CASHIER_DEAL_STATUSES = ["Ожидания оплаты", "Договор подписан", "Просрочено", "Просрочен", "Оплачено", "Оплачен"] as const;
 const SCHEDULE_CONFIRMABLE_STATUSES = ["Ожидание", "Просрочено"];
 const PAGE_SIZE = 10;
 
@@ -198,6 +198,13 @@ export default function CashierPayments() {
     () => deals.filter((d) => CASHIER_DEAL_STATUSES.includes((d.dealStatus || "").trim() as (typeof CASHIER_DEAL_STATUSES)[number])),
     [deals]
   );
+
+  const displayDealStatus = (status: string): string => {
+    const normalized = (status || "").trim();
+    if (normalized === "Просрочен") return "Просрочено";
+    if (normalized === "Оплачен") return "Оплачено";
+    return normalized;
+  };
 
   const filteredDeals = useMemo(() => {
     const proj = filterProject.trim().toLowerCase();
@@ -510,7 +517,7 @@ export default function CashierPayments() {
                   </div>
                 </div>
                 <div className="flex items-center">
-                  <StatusBadge status={deal.dealStatus} />
+                  <StatusBadge status={displayDealStatus(deal.dealStatus)} />
                 </div>
                 <div className="flex items-center justify-end text-[#122C5E] text-sm">
                   {expandedId === deal.documentId ? "▲ " + t("collapse") : "▼ " + t("expand_list")}
