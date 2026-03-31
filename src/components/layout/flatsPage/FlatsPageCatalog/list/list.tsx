@@ -11,6 +11,8 @@ import { toggleFavorite } from "@/store/favoritesSlice";
 import { FlatsFilterParams } from "../../../../../types/flat";
 import type { RealEstateType } from "../../../../../types/flat";
 import { useTranslations } from "next-intl";
+import { getFlatsCatalogPage } from "@/app/(pages)/flats/actions";
+import { getCachedCatalog, getCatalogCacheKey, setCachedCatalog } from "@/lib/flatsCatalogClientCache";
 
 function FlatListCardSkeleton() {
   return (
@@ -183,6 +185,47 @@ export default function List({
   useEffect(() => {
     if (!loading) return;
 
+    if (realEstateType === "property") {
+      const key = getCatalogCacheKey({ filters: filterParams, page: 1, pageSize: PAGE_SIZE, type: realEstateType });
+      const cached = getCachedCatalog(key);
+      if (cached) {
+        const adaptedFlats = cached.data.map(adaptProperty);
+        setFlats(adaptedFlats);
+        setTotalCount(cached.meta.total ?? adaptedFlats.length);
+        setCurrentPage(1);
+        if (onTotalCountChange) onTotalCountChange(cached.meta.total ?? adaptedFlats.length);
+        setLoading(false);
+        return;
+      }
+
+      let cancelled = false;
+      getFlatsCatalogPage({ filters: filterParams, page: 1, pageSize: PAGE_SIZE })
+        .then((response: any) => {
+          if (cancelled) return;
+          const items = Array.isArray(response?.data) ? response.data : [];
+          setCachedCatalog(key, {
+            data: items,
+            meta: response?.meta ?? { total: items.length, page: 1, pageSize: PAGE_SIZE, pageCount: 1 },
+          });
+          const adaptedFlats = items.map(adaptProperty);
+          setFlats(adaptedFlats);
+          setTotalCount(response?.meta?.total ?? adaptedFlats.length);
+          setCurrentPage(1);
+          if (onTotalCountChange) onTotalCountChange(response?.meta?.total ?? adaptedFlats.length);
+          setLoading(false);
+        })
+        .catch((error: any) => {
+          if (cancelled) return;
+          console.error("Error loading properties:", error);
+          setFlats([]);
+          setTotalCount(0);
+          setLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const params = new URLSearchParams();
     if (filterParams.priceRange) params.set("priceRange", filterParams.priceRange.join(","));
     if (filterParams.pricePerM2Range) params.set("pricePerM2Range", filterParams.pricePerM2Range.join(","));
@@ -229,6 +272,35 @@ export default function List({
   const handleShowMore = () => {
     if (loadingMore || flats.length >= totalCount) return;
     setLoadingMore(true);
+
+    if (realEstateType === "property") {
+      const nextPage = currentPage + 1;
+      const key = getCatalogCacheKey({ filters: filterParams, page: nextPage, pageSize: PAGE_SIZE, type: realEstateType });
+      const cached = getCachedCatalog(key);
+      if (cached) {
+        const adaptedFlats = cached.data.map(adaptProperty);
+        setFlats(prev => [...prev, ...adaptedFlats]);
+        setCurrentPage(prev => prev + 1);
+        setLoadingMore(false);
+        return;
+      }
+
+      getFlatsCatalogPage({ filters: filterParams, page: currentPage + 1, pageSize: PAGE_SIZE })
+        .then((response: any) => {
+          const items = Array.isArray(response?.data) ? response.data : [];
+          setCachedCatalog(key, {
+            data: items,
+            meta: response?.meta ?? { total: items.length, page: nextPage, pageSize: PAGE_SIZE, pageCount: 1 },
+          });
+          const adaptedFlats = items.map(adaptProperty);
+          setFlats(prev => [...prev, ...adaptedFlats]);
+          setCurrentPage(prev => prev + 1);
+          setLoadingMore(false);
+        })
+        .catch(() => setLoadingMore(false));
+      return;
+    }
+
     const params = new URLSearchParams();
     if (filterParams.priceRange) params.set("priceRange", filterParams.priceRange.join(","));
     if (filterParams.pricePerM2Range) params.set("pricePerM2Range", filterParams.pricePerM2Range.join(","));

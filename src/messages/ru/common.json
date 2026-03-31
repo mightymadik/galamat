@@ -496,7 +496,7 @@
   "expand_flats": "квартир",
   "in_sale": "в продаже",
   "location": "Расположение",
-  "manual_data_entry": "ручной ввод данных",
+  "manual_data_entry": "Ручной ввод данных",
   "valid_to_date": "Срок до",
   "hypothec_from": "Ипотека от",
   "generated_documents": "Сгенерированные документы",
@@ -506,5 +506,8 @@
   "available_hypothec_programs": "Доступные ипотечные программы",
   "overpayment_of_the_minimum_payment": "Сверх минимального взноса",
   "minimum_initial_payment_amount": "Минимальный первоначальный взнос {amount} ₸",
-  "down_payment_by_program": "Первоначальный взнос"
+  "down_payment_by_program": "Первоначальный взнос",
+  "otp_send_limit_reached": "Превышено количество отправленных кодов.",
+  "required_field": "Обязательное поле",
+  "fill_required_fields": "Заполните обязательные поля"
 }

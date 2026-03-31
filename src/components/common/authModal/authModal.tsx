@@ -11,6 +11,7 @@ import { closeAuth, setPhone, setFirstName, setLastName, changeNumber, clearVeri
 import { Drawer, DrawerContent, DrawerHeader, DrawerBody, Button, Input } from "@heroui/react";
 import { withMask } from "use-mask-input";
 import { verifyAuthCode, registerAuth, createAuthSession } from "@/store/authThunks";
+import { mapSendCodeErrorMessage } from "@/lib/authErrorI18n";
 
 function normalizeCyrillicNameInput(raw: string): string {
     const cleaned = String(raw || "")
@@ -197,7 +198,7 @@ export default function AuthModal() {
                                         </Button>
                                         {sendCodeError && (
                                             <p className="text-[12px] text-red-600">
-                                                {sendCodeError}
+                                                {mapSendCodeErrorMessage(sendCodeError, t)}
                                             </p>
                                         )}
                                         <p className="text-[#1E1E1E] text-center text-[12px] not-italic font-normal leading-[100%]">

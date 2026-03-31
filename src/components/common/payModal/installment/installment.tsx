@@ -34,6 +34,7 @@ import type { DateValue } from "@react-types/calendar";
 import { getLocalTimeZone, today, CalendarDate } from "@internationalized/date";
 import { Calendar } from "@heroui/react";
 import { useTranslations } from "next-intl";
+import { mapSendCodeErrorMessage } from "@/lib/authErrorI18n";
 import type { RealEstateType } from "@/types/flat";
 
 interface InstallmentProps {
@@ -139,7 +140,7 @@ export default function Installment({ flatData, realEstateType = "property", act
                 setBonusTimeLeft(data?.meta?.expiresInSec ?? 180);
                 bonusCodeInputsRef.current[0]?.focus();
             } else {
-                setBonusVerifyError(data?.message === "invalid_phone" ? t("wrong_phone") : data?.message || t("error_sending_code"));
+                setBonusVerifyError(mapSendCodeErrorMessage(data?.message, t));
             }
         } catch {
             setBonusVerifyError(t("error_sending_code"));

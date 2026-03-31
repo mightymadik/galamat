@@ -20,6 +20,8 @@
     "@heroui/system": "^2.4.23",
     "@heroui/theme": "^2.4.23",
     "@reduxjs/toolkit": "^2.10.1",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "axios": "^1.13.2",
     "docxtemplater": "^3.67.6",
     "docxtemplater-image": "^0.1.2",

@@ -33,6 +33,7 @@ import {
 } from "@/lib/paymentFormUtils";
 import { withMask } from "use-mask-input";
 import { useTranslations } from "next-intl";
+import { mapSendCodeErrorMessage } from "@/lib/authErrorI18n";
 import type { RealEstateType } from "@/types/flat";
 
 function calendarDateToRu(date: CalendarDate): string {
@@ -153,7 +154,7 @@ export default function Deffered({ flatData, realEstateType = "property", active
                 setBonusTimeLeft(data?.meta?.expiresInSec ?? 180);
                 bonusCodeInputsRef.current[0]?.focus();
             } else {
-                setBonusVerifyError(data?.message === "invalid_phone" ? t("wrong_phone") : data?.message || t("error_sending_code"));
+                setBonusVerifyError(mapSendCodeErrorMessage(data?.message, t));
             }
         } catch {
             setBonusVerifyError(t("error_sending_code"));

@@ -499,7 +499,7 @@
   "expand_flats": "пәтерлер",
   "in_sale": "сатылымда",
   "location": "Орналасу",
-  "manual_data_entry": "қолмен енгізу",
+  "manual_data_entry": "Қолмен енгізу",
   "valid_to_date": "Қолжетімділік мерзімі",
   "hypothec_from": "Ипотекалық несие",
   "generated_documents": "Жасалған құжаттар",
@@ -509,5 +509,8 @@
   "available_hypothec_programs": "Қолжетімді ипотека бағдарламалар",
   "overpayment_of_the_minimum_payment": "Сүйімді минималды төлем",
   "minimum_initial_payment_amount": "Сүйімді минималды төлем",
-  "down_payment_by_program": "Бастапқы төлем"
+  "down_payment_by_program": "Бастапқы төлем",
+  "otp_send_limit_reached": "Кодтар саны шектен шықты.",
+  "required_field": "Міндетті өріс",
+  "fill_required_fields": "Міндетті өрістерді толтырыңыз"
 }

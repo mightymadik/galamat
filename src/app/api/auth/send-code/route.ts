@@ -3,8 +3,9 @@ import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "../../../../lib
 import { hashOtp, isValidKzPhoneE164, normalizePhone, rand4 } from "../../../../lib/authOtp";
 
 const OTP_TTL_SEC = 180;
-const RESEND_COOLDOWN_SEC = 60;
+const RESEND_COOLDOWN_SEC = 30;
 const MAX_SENT_COUNT = 10;
+const SENT_COUNT_WINDOW_SEC = 24 * 60 * 60;
 
 type StrapiList<T> = { data: Array<{ id: number; attributes: T }> };
 
@@ -37,9 +38,8 @@ export async function POST(req: Request) {
       `&pagination[pageSize]=1`;
 
     const customerRes = await strapiAxios.get(customerFindUrl, { headers });
-    let customer = (customerRes.data as any)?.data?.[0];
+    const customer = (customerRes.data as any)?.data?.[0];
     let customerId = customer?.id ?? null;
-    const isRegistered = !!customerId;
 
     // 2) если customer нет — создаём (чтобы было к кому привязать OTP)
     if (!customerId) {
@@ -72,6 +72,45 @@ export async function POST(req: Request) {
     const otpDocId = otpItem?.documentId ?? null;
     const otpAttrs = otpItem?.attributes ?? otpItem;
 
+    // Enforce resend cooldown on server side.
+    const resendAtRaw = otpAttrs?.resendAvailableAt;
+    if (resendAtRaw) {
+      const resendAtTs = Date.parse(String(resendAtRaw));
+      if (!Number.isNaN(resendAtTs) && resendAtTs > now.getTime()) {
+        const retryAfterSec = Math.max(1, Math.ceil((resendAtTs - now.getTime()) / 1000));
+        return Response.json(
+          {
+            status: "error",
+            message: "otp_resend_cooldown",
+            meta: { retryAfterSec, resendCooldownSec: RESEND_COOLDOWN_SEC },
+          },
+          { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+        );
+      }
+    }
+
+    const createdAtRaw = otpItem?.createdAt ?? otpAttrs?.createdAt;
+    const createdAtTs = createdAtRaw ? Date.parse(String(createdAtRaw)) : NaN;
+    const isWithinSentCountWindow =
+      !Number.isNaN(createdAtTs) &&
+      now.getTime() - createdAtTs < SENT_COUNT_WINDOW_SEC * 1000;
+    const baseSentCount = isWithinSentCountWindow ? Number(otpAttrs?.sentCount ?? 0) : 0;
+    const nextSentCount = baseSentCount + 1;
+
+    if (nextSentCount > MAX_SENT_COUNT) {
+      const retryAfterSec = !Number.isNaN(createdAtTs)
+        ? Math.max(1, Math.ceil((createdAtTs + SENT_COUNT_WINDOW_SEC * 1000 - now.getTime()) / 1000))
+        : SENT_COUNT_WINDOW_SEC;
+      return Response.json(
+        {
+          status: "error",
+          message: "otp_send_limit_reached",
+          meta: { maxSentCount: MAX_SENT_COUNT, retryAfterSec },
+        },
+        { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+      );
+    }
+
     // 3) генерим код и hash
     const code = rand4();
     const codeHash = hashOtp(code);
@@ -85,7 +124,7 @@ export async function POST(req: Request) {
           expiresAt: expiresAt.toISOString(),
           attemptsLeft: 5,
           resendAvailableAt: resendAvailableAt.toISOString(),
-          sentCount: (otpAttrs?.sentCount ?? 0) + 1,
+          sentCount: nextSentCount,
           confirmedAt: null,
         },
       }, { headers });
@@ -115,7 +154,7 @@ export async function POST(req: Request) {
       },
     };
 
-    const waRes = await axios.post("https://kazinfoteh.org/wasender/sendwamsg", waBody, {
+    await axios.post("https://kazinfoteh.org/wasender/sendwamsg", waBody, {
       headers: {
         "X-API-KEY": process.env.WASENDER_API_KEY,
         "Content-Type": "application/json",
@@ -125,10 +164,7 @@ export async function POST(req: Request) {
 
     return Response.json({
       status: "ok",
-      isRegistered,
-      data: waRes.data,
       meta: {
-        phone: normalizedPhone,
         expiresInSec: OTP_TTL_SEC,
         resendCooldownSec: RESEND_COOLDOWN_SEC,
       },

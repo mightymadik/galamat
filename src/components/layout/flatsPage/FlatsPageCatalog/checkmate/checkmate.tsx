@@ -7,6 +7,7 @@ import { Button, Spinner } from "@heroui/react";
 import { FlatsFilterParams } from "@/types/flat";
 import type { RealEstateType } from "@/types/flat";
 import { useTranslations } from "next-intl";
+import { getFlatsForChessboard, getFlatsMetadata } from "@/app/(pages)/flats/actions";
 
 // Тип карточки квартиры (как в list/block — данные из /api/properties)
 interface ComponentFlat {
@@ -216,16 +217,23 @@ export default function Checkmate({
     const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
     const [isClient, setIsClient] = useState(false);
     const [complexes, setComplexes] = useState<string[]>([]);
+    const complexOptions = Array.from(new Set([...(complexes || []), ...(selectedComplex ? [selectedComplex] : [])]));
     const [isDesktop, setIsDesktop] = useState(false);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        fetch(`/api/properties?metadata=true&type=${encodeURIComponent(realEstateType)}`)
-            .then((res) => res.json())
+        let cancelled = false;
+        getFlatsMetadata()
             .then((meta: { complexes?: string[] }) => {
+                if (cancelled) return;
                 setComplexes(meta.complexes || []);
             })
-            .catch(() => setComplexes([]));
+            .catch(() => {
+                if (!cancelled) setComplexes([]);
+            });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
@@ -234,16 +242,10 @@ export default function Checkmate({
             return;
         }
         setLoading(true);
-        const params = new URLSearchParams();
-        params.set("project", selectedComplex);
-        params.set("light", "1");
-        params.set("allStatuses", "1");
-        params.set("type", realEstateType);
-
-        fetch(`/api/properties?${params.toString()}`)
-            .then((res) => res.json())
-            .then((data: any) => {
-                const items = Array.isArray(data) ? data : (data?.data ?? []);
+        let cancelled = false;
+        getFlatsForChessboard({ project: selectedComplex })
+            .then((items: any[]) => {
+                if (cancelled) return;
                 const adapted = items.map(adaptProperty);
                 setFlats(adapted);
                 const freeMatchingCount = adapted.filter((f: ComponentFlat) => flatMatchesFilters(f, filterParams) && f.available === "available").length;
@@ -251,10 +253,14 @@ export default function Checkmate({
                 setLoading(false);
             })
             .catch(() => {
+                if (cancelled) return;
                 setFlats([]);
                 setLoading(false);
             });
-    }, [selectedComplex, onTotalCountChange, realEstateType]);
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedComplex, onTotalCountChange]);
 
     // При смене фильтров пересчитываем количество свободных квартир, подходящих под фильтры
     useEffect(() => {
@@ -299,7 +305,7 @@ export default function Checkmate({
                             if (onProjectChange) onProjectChange(next);
                         }}
                     >
-                        {complexes.map((title) => (
+                        {complexOptions.map((title) => (
                             <SelectItem key={title}>{title}</SelectItem>
                         ))}
                     </Select>

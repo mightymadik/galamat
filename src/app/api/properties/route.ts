@@ -4,6 +4,7 @@ import { getProperties, getPropertyFiltersMetadata, PropertyFilters } from "../p
 import { getDistrictProjectLocaleMapping, resolveToCurrentLocale } from "../projectCatalog/filterOptions/localeMapping";
 import { apiGet } from "../fetcher";
 import { getLocale } from "@/lib/getLocale";
+import { rateLimit } from "../../../middleware/rate-limit";
 
 type RealEstateType = "property" | "commerce" | "parking" | "pantry";
 const TYPE_CONFIG: Record<RealEstateType, {
@@ -27,6 +28,13 @@ function parseType(raw: string | null): RealEstateType {
 
 export async function GET(request: NextRequest) {
   try {
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
+    const allowed = await rateLimit(`properties:${ip}`);
+    if (!allowed) {
+      return NextResponse.json({ error: "rate_limit_exceeded" }, { status: 429 });
+    }
+
     const type = parseType(request.nextUrl.searchParams.get("type"));
     if (type !== "property") {
       return handleNonResidential(request, type);
@@ -94,6 +102,9 @@ export async function GET(request: NextRequest) {
 
     const light = searchParams.get("light") === "1" || searchParams.get("light") === "true";
     const allStatuses = searchParams.get("allStatuses") === "1" || searchParams.get("allStatuses") === "true";
+    if (allStatuses && !searchParams.get("project")) {
+      return NextResponse.json({ error: "project is required when allStatuses=true" }, { status: 400 });
+    }
     const pageParam = searchParams.get("page");
     const pageSizeParam = searchParams.get("pageSize");
     const page = pageParam != null ? parseInt(pageParam, 10) : undefined;

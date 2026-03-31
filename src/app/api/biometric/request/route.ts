@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { mapBiometricError } from "@/lib/biometricErrors";
 
 const BIOMETRIC_BASE = "https://kyc.biometric.kz/api/v1/backend/e-document/online-access";
 
@@ -38,9 +39,14 @@ export async function POST(req: Request) {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
+      const mapped = mapBiometricError(res.status, data);
       return NextResponse.json(
-        { status: "error", message: data?.detail ?? data?.message ?? "Biometric request failed" },
-        { status: res.status }
+        {
+          status: "error",
+          code: mapped.code,
+          message: mapped.message,
+        },
+        { status: mapped.status }
       );
     }
 

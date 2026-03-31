@@ -8,6 +8,7 @@ import DesktopFlatsFilter from "../DesktopFlatsFilter/desktopFlatsFilter";
 import MobileFlatsFilter from "../MobileFlatsFilter/mobileFlatsFilter";
 import { FlatsFilterParams, RealEstateType } from "@/types/flat";
 import { filterParamsCanonicalKey, normalizeFilterParams } from "@/lib/flatsFilterUrl";
+import { getFlatsCount, getFlatsMetadata } from "@/app/(pages)/flats/actions";
 import { useTranslations } from "next-intl";
 import { FlatsFilterSkeleton, MobileFlatsFilterSkeleton } from "../Parts/flatsFilterSkeleton";
 
@@ -175,8 +176,7 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
     useEffect(() => {
         if (isMetadataLoaded) return; // Не загружаем повторно
 
-        fetch(`/api/properties?metadata=true&type=${encodeURIComponent(realEstateType)}`)
-            .then(res => res.json())
+        getFlatsMetadata()
             .then((metadata: PropertyFiltersMetadata) => {
                 setFilterMetadata(metadata);
                 setIsMetadataLoaded(true);
@@ -466,34 +466,18 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
         const project = params.project ?? initialFilterParams?.project ?? null;
         if (project == null) return;
 
-        const sp = new URLSearchParams();
-        if (params.priceRange) sp.set("priceRange", params.priceRange.join(","));
-        if (supportsPricePerM2 && params.pricePerM2Range) sp.set("pricePerM2Range", params.pricePerM2Range.join(","));
-        if (supportsArea && params.areaRange) sp.set("areaRange", params.areaRange.join(","));
-        if (params.entranceRange) sp.set("entranceRange", params.entranceRange.join(","));
-        if (params.roomCount?.length) sp.set("roomCount", params.roomCount.join(","));
-        if (params.district) sp.set("district", params.district);
-        sp.set("project", String(project).trim());
-        if (params.tags?.length) sp.set("tags", params.tags.join(","));
-        sp.set("page", "1");
-        sp.set("pageSize", "1");
-
-        const ac = new AbortController();
-        sp.set("type", realEstateType);
-        fetch(`/api/properties?${sp.toString()}`, { signal: ac.signal })
-            .then((res) => res.json())
-            .then((response: { meta?: { total?: number; pagination?: { total?: number } }; data?: unknown[] }) => {
-                if (ac.signal.aborted) return;
-                const total =
-                    response?.meta?.total ??
-                    response?.meta?.pagination?.total ??
-                    (Array.isArray(response?.data) ? response.data.length : undefined);
-                setTotalProjects(total != null && total > 0 ? total : 0);
+        let cancelled = false;
+        getFlatsCount({ filters: { ...params, project: String(project).trim() } })
+            .then((total) => {
+                if (cancelled) return;
+                setTotalProjects(total > 0 ? total : 0);
             })
             .catch(() => {
-                if (!ac.signal.aborted) setTotalProjects(0);
+                if (!cancelled) setTotalProjects(0);
             });
-        return () => ac.abort();
+        return () => {
+            cancelled = true;
+        };
     }, [onSubmit, countRequestKey, buildFilterParams, initialFilterParams?.project, supportsPricePerM2, supportsArea]);
 
     const handleSubmit = React.useCallback(() => {

@@ -60,12 +60,20 @@ function Page() {
     );
     const fromKey = filterParamsCanonicalKey(fromUrl);
     const currentKey = filterParamsCanonicalKey(filterParams);
-    if (fromKey === currentKey) return;
+    const nextView = searchParams.get("view");
+    const normalizedView = nextView && nextView.trim() ? nextView.trim() : "block";
+
+    if (fromKey === currentKey) {
+      if (viewType !== normalizedView) {
+        syncingFromUrlRef.current = true;
+        setViewType(normalizedView);
+      }
+      return;
+    }
 
     syncingFromUrlRef.current = true;
     setFilterParams(normalizeFilterParams(fromUrl));
-    const nextView = searchParams.get("view");
-    setViewType(nextView && nextView.trim() ? nextView.trim() : "block");
+    setViewType(normalizedView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlQs]);
 
@@ -103,6 +111,18 @@ function Page() {
     });
   }, []);
 
+  const handleViewTypeChange = useCallback((nextView: string) => {
+    setViewType(nextView);
+    const nextQs = normalizeQueryString(
+      flattenFilterParamsToSearchParams(filterParams),
+    );
+    const withView = new URLSearchParams(nextQs);
+    if (nextView && nextView !== "block") withView.set("view", nextView);
+    const nextQsWithView = normalizeQueryString(withView);
+    if (nextQsWithView === urlQs) return;
+    router.replace(nextQsWithView ? `/flats?${nextQsWithView}` : "/flats", { scroll: false });
+  }, [filterParams, urlQs, router]);
+
   return (
     <div className="mt-[68px]">
       <FlatsPageFilter
@@ -116,7 +136,7 @@ function Page() {
         onTotalCountChange={setTotalCount}
         onProjectChange={handleProjectChange}
         initialViewType={viewType}
-        onViewTypeChange={setViewType}
+        onViewTypeChange={handleViewTypeChange}
         realEstateType="property"
         detailBasePath="/flats"
       />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
 import { normalizePhone, isValidKzPhoneE164 } from "@/lib/authOtp";
+import { mapBiometricError } from "@/lib/biometricErrors";
 
 const BIOMETRIC_BASE = "https://kyc.biometric.kz/api/v1/backend/e-document/online-access";
 const BIOMETRIC_TIMEOUT_MS = 25_000;
@@ -210,13 +211,14 @@ export async function POST(req: Request) {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
+      const mapped = mapBiometricError(res.status, data);
       return NextResponse.json(
         {
           status: "error",
-          message: data?.detail ?? data?.message ?? "Biometric approve failed",
-          raw: data,
+          code: mapped.code,
+          message: mapped.message,
         },
-        { status: res.status }
+        { status: mapped.status }
       );
     }
 

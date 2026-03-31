@@ -20,6 +20,7 @@ import { isValidKzPhoneE164, normalizePhone } from "@/lib/authOtp";
 import OtpInputs from "./otpInputs";
 import type { AgreementPayload } from "@/types/agreement";
 import { useTranslations } from "next-intl";
+import { mapSendCodeErrorMessage } from "@/lib/authErrorI18n";
 
 /** Normalize masked phone to request format: 77756098579 (digits only, 7 prefix) */
 function phoneToRequestFormat(phone: string): string {
@@ -88,6 +89,20 @@ interface BankOption {
   bik?: string;
   iik?: string;
 }
+
+type ManualFieldErrors = Partial<
+  Record<
+    | "lastName"
+    | "firstName"
+    | "middleName"
+    | "gender"
+    | "dateOfBirth"
+    | "docNumber"
+    | "docIssuer"
+    | "dateOfIssue",
+    string
+  >
+>;
 
 function formatDateApiToDisplay(iso?: string): string {
   if (!iso) return "";
@@ -195,6 +210,7 @@ export default function Contacts({
   const [docIssuer, setDocIssuer] = useState("");
   const [dateOfIssue, setDateOfIssue] = useState("");
   const [manualMode, setManualMode] = useState(false);
+  const [manualFieldErrors, setManualFieldErrors] = useState<ManualFieldErrors>({});
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -359,11 +375,7 @@ export default function Contacts({
         });
         const sendJson = await sendRes.json().catch(() => ({}));
         if (!sendRes.ok || sendJson?.status !== "ok") {
-          setError(
-            sendJson?.message === "too_many_requests"
-              ? t("too_many_requests")
-              : sendJson?.message ?? t("error_sending_code")
-          );
+          setError(mapSendCodeErrorMessage(sendJson?.message, t));
           setPendingCheckDocData(null);
           return;
         }
@@ -459,13 +471,7 @@ export default function Contacts({
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.status !== "ok") {
-        setPhoneVerifyError(
-          json?.message === "too_many_requests"
-            ? t("too_many_requests")
-            : json?.message === "invalid_phone"
-              ? t("wrong_phone")
-              : json?.message ?? t("error_sending_code")
-        );
+        setPhoneVerifyError(mapSendCodeErrorMessage(json?.message, t));
         return;
       }
       setPhoneVerifyStep("code");
@@ -579,6 +585,7 @@ export default function Contacts({
 
   const handleNextFromSuccess = async () => {
     setError(null);
+    setManualFieldErrors({});
     const currentDocData: DocData | null = manualMode
       ? {
         lastName: lastName.trim(),
@@ -609,7 +616,18 @@ export default function Contacts({
       !currentDocData.docIssuer ||
       !currentDocData.dateOfIssue
     ) {
-      setError("Заполните все данные клиента");
+      const required = t("required_field");
+      setManualFieldErrors({
+        lastName: currentDocData.lastName ? undefined : required,
+        firstName: currentDocData.firstName ? undefined : required,
+        middleName: currentDocData.middleName ? undefined : required,
+        gender: currentDocData.gender ? undefined : required,
+        dateOfBirth: currentDocData.dateOfBirth ? undefined : required,
+        docNumber: currentDocData.docNumber ? undefined : required,
+        docIssuer: currentDocData.docIssuer ? undefined : required,
+        dateOfIssue: currentDocData.dateOfIssue ? undefined : required,
+      });
+      setError(t("fill_required_fields"));
       return;
     }
 
@@ -830,7 +848,10 @@ export default function Contacts({
                           type="text"
                           placeholder="Фамилия"
                           value={lastName}
-                          onValueChange={(v) => setLastName(normalizeCyrillicNameInput(v))}
+                          onValueChange={(v) => {
+                            setLastName(normalizeCyrillicNameInput(v));
+                            setManualFieldErrors((prev) => ({ ...prev, lastName: undefined }));
+                          }}
                           variant="flat"
                           className="[&_input::placeholder]:!text-[#2655AF]"
                           classNames={{
@@ -842,6 +863,8 @@ export default function Contacts({
                           }}
                           isDisabled={loading}
                           isRequired
+                          isInvalid={!!manualFieldErrors.lastName}
+                          errorMessage={manualFieldErrors.lastName}
                         />
                       </div>
                       <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
@@ -852,7 +875,10 @@ export default function Contacts({
                           type="text"
                           placeholder="Имя"
                           value={firstName}
-                          onValueChange={(v) => setFirstName(normalizeCyrillicNameInput(v))}
+                          onValueChange={(v) => {
+                            setFirstName(normalizeCyrillicNameInput(v));
+                            setManualFieldErrors((prev) => ({ ...prev, firstName: undefined }));
+                          }}
                           variant="flat"
                           className="[&_input::placeholder]:!text-[#2655AF]"
                           classNames={{
@@ -864,6 +890,8 @@ export default function Contacts({
                           }}
                           isDisabled={loading}
                           isRequired
+                          isInvalid={!!manualFieldErrors.firstName}
+                          errorMessage={manualFieldErrors.firstName}
                         />
                       </div>
                       <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
@@ -874,7 +902,10 @@ export default function Contacts({
                           type="text"
                           placeholder="Отчество"
                           value={middleName}
-                          onValueChange={(v) => setMiddleName(normalizeCyrillicNameInput(v))}
+                          onValueChange={(v) => {
+                            setMiddleName(normalizeCyrillicNameInput(v));
+                            setManualFieldErrors((prev) => ({ ...prev, middleName: undefined }));
+                          }}
                           variant="flat"
                           className="[&_input::placeholder]:!text-[#2655AF]"
                           classNames={{
@@ -886,6 +917,8 @@ export default function Contacts({
                           }}
                           isDisabled={loading}
                           isRequired
+                          isInvalid={!!manualFieldErrors.middleName}
+                          errorMessage={manualFieldErrors.middleName}
                         />
                       </div>
                       <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
@@ -898,11 +931,13 @@ export default function Contacts({
                           onInputChange={(value) => {
                             if (value === "Мужской" || value === "Женский" || value === "") {
                               setGender(value);
+                              setManualFieldErrors((prev) => ({ ...prev, gender: undefined }));
                             }
                           }}
                           onSelectionChange={(key) => {
                             if (key != null) {
                               setGender(String(key));
+                              setManualFieldErrors((prev) => ({ ...prev, gender: undefined }));
                             }
                           }}
                           items={[{ value: "Мужской" }, { value: "Женский" }]}
@@ -935,6 +970,9 @@ export default function Contacts({
                             </AutocompleteItem>
                           )}
                         </Autocomplete>
+                        {manualFieldErrors.gender && (
+                          <p className="text-red-500 text-[12px]">{manualFieldErrors.gender}</p>
+                        )}
                       </div>
                       <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
                         <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
@@ -943,7 +981,10 @@ export default function Contacts({
                         <Input
                           value={dateOfBirth}
                           placeholder="ДД.ММ.ГГГГ"
-                          onValueChange={setDateOfBirth}
+                          onValueChange={(v) => {
+                            setDateOfBirth(v);
+                            setManualFieldErrors((prev) => ({ ...prev, dateOfBirth: undefined }));
+                          }}
                           variant="flat"
                           inputMode="numeric"
                           className="[&_input::placeholder]:!text-[#2655AF]"
@@ -954,7 +995,10 @@ export default function Contacts({
                             inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
                             innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
                           }}
-                          ref={withMask("99.99.9999")} />
+                          ref={withMask("99.99.9999")}
+                          isInvalid={!!manualFieldErrors.dateOfBirth}
+                          errorMessage={manualFieldErrors.dateOfBirth}
+                        />
                       </div>
                       <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
                         <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
@@ -962,7 +1006,10 @@ export default function Contacts({
                         </span>
                         <Input
                           value={docNumber}
-                          onValueChange={(v) => setDocNumber(String(v || "").replace(/\D/g, "").slice(0, 9))}
+                          onValueChange={(v) => {
+                            setDocNumber(String(v || "").replace(/\D/g, "").slice(0, 9));
+                            setManualFieldErrors((prev) => ({ ...prev, docNumber: undefined }));
+                          }}
                           placeholder="999999999"
                           variant="flat"
                           inputMode="numeric"
@@ -975,6 +1022,8 @@ export default function Contacts({
                             innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
                           }}
                           ref={withMask("999999999")}
+                          isInvalid={!!manualFieldErrors.docNumber}
+                          errorMessage={manualFieldErrors.docNumber}
                         />
                       </div>
                       <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
@@ -983,7 +1032,10 @@ export default function Contacts({
                         </span>
                         <Input
                           value={"МВД РК"}
-                          onValueChange={() => setDocIssuer("МВД РК")}
+                          onValueChange={() => {
+                            setDocIssuer("МВД РК");
+                            setManualFieldErrors((prev) => ({ ...prev, docIssuer: undefined }));
+                          }}
                           variant="flat"
                           classNames={{
                             base: `w-full bg-[#F4F6FB] rounded-[16px]}`,
@@ -993,6 +1045,8 @@ export default function Contacts({
                             innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
                           }}
                           isReadOnly
+                          isInvalid={!!manualFieldErrors.docIssuer}
+                          errorMessage={manualFieldErrors.docIssuer}
                         />
                       </div>
                       <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
@@ -1002,7 +1056,10 @@ export default function Contacts({
                         <Input
                           value={dateOfIssue}
                           placeholder="ДД.ММ.ГГГГ"
-                          onValueChange={setDateOfIssue}
+                          onValueChange={(v) => {
+                            setDateOfIssue(v);
+                            setManualFieldErrors((prev) => ({ ...prev, dateOfIssue: undefined }));
+                          }}
                           variant="flat"
                           inputMode="numeric"
                           className="[&_input::placeholder]:!text-[#2655AF]"
@@ -1013,7 +1070,10 @@ export default function Contacts({
                             inputWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
                             innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
                           }}
-                          ref={withMask("99.99.9999")} />
+                          ref={withMask("99.99.9999")}
+                          isInvalid={!!manualFieldErrors.dateOfIssue}
+                          errorMessage={manualFieldErrors.dateOfIssue}
+                        />
                       </div>
                     </>
                   ) : (
@@ -1276,9 +1336,8 @@ export default function Contacts({
             isDisabled={loading}
             ref={withMask("+7 (999) 999-99-99")}
           />
-          {error && <p className="text-red-600 text-[14px]">{error}</p>}
           <Button
-            className="w-full text-[#2655AF] text-[14px] not-italic font-normal leading-[20px] p-2 bg-transparent justify-end hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent"
+            className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px] p-2 bg-transparent justify-end hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent"
             isDisabled={!hasValidPhoneAndIin || loading}
             onPress={() => {
               setError(null);
