@@ -9,6 +9,8 @@ export type ManagerProfile = {
   branch: { id: string } | null;
   counters: Array<{ id: string; code: string }>;
   currentCounterId: string | null;
+  /** Бэкенд: не OFFLINE, но нет branchId в Redis (истёк кеш смены) */
+  needsPreviousShiftClosure?: boolean;
 };
 
 export type BackendStatus = "AVAILABLE" | "OFFLINE" | "BREAK" | "LUNCH";

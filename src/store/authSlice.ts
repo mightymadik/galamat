@@ -1,6 +1,6 @@
 // store/authSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { sendAuthCode, verifyAuthCode, checkAuth, registerAuth, logoutAuth, createAuthSession } from "@/store/authThunks";
+import { sendAuthCode, verifyAuthCode, checkAuth, registerAuth, logoutAuth } from "@/store/authThunks";
 
 interface AuthState {
   isOpen: boolean;
@@ -34,9 +34,7 @@ interface AuthState {
 const initialState: AuthState = {
   isOpen: false,
   step: "phone",
-  // "registered" here comes from /send-code and means "customer existed before".
-  // Defaulting to false avoids skipping registration step on fresh state.
-  isRegistered: false,
+  isRegistered: true,
 
   isSendingCode: false,
   sendCodeError: null,
@@ -64,7 +62,7 @@ const authSlice = createSlice({
       state.phone = "";
       state.firstName = "";
       state.lastName = "";
-      state.isRegistered = false;
+      state.isRegistered = true;
 
       state.sendCodeError = null;
       state.isSendingCode = false;
@@ -77,7 +75,7 @@ const authSlice = createSlice({
     changeNumber: (state) => {
       state.step = "phone";
       state.phone = "";
-      state.isRegistered = false;
+      state.isRegistered = true;
       state.sendCodeError = null;
       state.isSendingCode = false;
     },
@@ -144,8 +142,12 @@ const authSlice = createSlice({
       })
       .addCase(verifyAuthCode.fulfilled, (state, action) => {
         state.isVerifyingCode = false;
+        state.user = action.payload.user;
         state.verifyError = null;
         state.attemptsLeft = null;
+
+        // новый/старый решай по isRegistered из send-code
+        state.step = state.isRegistered ? "successDefault" : "registration";
       })
       .addCase(verifyAuthCode.rejected, (state, action) => {
         state.isVerifyingCode = false;
@@ -162,11 +164,6 @@ const authSlice = createSlice({
       })
       .addCase(logoutAuth.rejected, (state) => {
         state.user = undefined;
-      });
-
-    builder
-      .addCase(createAuthSession.fulfilled, (state, action) => {
-        state.user = action.payload.user;
       });
   },
 });

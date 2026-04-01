@@ -5,6 +5,40 @@ export type QueueProfilePhase = "withClient" | "waitingForNext";
 /** При withClient: "waiting" — клиент вызван, ждём у окна; "servicing" — обслуживаем. */
 export type CallServicePhase = "waiting" | "servicing";
 
+export interface CurrentClient {
+  /** ID талона в очереди (Postgres) */
+  id: string;
+  /** Отображаемый номер талона (например, CA005) */
+  code: string;
+  /** Полное имя клиента (из Strapi или fallback) */
+  name: string;
+  /** Телефон клиента (из Strapi или очереди) */
+  phone?: string | null;
+  /** Фактическое время ожидания в секундах, рассчитанное на беке */
+  waitTimeSeconds?: number | null;
+  /** Название филиала для отображения */
+  branchName?: string | null;
+  /** Название услуги для отображения */
+  serviceName?: string | null;
+  /** Имя менеджера (может прийти из Strapi / managerName) */
+  managerName?: string | null;
+  /** Код окна (например, WINDOW_1) */
+  counterCode?: string | null;
+}
+
+export interface ClientHistoryItem {
+  id: string;
+  name: string;
+  phone?: string | null;
+  /** ISO-строка даты обращения (createdAt / closedAt) */
+  date?: string | null;
+  service?: string | null;
+  /** Время обслуживания в секундах */
+  serviceTimeSeconds?: number | null;
+  /** Время ожидания в секундах */
+  waitTimeSeconds?: number | null;
+}
+
 export type DeskItem = { key: string; label: string };
 
 export const MAX_DESKS = 30;
@@ -14,6 +48,10 @@ export interface QueueProfileState {
   status: QueueProfileStatus;
   phase: QueueProfilePhase;
   callServicePhase: CallServicePhase;
+  /** Данные текущего клиента, которого сейчас обслуживает менеджер */
+  currentClient: CurrentClient | null;
+  /** История обращений текущего клиента */
+  currentClientHistory: ClientHistoryItem[];
   frozenWaitingSeconds: number;
   waitingElapsedSeconds: number;
   pendingStatus: QueueProfileStatus | null;
@@ -29,6 +67,8 @@ export interface QueueProfileState {
   branchId: string;
   /** Модал выбора окна: открывается ТОЛЬКО при переходе unavailable → available */
   isDeskModalOpen: boolean;
+  /** Режим модала выбора окна: выбор при старте смены или редактирование окна по кнопке «Изменить» */
+  deskModalMode: "status" | "edit";
 }
 
 const initialState: QueueProfileState = {
@@ -37,6 +77,8 @@ const initialState: QueueProfileState = {
   callServicePhase: "waiting",
   frozenWaitingSeconds: 0,
   waitingElapsedSeconds: 0,
+  currentClient: null,
+  currentClientHistory: [],
   pendingStatus: null,
   isStatusModalOpen: false,
   isHistoryOpen: false,
@@ -45,6 +87,7 @@ const initialState: QueueProfileState = {
   nextDeskId: 1,
   branchId: "",
   isDeskModalOpen: false,
+  deskModalMode: "status",
 };
 
 const queueProfileSlice = createSlice({
@@ -57,6 +100,7 @@ const queueProfileSlice = createSlice({
       // unavailable → available: обязательный выбор окна
       if (nextStatus === "available" && state.status === "unavailable") {
         state.isDeskModalOpen = true;
+        state.deskModalMode = "status";
         return;
       }
       // Все остальные переходы (в т.ч. break/lunch → available): обычный статусный модал
@@ -74,9 +118,10 @@ const queueProfileSlice = createSlice({
       state.pendingStatus = null;
       state.isStatusModalOpen = false;
     },
-    /** Ручное открытие модала (только из статуса "недоступен") */
+    /** Ручное открытие модала (только из статуса "недоступен") по кнопке «Изменить» */
     openDeskModal: (state) => {
       state.isDeskModalOpen = true;
+      state.deskModalMode = "edit";
     },
     /** Подтвердить выбор окна и перейти в "доступен" (из статуса "недоступен") */
     confirmDeskAndGoOnline: (state, action: PayloadAction<string>) => {
@@ -100,19 +145,34 @@ const queueProfileSlice = createSlice({
       state.callServicePhase = "waiting";
       state.frozenWaitingSeconds = 0;
       state.waitingElapsedSeconds = 0;
+      state.currentClient = null;
+      state.currentClientHistory = [];
     },
     setWithClient: (state) => {
       state.phase = "withClient";
       state.callServicePhase = "waiting";
       state.frozenWaitingSeconds = 0;
       state.waitingElapsedSeconds = 0;
+      // текущий клиент должен быть установлен отдельным экшеном из ответа API
     },
-    startServicing: (state, action: PayloadAction<number>) => {
+    startServicing: (state) => {
+      // При начале обслуживания фиксированное время ожидания не меняем,
+      // только переключаем фазу.
       state.callServicePhase = "servicing";
+    },
+    /** Зафиксировать время ожидания (в секундах), пришедшее с бэка при вызове клиента */
+    setFrozenWaitingSeconds: (state, action: PayloadAction<number>) => {
       state.frozenWaitingSeconds = action.payload;
     },
     setWaitingElapsed: (state, action: PayloadAction<number>) => {
       state.waitingElapsedSeconds = action.payload;
+    },
+    /** Обновить данные текущего клиента (после успешного вызова талона) */
+    setCurrentClient: (state, action: PayloadAction<CurrentClient | null>) => {
+      state.currentClient = action.payload;
+    },
+    setCurrentClientHistory: (state, action: PayloadAction<ClientHistoryItem[]>) => {
+      state.currentClientHistory = action.payload;
     },
     toggleHistory: (state) => {
       state.isHistoryOpen = !state.isHistoryOpen;
@@ -150,7 +210,10 @@ export const {
   goToWaitingForNext,
   setWithClient,
   startServicing,
+  setFrozenWaitingSeconds,
   setWaitingElapsed,
+  setCurrentClient,
+  setCurrentClientHistory,
   toggleHistory,
   setHistoryOpen,
   setProfileFromApi,

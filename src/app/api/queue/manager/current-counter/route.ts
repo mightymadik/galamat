@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-const QUEUE_API_URL = process.env.QUEUE_API_URL;
+const QUEUE_API_URL =
+  process.env.QUEUE_API_URL || process.env.QUEUE_BACKEND_URL || "http://queue-backend:3001";
 
 /**
  * PUT /api/queue/manager/current-counter

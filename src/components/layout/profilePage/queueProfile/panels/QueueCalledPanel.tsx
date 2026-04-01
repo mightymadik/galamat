@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Button } from "@heroui/button";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { setWaitingElapsed } from "@/store/queueProfileSlice";
+import { useAppSelector } from "@/store/hooks";
 import ElapsedTimer, { formatElapsed } from "./ElapsedTimer";
+import { useTranslations } from "next-intl";
 
 export default function QueueCalledPanel({
   isHistoryOpen,
@@ -13,48 +12,58 @@ export default function QueueCalledPanel({
   isHistoryOpen: boolean;
   onToggleHistory: () => void;
 }) {
-  const dispatch = useAppDispatch();
-  const { callServicePhase, frozenWaitingSeconds } = useAppSelector((s) => s.queueProfile);
+  const t = useTranslations();
+  const { callServicePhase, frozenWaitingSeconds, currentClient, currentClientHistory } = useAppSelector(
+    (s) => s.queueProfile,
+  );
   const isWaiting = callServicePhase === "waiting";
-
-  const [waitingSeconds, setWaitingSeconds] = useState(0);
-
-  useEffect(() => {
-    if (!isWaiting) return;
-    const id = setInterval(() => setWaitingSeconds((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [isWaiting]);
-
-  useEffect(() => {
-    if (isWaiting) dispatch(setWaitingElapsed(waitingSeconds));
-  }, [isWaiting, waitingSeconds, dispatch]);
+  const hasHistory = currentClientHistory.length > 0;
 
   return (
     <div className="flex w-full pl-[24px] pr-[24px] py-[32px] flex-col items-start gap-[32px] flex-[1_0_0]">
       <div className="flex items-center gap-[25px] self-stretch">
         <div className="flex pt-[16px] items-end gap-[8px] flex-[1_0_0] [border-top:5px_solid_#2655AF]">
-          <span className="text-[#1E1E1E] [font-size:_clamp(12px,5vw,24px)]  not-italic font-medium leading-[24px]">Вызов</span>
+          <span className="text-[#1E1E1E] [font-size:_clamp(12px,5vw,24px)]  not-italic font-medium leading-[24px]">{t("queue_tab_call")}</span>
         </div>
         <div className="flex pt-[16px] items-end gap-[8px] flex-[1_0_0] [border-top:5px_solid_#2655AF]">
-          <span className="text-[#1E1E1E] [font-size:_clamp(12px,5vw,24px)]  not-italic font-medium leading-[24px]">Явка</span>
+          <span className="text-[#1E1E1E] [font-size:_clamp(12px,5vw,24px)]  not-italic font-medium leading-[24px]">{t("queue_tab_attendance")}</span>
         </div>
         <div className="flex pt-[16px] items-end gap-[8px] flex-[1_0_0] [border-top:5px_solid_#2655AF]">
-          <span className="text-[#1E1E1E] [font-size:_clamp(12px,5vw,24px)]  not-italic font-medium leading-[24px]">Данные</span>
+          <span className="text-[#1E1E1E] [font-size:_clamp(12px,5vw,24px)]  not-italic font-medium leading-[24px]">{t("queue_tab_data")}</span>
         </div>
       </div>
 
       <div className="flex flex-col items-start gap-[24px] self-stretch">
         <div className="flex flex-col pt-[24px] pr-[32px] pb-[32px] pl-[24px] items-center gap-[8px] self-stretch rounded-[24px] bg-[#FFF]">
           <div className="flex flex-col md:flex-row items-center gap-[16px] self-stretch">
-            <div className="flex items-start md:items-center  justify-center">
-              <div className="relative w-[80px] h-[80px] flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none">
+            <div className="flex items-start md:items-center justify-center">
+              <div className="relative w-[100px] h-[80px] flex items-center justify-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 80 80"
+                  preserveAspectRatio="none"
+                  className="w-full h-full"
+                  fill="none"
+                >
                   <path d="M46.7126 63.0663L46.6932 63.3427C46.6887 64.9099 46.6864 65.6934 46.1986 66.1799C45.7107 66.6663 44.9271 66.6663 43.3599 66.6663H33.317C20.7149 66.6663 14.4139 66.6663 10.4989 62.7611C7.80336 60.0722 6.96376 56.255 6.70225 50.0348C6.65039 48.8012 6.62446 48.1844 6.85481 47.7729C7.08515 47.3614 8.00477 46.8479 9.84393 45.8208C11.8865 44.6802 13.2672 42.5008 13.2672 39.9997C13.2672 37.4986 11.8865 35.3192 9.84393 34.1785C8.00475 33.1515 7.08515 32.6379 6.85481 32.2264C6.62446 31.8149 6.65039 31.1981 6.70225 29.9646C6.96376 23.7443 7.80336 19.9271 10.4989 17.2383C14.4139 13.333 20.7149 13.333 33.317 13.333H45.0176C45.9385 13.333 46.6857 14.0763 46.6884 14.9948L46.7126 16.933C46.7126 18.774 48.2087 20.2663 50.0543 20.2663C51.8998 20.2663 53.3959 18.774 53.3959 16.933V15.0536C53.3959 14.1236 54.1609 13.372 55.0929 13.396C62.3177 13.5824 66.576 14.3198 69.5017 17.2383C72.1973 19.9271 73.0369 23.7443 73.2984 29.9646C73.3503 31.1981 73.3762 31.8149 73.1458 32.2264C72.9155 32.6379 71.9959 33.1515 70.1567 34.1785C68.1141 35.3192 66.7334 37.4986 66.7334 39.9997C66.7334 42.5008 68.1141 44.6802 70.1567 45.8208C71.9959 46.8479 72.9155 47.3614 73.1458 47.7729C73.3762 48.1844 73.3503 48.8012 73.2984 50.0348C73.0369 56.255 72.1973 60.0722 69.5017 62.7611C66.8113 65.4449 62.9939 66.2843 56.7791 66.5468C55.208 66.6132 54.4225 66.6464 53.9092 66.1543C53.3959 65.6623 53.3959 64.8597 53.3959 63.2546V63.0663C53.3959 61.2254 51.8998 59.733 50.0543 59.733C48.2087 59.733 46.7126 61.2254 46.7126 63.0663Z" fill="#DB1D31" />
                 </svg>
-                <span className="absolute text-[#FFF] text-[24px] not-italic font-bold leading-[100%]">124</span>
+                <span className="absolute inset-x-2 text-center text-white text-[16px] font-medium leading-none truncate">
+                  {currentClient?.code || "—"}
+                </span>
               </div>
             </div>
-            <span className="flex-[1_0_0] text-[#1A3C7E] [font-size:_clamp(24px,5vw,32px)] not-italic font-normal leading-[32px]">Кудайбергенова Асель Галаматовна</span>
+            <div className="flex flex-col flex-[1_0_0] gap-[4px]">
+              <span className="text-[#1A3C7E] [font-size:_clamp(20px,4vw,28px)] not-italic font-normal leading-[28px]">
+                {currentClient?.name ?? t("queue_client_in_service")}
+              </span>
+              {/* {(currentClient?.code || currentClient?.phone) && (
+                <span className="text-[#4B4E5A] text-[14px] not-italic font-normal leading-[20px]">
+                  {currentClient.code && `Талон ${currentClient.code}`}
+                  {currentClient.code && currentClient.phone && " · "}
+                  {currentClient.phone && `Телефон ${currentClient.phone}`}
+                </span>
+              )} */}
+            </div>
           </div>
 
           <div className="flex flex-col md:flex-row flex-wrap items-start gap-[16px] self-stretch">
@@ -69,14 +78,13 @@ export default function QueueCalledPanel({
                   </g>
                 </svg>
                 <span className="flex-[1_0_0] text-[#282D3C] text-[12px] not-italic font-medium leading-[16px]">
-                  Время ожидания
+                  {t("queue_waiting_time")}
                 </span>
               </div>
-              {isWaiting ? (
-                <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">{formatElapsed(waitingSeconds)}</span>
-              ) : (
-                <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">{formatElapsed(frozenWaitingSeconds)}</span>
-              )}
+              {/* Время ожидания приходит с бэка и не тикает */}
+              <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">
+                {formatElapsed(frozenWaitingSeconds)}
+              </span>
             </div>
 
             <div className="flex p-[12px] flex-col justify-between items-start flex-[1_0_0] self-stretch rounded-[12px] bg-[#F3F5F8]">
@@ -90,13 +98,17 @@ export default function QueueCalledPanel({
                   </g>
                 </svg>
                 <span className="flex-[1_0_0] text-[#282D3C] text-[12px] not-italic font-medium leading-[16px]">
-                  Время обслуживания
+                  {t("queue_service_time")}
                 </span>
               </div>
               {isWaiting ? (
                 <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">0м 0с</span>
               ) : (
-                <ElapsedTimer key="servicing" initialSeconds={0} className="text-[#000] text-[16px] not-italic font-bold leading-[normal]" />
+                <ElapsedTimer
+                  key="servicing"
+                  initialSeconds={0}
+                  className="text-[#000] text-[16px] not-italic font-bold leading-[normal]"
+                />
               )}
             </div>
 
@@ -108,17 +120,19 @@ export default function QueueCalledPanel({
                   </g>
                 </svg>
                 <span className="flex-[1_0_0] text-[#282D3C] text-[12px] not-italic font-medium leading-[16px]">
-                  Телефон
+                  {t("queue_phone")}
                 </span>
               </div>
-              <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">+7 777 323 4354</span>
+              <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">
+                {currentClient?.phone ?? "—"}
+              </span>
             </div>
           </div>
         </div>
 
         <div className="flex flex-col items-start gap-[12px] self-stretch">
           <div className="flex items-center gap-[16px] self-stretch">
-            <div className="text-[#282D3C] text-[20px] not-italic font-normal leading-[normal]">История обращений</div>
+            <div className="text-[#282D3C] text-[20px] not-italic font-normal leading-[normal]">{t("queue_history_of_calls")}</div>
             <Button
               onClick={onToggleHistory}
               aria-expanded={isHistoryOpen}
@@ -149,38 +163,76 @@ export default function QueueCalledPanel({
                     className="grid gap-x-2 p-2 py-0 shrink-0"
                     style={{ gridTemplateColumns: "minmax(100px,1fr) minmax(90px,1fr) minmax(72px,0.8fr) minmax(64px,0.7fr) minmax(100px,1fr) minmax(72px,0.8fr)" }}
                   >
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">Имя</span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">Телефон</span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">Дата</span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">Услуга</span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">Время обслуж.</span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">Время ожид.</span>
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                      {t("name")}
+                    </span>
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                     {t("queue_phone")}
+                    </span>
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                      {t("queue_date")}
+                    </span>
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                      {t("queue_service")}
+                    </span>
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                      {t("queue_service_time_shortened")}
+                    </span>
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                      {t("queue_waiting_time_shortened")}
+                    </span>
                   </div>
 
                   <div className="flex flex-col gap-[4px] rounded-2">
-                    <div
-                      className="grid gap-x-2 px-2 py-[8px] rounded-[4px] bg-[#F4F6FB] [border-bottom:1px_solid_rgba(19,44,94,0.07)]"
-                      style={{ gridTemplateColumns: "minmax(100px,1fr) minmax(90px,1fr) minmax(72px,0.8fr) minmax(64px,0.7fr) minmax(100px,1fr) minmax(72px,0.8fr)" }}
-                    >
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate" title="Кудайбергенова Асель Галаматовна">Кудайбергенова Асель Галаматовна</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">+7 777 323 4354</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">24/06/2026</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">Касса</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">1ч 32м 04с</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">0м 0с</span>
-                    </div>
-
-                    <div
-                      className="grid gap-x-2 px-2 py-[8px] rounded-[4px] bg-[#F4F6FB] [border-bottom:1px_solid_rgba(19,44,94,0.07)]"
-                      style={{ gridTemplateColumns: "minmax(100px,1fr) minmax(90px,1fr) minmax(72px,0.8fr) minmax(64px,0.7fr) minmax(100px,1fr) minmax(72px,0.8fr)" }}
-                    >
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate" title="Кудайбергенова Асель Галаматовна">Кудайбергенова Асель Галаматовна</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">+7 777 323 4354</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">24/06/2026</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">Касса</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">1ч 32м 04с</span>
-                      <span className="text-[#1A3C7E] text-[12.97px] font-normal min-w-0 truncate">0м 0с</span>
-                    </div>
+                    {hasHistory ? (
+                      currentClientHistory.map((item) => {
+                        const date = item.date ? new Date(item.date) : null;
+                        const dateText = date
+                          ? date.toLocaleString("ru-RU", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "—";
+                        const waitText =
+                          typeof item.waitTimeSeconds === "number"
+                            ? formatElapsed(item.waitTimeSeconds)
+                            : "—";
+                        const serviceText =
+                          typeof item.serviceTimeSeconds === "number"
+                            ? formatElapsed(item.serviceTimeSeconds)
+                            : "—";
+                        return (
+                          <div
+                            key={item.id}
+                            className="grid gap-x-2 p-2 py-[8px] items-center [border-bottom:1px_solid_rgba(19,44,94,0.07)] text-[12px] text-[rgba(44,45,49,0.80)]"
+                            style={{
+                              gridTemplateColumns:
+                                "minmax(100px,1fr) minmax(90px,1fr) minmax(72px,0.8fr) minmax(64px,0.7fr) minmax(100px,1fr) minmax(72px,0.8fr)",
+                            }}
+                          >
+                            <span className="min-w-0 truncate">{item.name}</span>
+                            <span className="min-w-0 truncate">{item.phone ?? "—"}</span>
+                            <span className="min-w-0 truncate">{dateText}</span>
+                            <span className="min-w-0 truncate">{item.service ?? "—"}</span>
+                            <span className="min-w-0 truncate">{serviceText}</span>
+                            <span className="min-w-0 truncate">{waitText}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div
+                        className="flex items-center justify-center px-2 py-[12px] rounded-[4px] bg-[#F4F6FB] [border-bottom:1px_solid_rgba(19,44,94,0.07)] text-[rgba(44,45,49,0.60)] text-[12px]"
+                        style={{
+                          gridTemplateColumns:
+                            "minmax(100px,1fr) minmax(90px,1fr) minmax(72px,0.8fr) minmax(64px,0.7fr) minmax(100px,1fr) minmax(72px,0.8fr)",
+                        }}
+                      >
+                        {t("queue_history_of_calls_placeholder")}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
