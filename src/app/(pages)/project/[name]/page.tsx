@@ -29,6 +29,7 @@ import {
 import { ProjectDetail } from "@/types/projectCatalog";
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
+import LeaveRequest from '@/components/layout/mainPage/leaveRequest/leaveRequest';
 
 export async function generateMetadata({ params }: { params: { name: string } }): Promise<Metadata> {
     const { name } = await params;
@@ -80,13 +81,16 @@ export default async function Page({ params }: { params: { name: string }; }) {
             <div className="py-[0px] lg:py-[64px]">
                 <ProjectPageFlatsFilter initialProject={projectHero.complexName?.trim()} />
             </div>
+            <LeaveRequest />
             <AboutProject projectSlug={projectAbout ?? undefined} />
             <GenPlan projectSlug={projectGenPlan ?? undefined} />
             {/* <Hypothec /> */}
+            <LeaveRequest />
             <Plans projectSlug={projectPlans ?? undefined} />
             <Features projectSlug={projectFeatures} />
             <ServicesProject projectSlug={projectServices ?? undefined} />
-            <div className="wrapper w-full lg:h-[600px] flex flex-col items-start gap-[36px]">
+            <LeaveRequest />
+            <div className="wrapper py-0 lg:py-[32px] w-full lg:h-[600px] flex flex-col items-start gap-[36px]">
                 <h1 className="text-[36px] font-medium text-[#202028] leading-[41.76px]">
                     {t("location")}
                 </h1>
