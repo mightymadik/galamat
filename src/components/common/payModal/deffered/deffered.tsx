@@ -280,9 +280,7 @@ export default function Deffered({ flatData, realEstateType = "property", active
             : parsePrice(flatData?.originalPrice) ?? parsePrice(flatData?.price);
 
     const defferedConditions = (flatData?.paymentConditions || []).filter((c) => isPaymentMethod(c as any, "deffered") && isActivePaymentStatus(c as any) && isPaymentConditionValidToday(c));
-    const allOptions = defferedConditions
-        .flatMap((c) => c.paymentCondition || [])
-        .filter((o) => o?.downPayment != null && o?.downPayment !== "");
+    const allOptions = defferedConditions.flatMap((c) => c.paymentCondition || []).filter((o) => o?.downPayment != null && o?.downPayment !== "");
     const flatAttrs = flatData
         ? {
             room: flatData.room,
@@ -295,14 +293,9 @@ export default function Deffered({ flatData, realEstateType = "property", active
             apartmentNumber: flatData.apartmentNumber,
         }
         : undefined;
-    const matchedOptions = flatAttrs
+    const options = flatAttrs && allOptions.length > 0
         ? getMatchingOptions(allOptions as Parameters<typeof getMatchingOptions>[0], flatAttrs)
         : allOptions;
-    const options = Array.from(
-        new Map(
-            matchedOptions.map((o) => [`${String(o?.downPayment ?? "")}|${parseRaise(o?.raise)}|${getPaymentValueUnit(o) ?? ""}`, o])
-        ).values()
-    );
 
     const validToStr = defferedConditions[0]?.validTo ?? undefined;
     const validToDate = validToStr ? new Date(validToStr.replace(" ", "T")) : null;
@@ -481,22 +474,22 @@ export default function Deffered({ flatData, realEstateType = "property", active
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatComplexDueDate(flatData?.complexDueDate) || ""}</span>
                         </div>
                         {Boolean(flatData?.section) && (
-                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("section")}</span>
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.section || ''}</span>
-                        </div>
+                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("section")}</span>
+                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.section || ''}</span>
+                            </div>
                         )}
                         {Boolean(flatData?.entrance) && (
-                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("entrance")}</span>
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.entrance || ''}</span>
-                        </div>
+                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("entrance")}</span>
+                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.entrance || ''}</span>
+                            </div>
                         )}
                         {isResidential && Boolean(flatData?.floor) && (
-                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("floor")}</span>
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.floor || ''}</span>
-                        </div>
+                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("floor")}</span>
+                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{flatData?.floor || ''}</span>
+                            </div>
                         )}
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{isResidential ? t("apartment") : "Номер"}</span>
@@ -543,6 +536,7 @@ export default function Deffered({ flatData, realEstateType = "property", active
                         </p>
                         <div className="flex flex-wrap gap-2">
                             {options.map((opt, i) => {
+                                const isSelected = selectedPvIndex === i;
                                 const raiseRaw = parseRaise(opt.raise);
                                 const priceBeforeDiscounts = resolveOptionTotalPrice(basePrice, adjustmentArea, opt);
                                 const promoDisc = promocodeResult?.valid
@@ -552,7 +546,6 @@ export default function Deffered({ flatData, realEstateType = "property", active
                                 const downAmount = resolveDownPaymentAmount(opt.downPayment, fullPriceForOpt);
                                 const pct = fullPriceForOpt > 0 ? Math.round((downAmount / fullPriceForOpt) * 100) : 0;
                                 const pctLabel = `${Math.max(0, pct)}%`;
-                                const isSelected = selectedPvIndex === i;
                                 return (
                                     <button
                                         key={i}
@@ -573,10 +566,10 @@ export default function Deffered({ flatData, realEstateType = "property", active
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatPriceDisplay(totalPrice)}</span>
                     </div>
                     {realEstateType !== "parking" && (
-                    <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("price_per_square_meter")}</span>
-                        <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{totalSumM2Display}</span>
-                    </div>
+                        <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("price_per_square_meter")}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{totalSumM2Display}</span>
+                        </div>
                     )}
                     <div className="flex items-center justify-between w-full flex-row gap-3 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] py-[8px]">
                         <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
