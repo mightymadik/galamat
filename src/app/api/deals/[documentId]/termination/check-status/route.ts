@@ -84,40 +84,50 @@ export async function POST(
     }
 
     let signedAgreementFileId: number | null = null;
-    const linkDdcard = data?.document?.link_ddcard;
-    if (linkDdcard && typeof linkDdcard === "string") {
-      try {
-        const fileRes = await fetch(linkDdcard);
-        if (fileRes.ok) {
-          const buf = Buffer.from(await fileRes.arrayBuffer());
-          const FormData = (await import("form-data")).default;
-          const form = new FormData();
-          const pdfFilename = agreementNumberForPdf
-            ? `Расторжение ${agreementNumberForFilename(agreementNumberForPdf)}.pdf`
-            : `signed-termination-${doodocsDocumentId}.pdf`;
-          form.append("files", buf, {
-            filename: pdfFilename,
-            contentType: fileRes.headers.get("content-type") || "application/pdf",
-          });
-          const uploadRes = await strapiAxios.post(`${base}/api/upload`, form, {
-            headers: { ...headers, ...form.getHeaders() },
-            maxBodyLength: Infinity,
-            maxContentLength: Infinity,
-          });
-          const uploadData = (uploadRes.data as any) ?? [];
-          const firstFile = Array.isArray(uploadData) ? uploadData[0] : uploadData;
-          if (firstFile?.id) signedAgreementFileId = firstFile.id;
-        }
-      } catch (uploadErr: any) {
-        console.warn("[deals/termination/check-status] upload link_ddcard failed:", uploadErr?.message);
+    try {
+      const ezsignerRes = await fetch(
+        `${DOODOCS_API_URL}/api/v1/documents/${encodeURIComponent(doodocsDocumentId)}/ezsigner`,
+        { method: "GET", headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (ezsignerRes.ok) {
+        const ezsignerBuffer = Buffer.from(await ezsignerRes.arrayBuffer());
+        const FormData = (await import("form-data")).default;
+        const form = new FormData();
+        const pdfFilename = agreementNumberForPdf
+          ? `Расторжение ${agreementNumberForFilename(agreementNumberForPdf)} (ezsigner).pdf`
+          : `signed-termination-${doodocsDocumentId} (ezsigner).pdf`;
+        form.append("files", ezsignerBuffer, {
+          filename: pdfFilename,
+          contentType: "application/pdf",
+        });
+        const uploadRes = await strapiAxios.post(`${base}/api/upload`, form, {
+          headers: { ...headers, ...form.getHeaders() },
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+        });
+        const uploadData = (uploadRes.data as any) ?? [];
+        const firstFile = Array.isArray(uploadData) ? uploadData[0] : uploadData;
+        if (firstFile?.id) signedAgreementFileId = firstFile.id;
       }
+    } catch (uploadErr: any) {
+      console.warn("[deals/termination/check-status] upload ezsigner failed:", uploadErr?.message);
     }
 
-    if (signedAgreementDocumentId) {
-      const saData: Record<string, unknown> = { signed: true, signedAt: now };
+    let targetSignedAgreementDocumentId = signedAgreementDocumentId;
+    if (!targetSignedAgreementDocumentId) {
+      const saRes = await strapiAxios.get(
+        `${base}/api/signed-agreements?filters[doodocsDocumentId][$eq]=${encodeURIComponent(doodocsDocumentId)}&pagination[pageSize]=1&fields[0]=documentId`,
+        { headers }
+      );
+      const first: any = (saRes.data as any)?.data?.[0];
+      targetSignedAgreementDocumentId = first?.documentId ?? first?.attributes?.documentId ?? undefined;
+    }
+
+    if (targetSignedAgreementDocumentId) {
+      const saData: Record<string, unknown> = { signed: true, signedAt: now, doodocsDocumentId };
       if (signedAgreementFileId != null) saData.signedAgreement = signedAgreementFileId;
       await strapiAxios.put(
-        `${base}/api/signed-agreements/${signedAgreementDocumentId}`,
+        `${base}/api/signed-agreements/${targetSignedAgreementDocumentId}`,
         { data: saData },
         { headers }
       );

@@ -24,6 +24,7 @@ function formatSignedAt(iso: string | null | undefined): string {
 interface DocStatus {
     templateType: string;
     documentName?: string;
+    recordDocumentId?: string;
     doodocsDocumentId?: string;
     signUrl?: string;
     signed: boolean;
@@ -138,6 +139,7 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                 setDocStatuses(startJson.documents.map((d: any) => ({
                     templateType: d.templateType,
                     documentName: d.documentName,
+                    recordDocumentId: d.recordDocumentId,
                     doodocsDocumentId: d.doodocsDocumentId,
                     signUrl: d.signUrl,
                     signed: false,
@@ -164,12 +166,32 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                 body: JSON.stringify({ dealDocumentId }),
             });
             const data = await res.json().catch(() => ({}));
+            const remoteDocs: DocStatus[] = Array.isArray(data.documents)
+                ? data.documents.map((d: any) => ({
+                    templateType: d.templateType,
+                    documentName: d.documentName,
+                    recordDocumentId: d.recordDocumentId,
+                    doodocsDocumentId: d.doodocsDocumentId,
+                    signUrl: d.signUrl,
+                    signed: Boolean(d.signed),
+                    signedAt: d.signedAt ?? null,
+                }))
+                : [];
+
             if (data.allSigned) {
-                setDocStatuses((prev) => prev.map((d) => ({ ...d, signed: true, signedAt: data.documents?.find((dd: any) => dd.templateType === d.templateType)?.signedAt ?? d.signedAt })));
-            } else if (Array.isArray(data.documents)) {
-                setDocStatuses((prev) =>
-                    prev.map((d) => {
-                        const remote = data.documents.find((dd: any) => dd.doodocsDocumentId === d.doodocsDocumentId || dd.templateType === d.templateType);
+                setDocStatuses((prev) => {
+                    if (prev.length === 0) return remoteDocs.map((d) => ({ ...d, signed: true }));
+                    return prev.map((d) => ({
+                        ...d,
+                        signed: true,
+                        signedAt: remoteDocs.find((dd) => dd.templateType === d.templateType)?.signedAt ?? d.signedAt
+                    }));
+                });
+            } else if (remoteDocs.length > 0) {
+                setDocStatuses((prev) => {
+                    if (prev.length === 0) return remoteDocs;
+                    return prev.map((d) => {
+                        const remote = remoteDocs.find((dd) => dd.doodocsDocumentId === d.doodocsDocumentId || dd.templateType === d.templateType);
                         if (remote) {
                             return {
                                 ...d,
@@ -179,8 +201,8 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                             };
                         }
                         return d;
-                    })
-                );
+                    });
+                });
             } else if (!res.ok) {
                 const err = data?.error ?? data?.detail ?? "Ошибка проверки статуса";
                 setSignError(err === "doodocs_unavailable" ? t("doodocs_unavailable") : err);
@@ -344,17 +366,17 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                 )}
 
                 {/* Signed documents download section */}
-                {docStatuses.some((d) => d.signed && d.doodocsDocumentId) && (
+                {docStatuses.some((d) => d.signed && (d.recordDocumentId || d.doodocsDocumentId)) && (
                     <div className="flex flex-col gap-1 self-stretch">
                         <p className="text-[#122C5E] text-[14px] font-medium">{t("signed_documents")}:</p>
                         {docStatuses
-                            .filter((d) => d.signed && d.doodocsDocumentId)
+                            .filter((d) => d.signed && (d.recordDocumentId || d.doodocsDocumentId))
                             .map((d, i) => {
                                 const label = d.documentName?.replace(/\.(docx|pdf)$/i, "") || `${templateTypeLabel(d.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
                                 return (
                                     <a
                                         key={i}
-                                        href={`/api/signed-agreements/download-signed?doodocsDocumentId=${encodeURIComponent(d.doodocsDocumentId!)}`}
+                                        href={`/api/signed-agreements/download-signed?doodocsDocumentId=${encodeURIComponent(d.doodocsDocumentId ?? "")}${dealDocumentId ? `&dealDocumentId=${encodeURIComponent(dealDocumentId)}` : ""}`}
                                         download={`${label}.pdf`}
                                         className="flex items-center gap-2 text-[#2655AF] text-[13px] underline"
                                     >

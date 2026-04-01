@@ -14,14 +14,16 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const doodocsDocumentId = searchParams.get("doodocsDocumentId");
+    const dealDocumentId = searchParams.get("dealDocumentId");
     if (!doodocsDocumentId)
-      return NextResponse.json({ error: "doodocsDocumentId required" }, { status: 400 });
+      return NextResponse.json({ error: "documentId required" }, { status: 400 });
 
     const base = getStrapiBaseUrl().replace(/\/api\/?$/, "").replace(/\/$/, "");
     const headers = getStrapiHeaders();
 
+    const backendUrl = `${base}/api/signed-agreements/download-signed?doodocsDocumentId=${encodeURIComponent(doodocsDocumentId)}${dealDocumentId ? `&dealDocumentId=${encodeURIComponent(dealDocumentId)}` : ""}`;
     const res = await fetch(
-      `${base}/api/signed-agreements/download-signed?doodocsDocumentId=${encodeURIComponent(doodocsDocumentId)}`,
+      backendUrl,
       { headers, signal: AbortSignal.timeout(60_000) }
     );
 

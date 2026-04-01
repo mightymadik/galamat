@@ -47,6 +47,16 @@ export async function POST(req: Request) {
       e?.response?.data?.message ??
       e?.message ??
       "server_error";
+    if (status === 404 && msg === "no_unsigned_agreements") {
+      return NextResponse.json({
+        status: "ok",
+        documents: [],
+        documentId: null,
+        signUrl: null,
+        reused: true,
+        message: "no_unsigned_agreements",
+      });
+    }
     console.error("[signing/start proxy]", status, msg);
     return NextResponse.json({ status: "error", message: msg }, { status });
   }
