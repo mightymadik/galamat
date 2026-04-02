@@ -55,7 +55,7 @@ export default function DealCard({
 }) {
   const t = useTranslations();
   const total = deal.dealPrice ?? 0;
-  const paid = deal.downPayment ?? deal.reserveSum ?? 0;
+  const paid = Number(deal.paidAmount ?? 0);
   const remainder = Math.max(0, total - paid);
   const progress = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
   const progressColor =

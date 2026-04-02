@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import { sumPaidFromPaymentRows } from "@/lib/paidFromPayments";
 
 /**
  * GET /api/cashier/deals
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
         "&populate[pantry][populate][project][fields][0]=projectName" +
         "&populate[customer][fields][0]=name&populate[customer][fields][1]=surname&populate[customer][fields][2]=phone" +
         "&populate[manager][fields][0]=name&populate[manager][fields][1]=surname" +
-        "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=paidAmount&fields[4]=paymentMethod&fields[5]=createdAt",
+        "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=paymentMethod&fields[4]=createdAt",
       { headers }
     );
     let rawDeals: any[] = (dealsRes.data as any)?.data ?? [];
@@ -142,12 +143,13 @@ export async function GET(request: NextRequest) {
       const mgrName = mgrData?.name ?? mgrData?.attributes?.name ?? "";
       const mgrSurname = mgrData?.surname ?? mgrData?.attributes?.surname ?? "";
       const managerDisplayName = [mgrSurname, mgrName].filter(Boolean).join(" ").trim() || null;
+      const payments = paymentsByDeal[docId] ?? [];
       return {
         documentId: docId,
         dealStatus: d?.dealStatus ?? d?.attributes?.dealStatus,
         createdAt: d?.createdAt ?? d?.attributes?.createdAt ?? null,
         dealPrice: d?.dealPrice ?? d?.attributes?.dealPrice,
-        paidAmount: d?.paidAmount ?? d?.attributes?.paidAmount ?? 0,
+        paidAmount: sumPaidFromPaymentRows(payments),
         paymentMethod: d?.paymentMethod ?? d?.attributes?.paymentMethod,
         property: {
           projectName: entity?.project?.projectName ?? entity?.project?.attributes?.projectName,
@@ -165,7 +167,7 @@ export async function GET(request: NextRequest) {
         customer: { displayName: clientName, phone: custData?.phone ?? custData?.attributes?.phone },
         manager: managerDisplayName ? { displayName: managerDisplayName } : null,
         paymentSchedules: (schedulesByDeal[docId] ?? []).sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0)),
-        payments: paymentsByDeal[docId] ?? [],
+        payments,
       };
     });
 

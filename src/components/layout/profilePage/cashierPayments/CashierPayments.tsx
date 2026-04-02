@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Input, Select, SelectItem } from "@heroui/react";
+import { sumPaidFromPaymentRows } from "@/lib/paidFromPayments";
 
 export interface CashierScheduleRow {
   documentId: string;
@@ -28,6 +29,7 @@ export interface CashierDeal {
   dealStatus: string;
   createdAt?: string | null;
   dealPrice: number;
+  /** Согласовано с суммой платежей «Оплачено»; для UI брать sumPaidFromPaymentRows(payments). */
   paidAmount: number;
   paymentMethod: string | null;
   property: {
@@ -141,6 +143,10 @@ function computePaymentScheduleIndexes(
     }
   }
   return result;
+}
+
+function paidTotalForDeal(deal: CashierDeal): number {
+  return sumPaidFromPaymentRows(deal.payments);
 }
 
 const CASHIER_ONLY_KEY = "cashier_only_access";
@@ -280,7 +286,7 @@ export default function CashierPayments() {
     }
     const deal = deals.find((d) => d.documentId === confirmingDealId);
     if (deal) {
-      const remaining = Number(deal.dealPrice) - Number(deal.paidAmount);
+      const remaining = Number(deal.dealPrice) - paidTotalForDeal(deal);
       if (num > remaining) {
         setSubmitError(`Сумма (${formatMoney(num)}) превышает остаток по сделке (${formatMoney(remaining)})`);
         return;
@@ -476,7 +482,7 @@ export default function CashierPayments() {
         <>
         <div className="flex flex-col gap-4">
           {paginatedDeals.map((deal) => {
-            const remainders = computeScheduleRemainders(deal.paymentSchedules, deal.paidAmount);
+            const remainders = computeScheduleRemainders(deal.paymentSchedules, paidTotalForDeal(deal));
             const paymentToSchedule = computePaymentScheduleIndexes(deal.paymentSchedules, deal.payments);
 
             return (
@@ -504,14 +510,14 @@ export default function CashierPayments() {
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-1">
                   <div className="flex items-center gap-2 text-[#122C5E] text-sm">
-                    <span className="tabular-nums">{formatMoney(deal.paidAmount)}</span>
+                    <span className="tabular-nums">{formatMoney(paidTotalForDeal(deal))}</span>
                     <span className="shrink-0 opacity-70">/ {formatMoney(deal.dealPrice)}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-[#122C5E]/15">
                     <div
                       className="h-full rounded-full bg-[#1A3C7E] transition-all duration-300"
                       style={{
-                        width: `${deal.dealPrice > 0 ? Math.min(100, (Number(deal.paidAmount) / Number(deal.dealPrice)) * 100) : 0}%`,
+                        width: `${deal.dealPrice > 0 ? Math.min(100, (paidTotalForDeal(deal) / Number(deal.dealPrice)) * 100) : 0}%`,
                       }}
                     />
                   </div>

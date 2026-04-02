@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import { PAID_PAYMENT_STATUS } from "@/lib/paidFromPayments";
 
 /** Колонки Kanban в порядке отображения */
 export const DEAL_STATUS_COLUMNS = [
@@ -115,6 +116,33 @@ export async function GET(request: NextRequest) {
       if (Array.isArray(list2)) deals = list2;
     }
 
+    const dealDocIdsForPayments = new Set(
+      deals.map((d: any) => String(d?.documentId ?? d?.id ?? "")).filter(Boolean)
+    );
+    const paidSumByDeal: Record<string, number> = {};
+    if (dealDocIdsForPayments.size > 0) {
+      const paymentsRes = await strapiAxios
+        .get(
+          `${base}/api/payments?sort[0]=createdAt:desc&pagination[pageSize]=3000` +
+            "&fields[0]=amount&fields[1]=paymentStatus" +
+            "&populate[deal][fields][0]=documentId",
+          { headers }
+        )
+        .catch(() => ({ data: { data: [] } }));
+      const paymentsList: any[] = (paymentsRes.data as any)?.data ?? [];
+      for (const p of paymentsList) {
+        const dealRel = p?.deal ?? p?.attributes?.deal;
+        const dealData = (dealRel as any)?.data ?? dealRel;
+        const dealDocId = String(dealData?.documentId ?? dealData?.id ?? "");
+        if (!dealDocId || !dealDocIdsForPayments.has(dealDocId)) continue;
+        if (String(p?.paymentStatus ?? p?.attributes?.paymentStatus ?? "").trim() !== PAID_PAYMENT_STATUS)
+          continue;
+        const amt = Number(p?.amount ?? p?.attributes?.amount ?? 0);
+        if (!Number.isFinite(amt)) continue;
+        paidSumByDeal[dealDocId] = (paidSumByDeal[dealDocId] ?? 0) + amt;
+      }
+    }
+
     const now = new Date();
     const result: any[] = [];
 
@@ -176,6 +204,7 @@ export async function GET(request: NextRequest) {
         documentId: docId,
         dealStatus: effectiveStatus,
         dealPrice: d?.dealPrice ?? d?.attributes?.dealPrice ?? null,
+        paidAmount: paidSumByDeal[docId] ?? 0,
         downPayment: d?.downPayment ?? d?.attributes?.downPayment ?? null,
         reserveSum: d?.reserveSum ?? d?.attributes?.reserveSum ?? null,
         expiresAt: expiresAt || null,

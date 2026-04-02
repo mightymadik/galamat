@@ -16,6 +16,7 @@ export interface DealCardItem {
   documentId: string;
   dealStatus: string;
   dealPrice: number | null;
+  paidAmount: number | null;
   downPayment: number | null;
   reserveSum: number | null;
   expiresAt: string | null;

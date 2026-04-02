@@ -183,7 +183,7 @@ export default function DealDrawer({
 
     const isReserve = data?.deal?.dealStatus === "Бронь";
     const canRenewOrTerminate =
-        data?.deal?.dealStatus === "Оплачено" || data?.deal?.dealStatus === "Договор подписан";
+        data?.deal?.dealStatus === "Оплачено" || data?.deal?.dealStatus === "Договор подписан" || data?.deal?.dealStatus === "Просрочен" || data?.deal?.dealStatus === "Ожидания оплаты";
     const propertyType = data?.deal?.property?.type ?? data?.deal?.realEstateType ?? "property";
     const propertyTypeLabel = data?.deal?.property?.typeLabel ?? "Объект недвижимости";
     const isResidential = propertyType === "property";
