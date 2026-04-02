@@ -235,10 +235,32 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
     const user = useSelector((state: RootState) => state.auth.user);
 
     const pdfCompanyPhone = "+7 (700) 108‒57‒57";
-    // Если PDF генерирует менеджер/админ — показываем его телефон, иначе fallback на общий номер.
+    const nameManager = `${user?.name ?? ""}`.trim();
+
+    const formatPdfPhone = (input: string | undefined | null): string => {
+        const raw = String(input ?? "").trim();
+        if (!raw) return "";
+        // Keep already formatted +7 (xxx) xxx‒xx‒xx / +7 (xxx) xxx-xx-xx etc.
+        if (raw.startsWith("+7") && /[\(\)]/.test(raw)) return raw;
+
+        const digits = raw.replace(/\D/g, "");
+        let d = digits;
+        if (d.length === 11 && d.startsWith("8")) d = `7${d.slice(1)}`;
+        if (d.length === 10) d = `7${d}`;
+        if (d.length !== 11 || !d.startsWith("7")) return raw;
+
+        const a = d.slice(1, 4);
+        const b = d.slice(4, 7);
+        const c = d.slice(7, 9);
+        const e = d.slice(9, 11);
+        const dash = "‒";
+        return `+7 (${a}) ${b}${dash}${c}${dash}${e}`;
+    };
+
+    // Гарантированный вывод телефона: менеджер → общий номер компании.
     const pdfManagerPhone =
         (user?.role === "manager" || user?.role === "admin")
-            ? (user?.phone?.trim() || pdfCompanyPhone)
+            ? (formatPdfPhone(user?.phone) || pdfCompanyPhone)
             : pdfCompanyPhone;
     /** Есть ли активная сделка по квартире (Бронь/Ожидания оплаты/договора) — решаем по сделкам, не по propertyStatus */
     const [hasActiveDeal, setHasActiveDeal] = useState<boolean | null>(null);
@@ -1754,7 +1776,9 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                             {flat.complexDueDate && (
                                 <div className="self-stretch border-b border-black/10 inline-flex justify-between items-center overflow-hidden">
                                     <div className="justify-start text-color-blue-14 text-base font-normal leading-8">{t("due_date")}</div>
-                                    <div className="text-right justify-start text-color-blue-14 text-base font-normal leading-8">{formatComplexDueDate(flat.complexDueDate)}</div>
+                                    <div className="text-right justify-start text-color-blue-14 text-base font-normal leading-8">
+                                        {formatComplexDueDate(flat.complexDueDate, { quarterLabel: t("quarter") })}
+                                    </div>
                                 </div>
                             )}
                             {flat.complexClass && (
@@ -1835,7 +1859,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                     </div>
 
                                     <div className="rounded-2xl border border-black/10 bg-[#FAFBFD] px-4 py-3">
-                                        <div className="text-black/45 leading-4 mb-1">Менеджер</div>
+                                        <div className="text-black/45 leading-4 mb-1">Менеджер: {nameManager || "—"}</div>
                                         <div className="font-semibold text-[11px] leading-5 break-words">
                                             {pdfManagerPhone || "—"}
                                         </div>
@@ -1880,7 +1904,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                 <div className="inline-flex items-center rounded-full text-[12px] leading-4">
                                                     <span className="text-black/50 mr-1">Сдача</span>
                                                     <span className="font-semibold">
-                                                        {formatComplexDueDate(flat.complexDueDate)}
+                                                        {formatComplexDueDate(flat.complexDueDate, { quarterLabel: t("quarter") })}
                                                     </span>
                                                 </div>
                                             )}

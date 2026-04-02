@@ -512,5 +512,6 @@
   "down_payment_by_program": "Бастапқы төлем",
   "otp_send_limit_reached": "Кодтар саны шектен шықты.",
   "required_field": "Міндетті өріс",
-  "fill_required_fields": "Міндетті өрістерді толтырыңыз"
+  "fill_required_fields": "Міндетті өрістерді толтырыңыз",
+  "quarter": "тоқсан"
 }

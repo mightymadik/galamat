@@ -471,7 +471,9 @@ export default function Deffered({ flatData, realEstateType = "property", active
                         </div>
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("due_date")}</span>
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatComplexDueDate(flatData?.complexDueDate) || ""}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                                {formatComplexDueDate(flatData?.complexDueDate, { quarterLabel: t("quarter") }) || ""}
+                            </span>
                         </div>
                         {Boolean(flatData?.section) && (
                             <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">

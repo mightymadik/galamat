@@ -509,5 +509,6 @@
   "down_payment_by_program": "Первоначальный взнос",
   "otp_send_limit_reached": "Превышено количество отправленных кодов.",
   "required_field": "Обязательное поле",
-  "fill_required_fields": "Заполните обязательные поля"
+  "fill_required_fields": "Заполните обязательные поля",
+  "quarter": "квартал"
 }

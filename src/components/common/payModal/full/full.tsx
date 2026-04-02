@@ -357,7 +357,7 @@ export default function FullPayment({ flatData, realEstateType = "property", act
     const totalSumM2 = totalArea > 0 ? totalWithBonus / totalArea : 0;
     const totalSumM2Display = formatPriceDisplay(Math.round(totalSumM2)) + "/м²";
     const todayStr = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
-    const dueDateStr = formatComplexDueDate(flatData?.complexDueDate) || todayStr;
+    const dueDateStr = formatComplexDueDate(flatData?.complexDueDate, { quarterLabel: t("quarter") }) || todayStr;
 
     const usedGalaBonusAmount = galaBonusAmount > 0
         ? Math.min(galaBonusAmount, Math.max(0, flatPriceNumber - promocodeDiscount))
@@ -502,7 +502,9 @@ export default function FullPayment({ flatData, realEstateType = "property", act
                         </div>
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                             <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{t("due_date")}</span>
-                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{formatComplexDueDate(flatData?.complexDueDate) || ""}</span>
+                            <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                                {formatComplexDueDate(flatData?.complexDueDate, { quarterLabel: t("quarter") }) || ""}
+                            </span>
                         </div>
                         {Boolean(flatData?.section) && (
                         <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">

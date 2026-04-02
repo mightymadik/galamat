@@ -44,20 +44,30 @@ export function parsePrice(priceStr: string | undefined): number {
   return Number(priceStr.replace(/\D/g, "")) || 0;
 }
 
-/** Format complexDueDate string to locale date (e.g. "31.12.2025") */
-export function formatComplexDueDate(value: string | undefined): string {
+/** Format complexDueDate string to квартал (e.g. "2 кв 2026") */
+export function formatComplexDueDate(
+  value: string | undefined,
+  opts?: { quarterLabel?: string }
+): string {
   if (!value || typeof value !== "string") return "";
+
+  const raw = value.trim();
+  if (!raw) return "";
+
+  // If backend already returns quarter text, keep it.
+  const lower = raw.toLowerCase();
+  if (lower.includes("кварт")) return raw;
+
   try {
-    const normalized = value.trim().replace(" ", "T");
+    const normalized = raw.replace(" ", "T");
     const d = new Date(normalized);
-    if (Number.isNaN(d.getTime())) return value;
-    return d.toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+    if (Number.isNaN(d.getTime())) return raw;
+    const year = d.getFullYear();
+    const quarter = Math.floor(d.getMonth() / 3) + 1; // 1..4
+    const quarterLabel = (opts?.quarterLabel ?? "квартал").trim() || "квартал";
+    return `${quarter} ${quarterLabel} ${year}`;
   } catch {
-    return value;
+    return raw;
   }
 }
 
