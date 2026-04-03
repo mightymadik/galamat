@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import HeroSection from "@/components/layout/projectPage/heroSection/heroSection"
 import AboutProject from "@/components/layout/projectPage/aboutProject/aboutProject"
 import GenPlan from "@/components/layout/projectPage/genPlan/genPlan"
+import GalleryBlock from "@/components/layout/projectPage/galleryBlock/galleryBlock"
 import Plans from "@/components/layout/projectPage/plans/plans"
 import Features from "@/components/layout/projectPage/features/features"
 import ServicesProject from "@/components/layout/projectPage/servicesProject/servicesProject"
@@ -86,6 +87,7 @@ export default async function Page({ params }: { params: { name: string }; }) {
             <GenPlan projectSlug={projectGenPlan ?? undefined} />
             {/* <Hypothec /> */}
             <LeaveRequest />
+            <GalleryBlock gallery={projectGenPlan?.complexGallery} />
             <Plans projectSlug={projectPlans ?? undefined} />
             <Features projectSlug={projectFeatures} />
             <ServicesProject projectSlug={projectServices ?? undefined} />

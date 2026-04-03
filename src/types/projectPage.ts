@@ -85,6 +85,26 @@ export interface ProjectGenPlanGalleryItem {
   alt: string;
 }
 
+/** Ключи компонента Strapi `gallery.galereya` (двор, холл, фасад, аллея). */
+export const GALLERY_CATEGORY_KEYS = ["yard", "hall", "facade", "alley"] as const;
+export type ProjectGalleryCategoryKey = (typeof GALLERY_CATEGORY_KEYS)[number];
+
+/** Медиа по категориям (несколько повторов компонента в админке объединяются). */
+export interface ProjectComplexGalleryData {
+  yard: ProjectGenPlanGalleryItem[];
+  hall: ProjectGenPlanGalleryItem[];
+  facade: ProjectGenPlanGalleryItem[];
+  alley: ProjectGenPlanGalleryItem[];
+}
+
+export function emptyProjectComplexGallery(): ProjectComplexGalleryData {
+  return { yard: [], hall: [], facade: [], alley: [] };
+}
+
+export function hasGalleryContent(g: ProjectComplexGalleryData): boolean {
+  return GALLERY_CATEGORY_KEYS.some((k) => g[k].length > 0);
+}
+
 export interface ProjectGenPlanDataItem {
   id: number;
   complexGenPlanImage: string;
@@ -92,7 +112,7 @@ export interface ProjectGenPlanDataItem {
   attractionPoints: ProjectAttractionPointsDataItem[];
   complexTour: string;
   complexTourProgress: string;
-  complexGallery: ProjectGenPlanGalleryItem[];
+  complexGallery: ProjectComplexGalleryData;
 }
 
 export interface ProjectPlansDataItem {

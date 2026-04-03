@@ -2,13 +2,16 @@ import { apiGet } from "@/app/api/fetcher";
 import {
   ProjectGenPlanDataItem,
   ProjectGenPlanGalleryItem,
+  ProjectComplexGalleryData,
+  GALLERY_CATEGORY_KEYS,
+  emptyProjectComplexGallery,
   ProjectPropertyPointsDataItem,
   ProjectAttractionPointsDataItem,
 } from "@/types/projectPage";
 
 const BACKEND_URL = process.env.STRAPI_URL;
 
-function normalizeComplexGallery(raw: unknown): ProjectGenPlanGalleryItem[] {
+function normalizeMediaArray(raw: unknown): ProjectGenPlanGalleryItem[] {
   const list = Array.isArray(raw)
     ? raw
     : raw && typeof raw === "object" && raw !== null && "data" in raw && Array.isArray((raw as { data: unknown }).data)
@@ -30,16 +33,44 @@ function normalizeComplexGallery(raw: unknown): ProjectGenPlanGalleryItem[] {
     .filter((x): x is ProjectGenPlanGalleryItem => x != null);
 }
 
+function normalizeComponentArray(raw: unknown): Record<string, unknown>[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw as Record<string, unknown>[];
+  if (typeof raw === "object" && raw !== null && "data" in raw && Array.isArray((raw as { data: unknown[] }).data)) {
+    return (raw as { data: unknown[] }).data as Record<string, unknown>[];
+  }
+  return [];
+}
+
+/** Повторяемый компонент `gallery.galereya`: объединяем медиа всех записей по полям yard, hall, facade, alley. */
+function mergeComplexGallery(raw: unknown): ProjectComplexGalleryData {
+  const out = emptyProjectComplexGallery();
+  for (const entry of normalizeComponentArray(raw)) {
+    for (const key of GALLERY_CATEGORY_KEYS) {
+      const field = entry[key];
+      out[key].push(...normalizeMediaArray(field));
+    }
+  }
+  return out;
+}
+
+function buildComplexGalleryPopulateParams(): Record<string, string> {
+  const params: Record<string, string> = {};
+  const mediaFields = ["url", "mime", "alternativeText", "name"];
+  for (const key of GALLERY_CATEGORY_KEYS) {
+    mediaFields.forEach((f, i) => {
+      params[`populate[complexGallery][populate][${key}][fields][${i}]`] = f;
+    });
+  }
+  return params;
+}
+
 export async function getProjectGenPlan(projectSlug?: string): Promise<ProjectGenPlanDataItem[]> {
-  // Media/relation fields must not be listed in `fields` (Strapi 5 returns "Invalid key" for complexGallery there).
   const params: Record<string, string> = {
     "fields[0]": "complexGenPlan",
     "fields[1]": "complexTour",
     "fields[2]": "complexTourProgress",
-    "populate[complexGallery][fields][0]": "url",
-    "populate[complexGallery][fields][1]": "mime",
-    "populate[complexGallery][fields][2]": "alternativeText",
-    "populate[complexGallery][fields][3]": "name",
+    ...buildComplexGalleryPopulateParams(),
   };
 
   if (projectSlug) {
@@ -94,9 +125,9 @@ export async function getProjectGenPlan(projectSlug?: string): Promise<ProjectGe
       attractionPoints,
       complexTour: item.complexTour,
       complexTourProgress: item.complexTourProgress,
-      complexGallery: normalizeComplexGallery(item.complexGallery),
+      complexGallery: mergeComplexGallery(item.complexGallery),
     };
   });
 }
 
-export { getProjectGenPlan as getProjectGenPlans }
+export { getProjectGenPlan as getProjectGenPlans };
