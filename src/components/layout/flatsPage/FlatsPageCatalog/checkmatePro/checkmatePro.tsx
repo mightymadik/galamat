@@ -367,6 +367,9 @@ export default function CheckmatePro({
                                                                                         <div className="flex flex-col items-start gap-[4px]">
                                                                                             <span className="text-[#FFF] text-[12px] not-italic font-normal leading-[100%]">{flat.room} {t("rooms_count")}</span>
                                                                                             <span className="text-[#FFF] text-[12px] not-italic font-normal leading-[100%]">{flat.area}</span>
+                                                                                            {flat.available !== "available" && (
+                                                                                                <span className="text-[#FFF] text-[11px] not-italic font-normal leading-[100%]">№{flat.apartmentNumber}</span>
+                                                                                            )}
                                                                                         </div>
                                                                                         {flat.available === "available" && (
                                                                                             <div className="flex flex-col items-start">

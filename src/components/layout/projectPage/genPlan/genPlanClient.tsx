@@ -1,272 +1,19 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Switch } from "@heroui/switch";
 import { Button } from "@heroui/button";
-import { Modal, ModalContent, ModalBody } from "@heroui/react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
 import {
     ProjectGenPlanDataItem,
-    ProjectGenPlanGalleryItem,
     ProjectPropertyPointsDataItem,
     ProjectAttractionPointsDataItem,
     GenPlanApartmentPreviewRow,
 } from "@/types/projectPage";
 
-/** Общая высота блока: галерея, генплан, тур, ход строительства (svh — корректнее на мобилке с адресной строкой). */
+/** Общая высота блока: генплан, тур, ход строительства (svh — корректнее на мобилке с адресной строкой). */
 const GEN_PLAN_MAIN_STAGE_CLASS =
     "h-[min(65svh,800px)] min-h-[220px] max-h-[800px] w-full overflow-hidden";
-
-/** Медиа на весь родительский блок (родитель — absolute inset-0 с заданной высотой слайда). */
-function GenPlanGalleryMedia({
-    item,
-    onImageClick,
-    openFullAriaLabel,
-}: {
-    item: ProjectGenPlanGalleryItem;
-    onImageClick?: () => void;
-    openFullAriaLabel?: string;
-}) {
-    if (item.mime.startsWith("video/")) {
-        return (
-            <video
-                src={item.url}
-                controls
-                playsInline
-                className="absolute inset-0 h-full w-full object-cover"
-            />
-        );
-    }
-    if (item.mime.startsWith("audio/")) {
-        return (
-            <div className="absolute inset-0 flex items-end justify-center bg-black/40 pb-6">
-                <audio src={item.url} controls className="w-[min(100%,480px)]" />
-            </div>
-        );
-    }
-    if (item.mime.startsWith("image/")) {
-        const img = (
-            <Image
-                src={item.url}
-                alt=""
-                aria-hidden
-                fill
-                className="object-cover pointer-events-none"
-                unoptimized
-                sizes="100vw"
-            />
-        );
-        if (onImageClick) {
-            return (
-                <button
-                    type="button"
-                    className="absolute inset-0 block h-full w-full cursor-zoom-in border-0 bg-transparent p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/90"
-                    onClick={onImageClick}
-                    aria-label={openFullAriaLabel ?? "Open full size"}
-                >
-                    {img}
-                </button>
-            );
-        }
-        return (
-            <>
-                <Image
-                    src={item.url}
-                    alt={item.alt}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                    sizes="100vw"
-                />
-            </>
-        );
-    }
-    return (
-        <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="absolute inset-0 flex items-center justify-center bg-[#ECF0F8] px-4 text-center text-[#132C5E] text-[14px] font-medium underline"
-        >
-            {item.alt}
-        </a>
-    );
-}
-
-const genPlanGallerySlideVariants = {
-    enter: (direction: number) => ({
-        x: direction * 56,
-        opacity: 0,
-    }),
-    center: {
-        x: 0,
-        opacity: 1,
-    },
-    exit: (direction: number) => ({
-        x: direction * -56,
-        opacity: 0,
-    }),
-};
-
-function GenPlanGallerySlider({ items }: { items: ProjectGenPlanGalleryItem[] }) {
-    const t = useTranslations();
-    const [index, setIndex] = useState(0);
-    const [direction, setDirection] = useState(0);
-    const [lightboxItem, setLightboxItem] = useState<ProjectGenPlanGalleryItem | null>(null);
-    const touchStartX = useRef<number | null>(null);
-    const itemsKey = items.map((i) => i.url).join("|");
-
-    useEffect(() => {
-        setIndex(0);
-        setDirection(0);
-    }, [itemsKey]);
-
-    const go = (delta: number) => {
-        setDirection(delta > 0 ? 1 : -1);
-        setIndex((i) => (i + delta + items.length) % items.length);
-    };
-
-    const jumpTo = (i: number) => {
-        if (i === index) return;
-        const forward = (i - index + items.length) % items.length;
-        const backward = (index - i + items.length) % items.length;
-        setDirection(forward <= backward ? 1 : -1);
-        setIndex(i);
-    };
-
-    useEffect(() => {
-        if (items.length < 2) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "ArrowLeft") go(-1);
-            if (e.key === "ArrowRight") go(1);
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [items.length, itemsKey]);
-
-    const onTouchStart = (e: React.TouchEvent) => {
-        touchStartX.current = e.touches[0].clientX;
-    };
-
-    const onTouchEnd = (e: React.TouchEvent) => {
-        if (touchStartX.current == null || items.length < 2) return;
-        const dx = e.changedTouches[0].clientX - touchStartX.current;
-        touchStartX.current = null;
-        if (Math.abs(dx) < 48) return;
-        if (dx > 0) go(-1);
-        else go(1);
-    };
-
-    if (items.length === 0) return null;
-
-    const item = items[index];
-
-    return (
-        <div className="relative w-full select-none">
-            <div
-                className={`relative rounded-[0px] lg:rounded-[32px] bg-black ${GEN_PLAN_MAIN_STAGE_CLASS}`}
-                onTouchStart={onTouchStart}
-                onTouchEnd={onTouchEnd}
-            >
-                <AnimatePresence initial={false} custom={direction} mode="wait">
-                    <motion.div
-                        key={`${index}-${items[index].url}`}
-                        custom={direction}
-                        variants={genPlanGallerySlideVariants}
-                        initial="enter"
-                        animate="center"
-                        exit="exit"
-                        transition={{
-                            duration: 0.38,
-                            ease: [0.25, 0.1, 0.25, 1],
-                        }}
-                        className="absolute inset-0"
-                    >
-                        <GenPlanGalleryMedia
-                            item={item}
-                            onImageClick={() => setLightboxItem(item)}
-                            openFullAriaLabel={t("gallery_open_full")}
-                        />
-                    </motion.div>
-                </AnimatePresence>
-
-                {items.length > 1 && (
-                    <>
-                        <button
-                            type="button"
-                            aria-label="Previous slide"
-                            onClick={() => go(-1)}
-                            className="absolute left-1 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-[#132C5E] shadow-md ring-1 ring-black/5 transition hover:bg-white md:left-2 md:h-11 md:w-11"
-                        >
-                            <ChevronLeft className="h-6 w-6" strokeWidth={2} />
-                        </button>
-                        <button
-                            type="button"
-                            aria-label="Next slide"
-                            onClick={() => go(1)}
-                            className="absolute right-1 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-[#132C5E] shadow-md ring-1 ring-black/5 transition hover:bg-white md:right-2 md:h-11 md:w-11"
-                        >
-                            <ChevronRight className="h-6 w-6" strokeWidth={2} />
-                        </button>
-                    </>
-                )}
-            </div>
-
-            {items.length > 1 && (
-                <div className="mt-4 flex justify-center gap-2">
-                    {items.map((_, i) => (
-                        <button
-                            key={`dot-${i}`}
-                            type="button"
-                            aria-label={`Slide ${i + 1}`}
-                            aria-current={i === index}
-                            onClick={() => jumpTo(i)}
-                            className={`h-2 rounded-full transition-all duration-200 ${
-                                i === index ? "w-6 bg-[#132C5E]" : "w-2 bg-[#132C5E]/25 hover:bg-[#132C5E]/40"
-                            }`}
-                        />
-                    ))}
-                </div>
-            )}
-
-            <Modal
-                isOpen={lightboxItem != null}
-                onOpenChange={(open) => {
-                    if (!open) setLightboxItem(null);
-                }}
-                size="full"
-                backdrop="blur"
-                scrollBehavior="inside"
-                classNames={{
-                    wrapper: "z-[100]",
-                    base: "m-0 h-full max-h-full rounded-none bg-transparent shadow-none",
-                    backdrop: "bg-black/85",
-                    body: "p-4 sm:p-8",
-                    closeButton: "text-white top-3 end-3 z-50 bg-white/10 hover:bg-white/20",
-                }}
-            >
-                <ModalContent>
-                    {() => (
-                        <ModalBody className="flex min-h-[calc(100dvh-2rem)] items-center justify-center overflow-y-auto">
-                            {lightboxItem?.mime.startsWith("image/") && (
-                                <Image
-                                    src={lightboxItem.url}
-                                    alt={lightboxItem.alt}
-                                    width={2560}
-                                    height={1440}
-                                    className="max-h-[calc(100dvh-4rem)] w-auto max-w-full h-auto object-contain"
-                                    unoptimized
-                                />
-                            )}
-                        </ModalBody>
-                    )}
-                </ModalContent>
-            </Modal>
-        </div>
-    );
-}
 
 interface PropertyBadge {
     id: number;
@@ -432,7 +179,6 @@ export default function GenPlanClient({ genPlanData }: { genPlanData: ProjectGen
     const [genPlan, setGenPlan] = useState(true);
     const [tour, setTour] = useState(false);
     const [tourProgress, setTourProgress] = useState(false);
-    const [gallery, setGallery] = useState(false);
 
     const planData = genPlanData && genPlanData.length > 0 ? genPlanData[0] : null;
 
@@ -443,8 +189,6 @@ export default function GenPlanClient({ genPlanData }: { genPlanData: ProjectGen
     const showGenPlan = Boolean(hasValidGenPlan);
     const showTour = Boolean(planData?.complexTour);
     const showTourProgress = Boolean(planData?.complexTourProgress);
-    const galleryItems = planData?.complexGallery ?? [];
-    const showGallery = galleryItems.length > 0;
 
     useEffect(() => {
         if (!planData) return;
@@ -453,24 +197,16 @@ export default function GenPlanClient({ genPlanData }: { genPlanData: ProjectGen
             setGenPlan(true);
             setTour(false);
             setTourProgress(false);
-            setGallery(false);
         } else if (planData.complexTour) {
             setGenPlan(false);
             setTour(true);
             setTourProgress(false);
-            setGallery(false);
         } else if (planData.complexTourProgress) {
             setGenPlan(false);
             setTour(false);
             setTourProgress(true);
-            setGallery(false);
-        } else if (galleryItems.length > 0) {
-            setGenPlan(false);
-            setTour(false);
-            setTourProgress(false);
-            setGallery(true);
         }
-    }, [planData, hasValidGenPlan, galleryItems.length]);
+    }, [planData, hasValidGenPlan]);
 
     const properties: PropertyBadge[] = planData?.propertyPoints.map((point: ProjectPropertyPointsDataItem) => ({
         id: point.id,
@@ -554,7 +290,6 @@ export default function GenPlanClient({ genPlanData }: { genPlanData: ProjectGen
                                     setGenPlan(true)
                                     setTour(false)
                                     setTourProgress(false)
-                                    setGallery(false)
                                 }}
                                 className="flex max-w-[220px] !flex-row h-[44px] pl-[12px] pr-[16px] py-[4px] flex-col justify-center items-center rounded-[32px] bg-[#ECF0F8]">
                                 <Switch
@@ -575,7 +310,6 @@ export default function GenPlanClient({ genPlanData }: { genPlanData: ProjectGen
                                     setTour(true)
                                     setGenPlan(false)
                                     setTourProgress(false)
-                                    setGallery(false)
                                 }}
                                 className="flex w-full max-w-[169px] h-[44px] pl-[12px] pr-[16px] py-[4px] flex-col justify-center items-center rounded-[32px] bg-[#ECF0F8]">
                                 <div className="flex justify-center items-center gap-[8px] text-[#132C5E] text-[14px] lg:text-[16px] font-medium leading-[18.423px]">
@@ -589,7 +323,6 @@ export default function GenPlanClient({ genPlanData }: { genPlanData: ProjectGen
                                     setTourProgress(true)
                                     setTour(false)
                                     setGenPlan(false)
-                                    setGallery(false)
                                 }}
                                 className="flex w-full max-w-[190px] h-[44px] pl-[12px] pr-[16px] py-[4px] flex-col justify-center items-center rounded-[32px] bg-[#ECF0F8]">
                                 <div className="flex justify-center items-center gap-[8px] text-[#132C5E] text-[14px] lg:text-[16px] font-medium leading-[18.423px]">
@@ -597,27 +330,8 @@ export default function GenPlanClient({ genPlanData }: { genPlanData: ProjectGen
                                 </div>
                             </Button>
                         }
-                        {showGallery &&
-                            <Button
-                                onClick={() => {
-                                    setGallery(true)
-                                    setGenPlan(false)
-                                    setTour(false)
-                                    setTourProgress(false)
-                                }}
-                                className="flex max-w-[169px] h-[44px] pl-[12px] pr-[16px] py-[4px] flex-col justify-center items-center rounded-[32px] bg-[#ECF0F8]">
-                                <div className="flex justify-center items-start gap-[8px] text-[#132C5E] text-[14px] lg:text-[16px] font-medium leading-[18.423px]">
-                                    {t("gallery")}
-                                </div>
-                            </Button>
-                        }
                     </div>
                 </div>
-                {gallery === true && galleryItems.length > 0 && (
-                    <div className="w-full">
-                        <GenPlanGallerySlider items={galleryItems} />
-                    </div>
-                )}
                 {genPlan === true && hasValidGenPlan && (
                     <div
                         className={`rounded-[0px] lg:rounded-[32px] scrollbar-hide ${GEN_PLAN_MAIN_STAGE_CLASS} overflow-x-auto overflow-y-auto`}

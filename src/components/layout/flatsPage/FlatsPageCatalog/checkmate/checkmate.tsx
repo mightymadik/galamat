@@ -142,6 +142,8 @@ const PortalTooltip = ({ visible, flat, position, unavailable = false }: {
 }) => {
     if (!visible || !position) return null;
     const t = useTranslations();
+    /** Цена только для свободных и брони; продано/недоступно — без цены */
+    const showPrice = flat.available === "available" || flat.available === "reserved";
     return createPortal(
         <><div
             className="fixed w-[190px] z-50"
@@ -168,7 +170,7 @@ const PortalTooltip = ({ visible, flat, position, unavailable = false }: {
             </svg>
 
             {/* Контент тултипа */}
-            <div className="absolute top-0 left-0 w-[190px] h-[103px] flex flex-col justify-center items-center p-[10px]">
+            <div className="absolute top-0 left-0 w-[190px] h-[103px] flex flex-col justify-start items-center p-[10px]">
                 <div className="flex flex-col items-start gap-[8px] w-full">
                     <div className="flex items-center gap-[4px] w-full">
                         <div className="flex items-center gap-[8px] flex-1">
@@ -180,7 +182,9 @@ const PortalTooltip = ({ visible, flat, position, unavailable = false }: {
                     </div>
 
                     <div className="flex flex-col items-start gap-[2px] w-full">
-                        <h1 className="text-[#000] text-[20px] font-normal leading-none">{flat.price}</h1>
+                        {showPrice && (
+                            <h1 className="text-[#000] text-[20px] font-normal leading-none">{flat.price}</h1>
+                        )}
                         <span className="text-[#000] text-[16px] font-normal leading-none">{flat.area}</span>
                     </div>
                 </div>
@@ -329,7 +333,7 @@ export default function Checkmate({
                             {/* Render portal tooltip */}
                             {isClient && hoveredFlat && (
                                 <PortalTooltip
-                                    visible={hoveredFlat.available === "available" || hoveredFlat.available === "reserved"}
+                                    visible
                                     flat={hoveredFlat}
                                     position={tooltipPosition}
                                     unavailable={!flatMatchesFilters(hoveredFlat, filterParams)}
