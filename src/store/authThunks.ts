@@ -66,12 +66,12 @@ export const sendAuthCode = createAsyncThunk<
 
 export const verifyAuthCode = createAsyncThunk<
   VerifyCodeResponse,
-  { phoneMasked: string; code: string },
+  { phoneMasked: string; code: string; confirmOnly?: boolean; deviceId?: string },
   { rejectValue: VerifyCodeReject }
->("auth/verifyCode", async ({ phoneMasked, code }, { rejectWithValue }) => {
+>("auth/verifyCode", async ({ phoneMasked, code, confirmOnly, deviceId }, { rejectWithValue }) => {
   try {
     const phone = normalizeKzPhone(phoneMasked);
-    const data = await apiPost<VerifyCodeResponse>("/api/auth/verify-code", { phone, code });
+    const data = await apiPost<VerifyCodeResponse>("/api/auth/verify-code", { phone, code, confirmOnly: confirmOnly !== false, deviceId });
     return data;
   } catch (e: any) {
     if (e instanceof ApiError) {
@@ -137,3 +137,31 @@ export const registerAuth = createAsyncThunk<
 export const logoutAuth = createAsyncThunk<void, void>("auth/logout", async () => {
   await apiPost<{ status: string }>("/api/auth/logout", {});
 });
+
+export const createAuthSession = createAsyncThunk<
+  CreateSessionResponse,
+  { phoneMasked: string; deviceId?: string },
+  { rejectValue: CreateSessionReject }
+>("auth/createSession", async ({ phoneMasked, deviceId }, { rejectWithValue }) => {
+  try {
+    const phone = normalizeKzPhone(phoneMasked);
+    const data = await apiPost<CreateSessionResponse>("/api/auth/session", { phone, deviceId });
+    return data;
+  } catch (e: any) {
+    if (e instanceof ApiError) {
+      return rejectWithValue(e.payload as CreateSessionReject);
+    }
+    return rejectWithValue({ status: "error", message: e?.message || "server_error" });
+  }
+});
+
+export type CreateSessionResponse = {
+  status: "ok";
+  sessionId?: number | string | null;
+  user: { id: number; documentId: string; phone: string; role: string; name?: string; surname?: string };
+};
+
+export type CreateSessionReject = {
+  status: "error";
+  message: string; // otp_not_confirmed | name_surname_required | customer_not_found | server_error
+};

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { queueBackendUrl, requireAdminAccessToken } from "@/lib/queueAdminAuth";
+import { verifyAccessToken } from "@/lib/tokens";
 
 export async function POST(
   _req: NextRequest,
@@ -15,7 +16,15 @@ export async function POST(
   const auth = requireAdminAccessToken(cookieStore);
   if ("response" in auth) return auth.response;
 
+  console.log("Access data", verifyAccessToken(auth.access as string))
+  
   try {
+    if (managerId === verifyAccessToken(auth.access as string)?.documentId) {
+      return NextResponse.json(
+        { error: "Вы не можете закрыть смену самого себя" },
+        { status: 400 }
+      );
+    }
     const res = await fetch(
       queueBackendUrl(
         `/api/admin/managers/${encodeURIComponent(managerId)}/force-offline-for-shift`,

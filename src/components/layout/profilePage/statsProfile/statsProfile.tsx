@@ -34,6 +34,7 @@ type ClientStatusItem = {
 type RatingRow = {
     managerId?: string;
     name: string;
+    shortName: string;
     ticketsServed?: number;
     ticketsNoShow?: number;
     rating: number;
@@ -615,7 +616,7 @@ export default function StatsProfile() {
                                     className={`flex px-[12px] py-[8px] items-center gap-[24px] self-stretch bg-[#FFF] ${!isLast ? "border-b border-solid border-[#EBEBEE]" : ""}`}
                                 >
                                     <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] min-w-0">
-                                        <p className="flex-[1_0_0] text-[#262842] text-[14px] not-italic font-medium leading-[normal] truncate">{row.name}</p>
+                                        <p className="flex-[1_0_0] text-[#262842] text-[14px] not-italic font-medium leading-[normal] truncate">{row.shortName || row.name}</p>
                                     </div>
                                     <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0">
                                         <span className="text-[#262842] text-[14px] not-italic font-medium leading-[normal]">{row.ticketsServed ?? 0}</span>

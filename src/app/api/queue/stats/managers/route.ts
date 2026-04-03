@@ -7,7 +7,9 @@ const QUEUE_API_URL =
 
 type ManagerStatsItem = {
   managerId: string;
-  managerName?: string | null;
+  managerName: string;
+  managerSurname: string;
+  managerFullName: string;
   ticketsServed: number;
   ticketsNoShow: number;
   avgRating: number | null;
@@ -89,6 +91,7 @@ export async function GET(req: NextRequest) {
         headers: { Authorization: `Bearer ${access}` },
       }),
     ]);
+
     const json = (await res.json().catch(() => ({}))) as ManagerStatsBackendResponse;
 
     if (!res.ok || !json?.data) {
@@ -106,16 +109,16 @@ export async function GET(req: NextRequest) {
       for (const item of list) {
         const id = String(item.documentId ?? item.id ?? "");
         const displayName = getManagerDisplayName(item);
-
         if (id) {
           managerNameMap.set(id, displayName || id);
         }
       }
     }
-
     const rows = json.data.map((item) => ({
       managerId: item.managerId,
       name: item.managerName ?? managerNameMap.get(item.managerId) ?? item.managerId,
+      surname: item.managerSurname ?? "",
+      fullName: item.managerFullName ?? "",
       ticketsServed: item.ticketsServed,
       ticketsNoShow: item.ticketsNoShow,
       rating: item.avgRating ?? 0,

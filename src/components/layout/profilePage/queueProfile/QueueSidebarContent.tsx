@@ -4,9 +4,11 @@ import { Button, ButtonGroup, Select, SelectItem, Textarea } from "@heroui/react
 import { SELECT_CLASSES_QUEUE_SIDEBAR } from "./constants";
 import { useTranslations } from "next-intl";
 import type { QueueSidebarContentProps } from "./types";
+import { useAppSelector } from "@/store/hooks";
 
 export default function QueueSidebarContent(props: QueueSidebarContentProps) {
   const t = useTranslations();
+  const user = useAppSelector((s) => s.auth.user);
   if (props.mode === "withClient") {
     const {
       redirectServiceId,
@@ -177,7 +179,9 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
     if (u === "UNAVAILABLE") return t("queue_manager_status_unavailable");
     return status ?? "—";
   };
-
+  
+  const filteredBranchManagers = branchManagers?.filter((m) => m.id !== user?.documentId);
+  
   return (
     <div className="flex flex-col items-start gap-[24px] self-stretch">
       <div className="flex p-[16px] flex-col items-start gap-[12px] self-stretch rounded-[24px] bg-[#F4F6FB]">
@@ -188,11 +192,11 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
           <div className="flex flex-col gap-2 w-full min-h-[120px] max-h-[320px] overflow-y-auto">
             {branchManagersLoading ? (
               <p className="text-[14px] text-[rgba(7,7,31,0.48)] py-2">{t("queue_loading_queue")}</p>
-            ) : branchManagers.length === 0 ? (
+            ) : filteredBranchManagers?.length === 0 ? (
               <p className="text-[14px] text-[rgba(7,7,31,0.48)] py-2">{t("queue_rop_managers_empty")}</p>
             ) : (
               <ul className="flex flex-col gap-2 w-full pr-1">
-                {branchManagers.map((m) => (
+                {filteredBranchManagers?.map((m) => (
                   <li
                     key={m.id}
                     className="flex justify-between items-center gap-3 rounded-[12px] bg-white/90 px-3 py-2.5 border border-[rgba(19,44,94,0.08)]"

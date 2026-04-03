@@ -71,10 +71,9 @@ export async function GET(req: NextRequest) {
           "";
         const name = fullName || String(a?.name ?? "") || id;
         const status = String(item.status ?? "OFFLINE");
-        return { id, name, status };
+        return { id, name, shortName: a?.name ?? "", status };
       })
       .filter((m) => m.status !== "OFFLINE");
-
     return NextResponse.json({ managers }, { status: 200 });
   } catch (e) {
     console.error("[queue/managers]", e);

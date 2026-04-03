@@ -1,5 +1,6 @@
 "use client";
 
+import { useAppSelector } from "@/store/hooks";
 import { Button } from "@heroui/button";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/react";
 import { useTranslations } from "next-intl";
@@ -38,6 +39,9 @@ export default function AdminManagersUnavailableModal({
   onForceOffline: (managerId: string) => void;
 }) {
   const t = useTranslations();
+
+  const user = useAppSelector((s) => s.auth.user);
+  managers = managers.filter((m) => m.id !== user?.documentId);
 
   return (
     <Modal
