@@ -79,6 +79,12 @@ export interface ProjectAttractionPointsDataItem {
   transport: string;
 }
 
+export interface ProjectGenPlanGalleryItem {
+  url: string;
+  mime: string;
+  alt: string;
+}
+
 export interface ProjectGenPlanDataItem {
   id: number;
   complexGenPlanImage: string;
@@ -86,6 +92,7 @@ export interface ProjectGenPlanDataItem {
   attractionPoints: ProjectAttractionPointsDataItem[];
   complexTour: string;
   complexTourProgress: string;
+  complexGallery: ProjectGenPlanGalleryItem[];
 }
 
 export interface ProjectPlansDataItem {
