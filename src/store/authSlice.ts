@@ -34,8 +34,6 @@ interface AuthState {
 const initialState: AuthState = {
   isOpen: false,
   step: "phone",
-  // "registered" here comes from /send-code and means "customer existed before".
-  // Defaulting to false avoids skipping registration step on fresh state.
   isRegistered: false,
 
   isSendingCode: false,
@@ -144,6 +142,7 @@ const authSlice = createSlice({
       })
       .addCase(verifyAuthCode.fulfilled, (state, action) => {
         state.isVerifyingCode = false;
+        state.user = action.payload.user;
         state.verifyError = null;
         state.attemptsLeft = null;
       })
@@ -163,7 +162,6 @@ const authSlice = createSlice({
       .addCase(logoutAuth.rejected, (state) => {
         state.user = undefined;
       });
-
     builder
       .addCase(createAuthSession.fulfilled, (state, action) => {
         state.user = action.payload.user;

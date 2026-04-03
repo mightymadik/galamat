@@ -17,7 +17,10 @@ export default function ProfileRedirect() {
 
     useEffect(() => {
         if (user) {
-            router.replace(`/profile/${user.documentId}`);
+            const queueOnly =
+                String(user.role ?? "").toLowerCase() === "external_manager";
+            const qs = queueOnly ? "?section=queue" : "";
+            router.replace(`/profile/${user.documentId}${qs}`);
             return;
         }
         const t = setTimeout(() => router.replace("/"), 1200);

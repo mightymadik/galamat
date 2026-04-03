@@ -1,23 +1,24 @@
 "use client";
 
-import ElapsedTimer from "./ElapsedTimer";
+import { useTranslations } from "next-intl";
 
 /**
  * Показывается после перенаправления или завершения обслуживания:
  * данные клиента на подходе, без блока «История обращений».
  */
 export default function QueueWaitingForNextPanel() {
+  const t = useTranslations();
   return (
     <div className="flex w-full pl-[24px] pr-[24px] py-[32px] flex-col items-start gap-[32px] flex-[1_0_0]">
       <div className="flex items-center gap-[25px] self-stretch">
         <div className="flex pt-[16px] items-end gap-[8px] flex-[1_0_0] [border-top:5px_solid_#2655AF]">
-          <span className="text-[#1E1E1E] text-[24px] not-italic font-medium leading-[24px]">Вызов</span>
+          <span className="text-[#1E1E1E] text-[24px] not-italic font-medium leading-[24px]">{t("queue_tab_call")}</span>
         </div>
         <div className="flex pt-[16px] items-end gap-[8px] flex-[1_0_0] [border-top:5px_solid_rgba(38,_85,_175,_0.50)]">
-          <span className="text-[rgba(30,_30,_30,_0.50)] text-[24px] not-italic font-medium leading-[24px]">Явка</span>
+          <span className="text-[rgba(30,_30,_30,_0.50)] text-[24px] not-italic font-medium leading-[24px]">{t("queue_tab_attendance")}</span>
         </div>
         <div className="flex pt-[16px] items-end gap-[8px] flex-[1_0_0] [border-top:5px_solid_rgba(38,_85,_175,_0.50)]">
-          <span className="text-[rgba(30,_30,_30,_0.50)] text-[24px] not-italic font-medium leading-[24px]">Данные</span>
+          <span className="text-[rgba(30,_30,_30,_0.50)] text-[24px] not-italic font-medium leading-[24px]">{t("queue_tab_data")}</span>
         </div>
       </div>
 
@@ -29,10 +30,14 @@ export default function QueueWaitingForNextPanel() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none">
                   <path d="M46.7126 63.0663L46.6932 63.3427C46.6887 64.9099 46.6864 65.6934 46.1986 66.1799C45.7107 66.6663 44.9271 66.6663 43.3599 66.6663H33.317C20.7149 66.6663 14.4139 66.6663 10.4989 62.7611C7.80336 60.0722 6.96376 56.255 6.70225 50.0348C6.65039 48.8012 6.62446 48.1844 6.85481 47.7729C7.08515 47.3614 8.00477 46.8479 9.84393 45.8208C11.8865 44.6802 13.2672 42.5008 13.2672 39.9997C13.2672 37.4986 11.8865 35.3192 9.84393 34.1785C8.00475 33.1515 7.08515 32.6379 6.85481 32.2264C6.62446 31.8149 6.65039 31.1981 6.70225 29.9646C6.96376 23.7443 7.80336 19.9271 10.4989 17.2383C14.4139 13.333 20.7149 13.333 33.317 13.333H45.0176C45.9385 13.333 46.6857 14.0763 46.6884 14.9948L46.7126 16.933C46.7126 18.774 48.2087 20.2663 50.0543 20.2663C51.8998 20.2663 53.3959 18.774 53.3959 16.933V15.0536C53.3959 14.1236 54.1609 13.372 55.0929 13.396C62.3177 13.5824 66.576 14.3198 69.5017 17.2383C72.1973 19.9271 73.0369 23.7443 73.2984 29.9646C73.3503 31.1981 73.3762 31.8149 73.1458 32.2264C72.9155 32.6379 71.9959 33.1515 70.1567 34.1785C68.1141 35.3192 66.7334 37.4986 66.7334 39.9997C66.7334 42.5008 68.1141 44.6802 70.1567 45.8208C71.9959 46.8479 72.9155 47.3614 73.1458 47.7729C73.3762 48.1844 73.3503 48.8012 73.2984 50.0348C73.0369 56.255 72.1973 60.0722 69.5017 62.7611C66.8113 65.4449 62.9939 66.2843 56.7791 66.5468C55.208 66.6132 54.4225 66.6464 53.9092 66.1543C53.3959 65.6623 53.3959 64.8597 53.3959 63.2546V63.0663C53.3959 61.2254 51.8998 59.733 50.0543 59.733C48.2087 59.733 46.7126 61.2254 46.7126 63.0663Z" fill="#DB1D31" />
                 </svg>
-                <span className="absolute text-[#FFF] font-[Gotham] text-[24px] not-italic font-bold leading-[100%]">124</span>
+                <span className="absolute text-[#FFF] font-[Gotham] text-[18px] not-italic font-medium leading-[100%]">
+                  —
+                </span>
               </div>
             </div>
-            <span className="flex-[1_0_0] text-[#1A3C7E] text-[32px] not-italic font-normal leading-[32px]">Кудайбергенова Асель Галаматовна</span>
+            <span className="flex-[1_0_0] text-[#1A3C7E] text-[20px] not-italic font-normal leading-[28px]">
+              {t("queue_waiting_for_next_title")}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-start gap-[16px] self-stretch">
@@ -47,10 +52,13 @@ export default function QueueWaitingForNextPanel() {
                   </g>
                 </svg>
                 <span className="flex-[1_0_0] text-[#282D3C] text-[12px] not-italic font-medium leading-[16px]">
-                  Время ожидания
+                  {t("queue_waiting_time")}
                 </span>
               </div>
-              <ElapsedTimer className="text-[#000] text-[16px] not-italic font-bold leading-[normal]" />
+              {/* Пока клиент не вызван, время ожидания не тикает */}
+              <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">
+                0м 0с
+              </span>
             </div>
 
             <div className="flex p-[12px] flex-col justify-between items-start flex-[1_0_0] self-stretch rounded-[12px] bg-[#F3F5F8]">
@@ -64,10 +72,13 @@ export default function QueueWaitingForNextPanel() {
                   </g>
                 </svg>
                 <span className="flex-[1_0_0] text-[#282D3C] text-[12px] not-italic font-medium leading-[16px]">
-                  Время обслуживания
+                  {t("queue_service_time")}
                 </span>
               </div>
-              <ElapsedTimer className="text-[#000] text-[16px] not-italic font-bold leading-[normal]" />
+              {/* Обслуживание начнётся только после нажатия "начать обслуживание" */}
+              <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">
+                0м 0с
+              </span>
             </div>
 
             <div className="flex p-[12px] flex-col justify-between items-start flex-[1_0_0] self-stretch rounded-[12px] bg-[#F3F5F8]">
@@ -78,10 +89,10 @@ export default function QueueWaitingForNextPanel() {
                   </g>
                 </svg>
                 <span className="flex-[1_0_0] text-[#282D3C] text-[12px] not-italic font-medium leading-[16px]">
-                  Телефон
+                  {t("queue_phone")}
                 </span>
               </div>
-              <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">+7 777 323 4354</span>
+              <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">—</span>
             </div>
           </div>
         </div>

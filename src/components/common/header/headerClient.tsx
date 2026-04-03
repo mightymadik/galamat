@@ -291,7 +291,11 @@ export default function HeaderClient({ data }: { data: HeaderItem[] }) {
                             <div className="navigationSublinksAuth">
                                 {user ? (
                                     <Link
-                                        href={`/profile/${user.documentId}`}
+                                        href={`/profile/${user.documentId}${
+                                            String(user.role ?? "").toLowerCase() === "external_manager"
+                                                ? "?section=queue"
+                                                : ""
+                                        }`}
                                         className="navigationSublinksAuthA font-medium flex h-8 justify-center items-center bg-blue-900 transition-all duration-300 hover:!bg-red-700 rounded-[12px] px-3 py-2 text-white no-underline"
                                     >
                                         <p className="navigationSublinksAuthP font-small">

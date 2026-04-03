@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders } from "@/lib/strapiServer";
 
-const QUEUE_API_URL = process.env.QUEUE_API_URL || "http://localhost:3001";
+const QUEUE_API_URL =
+  process.env.QUEUE_API_URL || process.env.QUEUE_BACKEND_URL || "http://queue-backend:3001";
 
 /**
  * GET /api/queue/counters?branchId=xxx

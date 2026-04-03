@@ -13,37 +13,30 @@ import {
 } from "@heroui/react";
 import type { DeskItem } from "@/store/queueProfileSlice";
 import { MAX_DESKS } from "@/store/queueProfileSlice";
-
-export type DeskSelectionModalProps = {
-  isOpen: boolean;
-  draftDesk: string;
-  newDeskName: string;
-  desks: DeskItem[];
-  canAddDesks: boolean;
-  addDeskLoading?: boolean;
-  addDeskError?: string | null;
-  onDraftDeskChange: (key: string) => void;
-  onNewDeskNameChange: (value: string) => void;
-  onAddDesk: () => void;
-  onConfirm: () => void;
-  onCancel: () => void;
-};
+import { useTranslations } from "next-intl";
+import { SELECT_CLASSES_DESK_MODAL } from "../constants";
+import type { DeskSelectionModalProps } from "../types";
 
 export default function DeskSelectionModal({
   isOpen,
+  mode,
   draftDesk,
   newDeskName,
   desks,
   canAddDesks,
   addDeskLoading = false,
   addDeskError = null,
+  selectionError = null,
   onDraftDeskChange,
   onNewDeskNameChange,
   onAddDesk,
   onConfirm,
   onCancel,
 }: DeskSelectionModalProps) {
+  const t = useTranslations();
   const atMaxDesks = desks.length >= MAX_DESKS;
+  const currentDeskLabel =
+    desks.find((d) => d.key === draftDesk)?.label ?? (draftDesk || "—");
 
   return (
     <Modal
@@ -60,39 +53,52 @@ export default function DeskSelectionModal({
       <ModalContent>
         <ModalHeader>
           <span className="text-[#1E1E1E] text-[20px] not-italic font-medium leading-[28px]">
-            Выбор рабочего окна
+            {t("queue_desk_modal_title")}
           </span>
         </ModalHeader>
         <ModalBody className="flex flex-col gap-[16px]">
           <p className="text-[rgba(7,7,31,0.48)] text-[14px] font-normal leading-[20px]">
-            Выберите рабочее окно перед тем, как перейти в статус{" "}
-            <span className="font-medium text-[#1A3C7E]">«Доступен»</span>
+            {t("queue_select_window_before_status_placeholder")} {" "}
+            <span className="font-medium text-[#1A3C7E]">{t("queue_status_available_quoted")}</span>
           </p>
 
-          <Select
-            label="Рабочее окно"
-            placeholder="Выберите окно"
-            selectedKeys={draftDesk ? [draftDesk] : []}
-            onSelectionChange={(keys) => {
-              const key = Array.from(keys as Set<string>)[0];
-              if (key) onDraftDeskChange(String(key));
-            }}
-            classNames={{
-              base: "w-full",
-              label: "text-[#1A3C7E] text-[14px] font-normal",
-              trigger: "text-[#1A3C7E] text-[16px] font-normal",
-              listbox: "text-[#1A3C7E] text-[16px] font-normal",
-            }}
-          >
-            {desks.map((desk) => (
-              <SelectItem key={desk.key}>{desk.label}</SelectItem>
-            ))}
-          </Select>
+          {mode === "edit" ? (
+            <div className="flex flex-col gap-[8px]">
+              <span className="text-[rgba(7,7,31,0.48)] text-[12px] font-normal leading-[16px]">
+                {t("queue_work_desk")}
+              </span>
+              <Select
+                placeholder={t("queue_work_desk_placeholder")}
+                selectedKeys={draftDesk ? [draftDesk] : []}
+                onSelectionChange={(keys) => {
+                  const key = Array.from(keys)[0];
+                  onDraftDeskChange(key != null ? String(key) : "");
+                }}
+                classNames={SELECT_CLASSES_DESK_MODAL}
+              >
+                {desks.map((d) => (
+                  <SelectItem key={d.key}>{d.label}</SelectItem>
+                ))}
+              </Select>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-[4px] rounded-[16px] bg-[#F4F6FB] px-[16px] py-[10px]">
+              <span className="text-[rgba(7,7,31,0.48)] text-[12px] font-normal leading-[16px]">
+                {t("queue_work_desk")}
+              </span>
+              <span className="text-[#1A3C7E] text-[16px] font-medium leading-[normal]">
+                {currentDeskLabel}
+              </span>
+            </div>
+          )}
+          {selectionError && (
+            <p className="text-[#DB1D31] text-[12px] font-normal">{selectionError}</p>
+          )}
           {canAddDesks && (
             <div className="flex flex-col gap-[8px]">
               <div className="flex items-center justify-between">
                 <span className="text-[#282D3C] text-[14px] font-medium leading-[normal]">
-                  Добавить окно
+                  {t("queue_add_desk")}
                 </span>
                 <span
                   className={`text-[12px] font-normal ${atMaxDesks ? "text-[#DB1D31]" : "text-[rgba(7,7,31,0.40)]"}`}
@@ -102,7 +108,7 @@ export default function DeskSelectionModal({
               </div>
               <div className="flex items-center gap-[8px]">
                 <Input
-                  placeholder="Название окна"
+                  placeholder={t("queue_desk_name_placeholder")}
                   value={newDeskName}
                   onValueChange={onNewDeskNameChange}
                   isDisabled={atMaxDesks || addDeskLoading}
@@ -146,7 +152,7 @@ export default function DeskSelectionModal({
               )}
               {atMaxDesks && (
                 <p className="text-[#DB1D31] text-[12px] font-normal">
-                  Достигнут максимум ({MAX_DESKS} окон)
+                  {t("queue_desk_max", { max: MAX_DESKS })}
                 </p>
               )}
             </div>
@@ -158,14 +164,14 @@ export default function DeskSelectionModal({
             onPress={onCancel}
             className="rounded-[12px] border border-[rgba(19,44,94,0.24)] bg-white text-[#1A3C7E]"
           >
-            Отмена
+            {t("queue_cancel")}
           </Button>
           <Button
             isDisabled={!draftDesk}
             onPress={onConfirm}
             className="rounded-[12px] bg-[#1A3C7E] text-white disabled:opacity-50"
           >
-            Подтвердить и выйти онлайн
+            {mode === "edit" ? t("queue_confirm_desk") : t("queue_confirm_go_online")}
           </Button>
         </ModalFooter>
       </ModalContent>

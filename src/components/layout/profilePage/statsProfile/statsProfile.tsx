@@ -1,15 +1,24 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { useSelector } from "react-redux";
 import { DateRangePicker, Button } from "@heroui/react";
 import { parseDate, type DateValue } from "@internationalized/date";
+import type { RootState } from "@/store";
+import { useTranslations } from "next-intl";
 
 /** Показатели за период */
 type PeriodStats = {
     ticketsByQr: number;
     ticketsByKlm: number;
     avgWaitInQueue: string;
-    avgWaitByManager: string;
+    avgServiceTime: string;
+    noShowCount: number;
+    topManagerByServed: {
+        managerId: string;
+        managerName: string | null;
+        ticketsServed: number;
+    } | null;
 };
 
 /** Статус клиента: ключ, количество, процент, цвет процента */
@@ -23,44 +32,31 @@ type ClientStatusItem = {
 
 /** Запись в таблице оценок */
 type RatingRow = {
+    managerId?: string;
     name: string;
+    shortName: string;
+    ticketsServed?: number;
+    ticketsNoShow?: number;
     rating: number;
 };
 
-/** Месяц и значение для графика клиентов */
-type ClientChartBar = {
-    month: string;
+/** Столбец диаграммы: подпись снизу + число сверху (услуги или менеджеры). */
+type StatBarItem = {
+    key: string;
+    label: string;
     value: number;
 };
 
+type RatingSummary = {
+    total: number;
+    avgScore: number;
+    distribution: Record<string, number>;
+};
+
 const DEFAULT_RANGE = {
-    start: parseDate("2024-04-01"),
-    end: parseDate("2024-04-08"),
+    start: parseDate(new Date().toISOString().slice(0, 10)),
+    end: parseDate(new Date().toISOString().slice(0, 10)),
 };
-
-const MOCK_STATS: PeriodStats = {
-    ticketsByQr: 81,
-    ticketsByKlm: 0,
-    avgWaitInQueue: "5м 43с",
-    avgWaitByManager: "25м 43с",
-};
-
-const MOCK_STATUSES: ClientStatusItem[] = [
-    { key: "called", label: "Вызваны", count: 81, percent: "0.00%", percentColor: "text-[#2990F7]" },
-    { key: "completed", label: "Завершены", count: 95, percent: "94.05%", percentColor: "text-[#009C0B]" },
-    { key: "notCalled", label: "Не вызваны", count: 81, percent: "94.05%", percentColor: "text-[#F5A012]" },
-    { key: "refused", label: "Отказались", count: 95, percent: "0%", percentColor: "text-[#DB1D31]" },
-];
-
-const RATING_MONTHS = ["Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь", "Январь"];
-/** Значения по месяцам для графика оценки (шкала 1–5). Индекс 0 = Август, 5 = Январь. */
-const MOCK_RATING_CHART_DATA: number[] = [4.2, 3.8, 3, 2.5, 5, 3.5];
-const MOCK_RATING_STATS = { max: { value: 5, month: "Декабре" }, avg: { value: 3, month: "Октябре" }, min: { value: 2, month: "Ноябре" } };
-const MOCK_RATING_TABLE: RatingRow[] = [
-    { name: "Кудайбергенова Асель Ералновна", rating: 5 },
-    { name: "Кудайбергенова Асель Ералновна", rating: 3 },
-    { name: "Кудайбергенова Асель Ералновна", rating: 2 },
-];
 
 const RATING_CHART = { width: 908, height: 148, padding: { top: 14, right: 16, bottom: 36, left: 44 } };
 
@@ -97,48 +93,178 @@ function getRatingBadgeClass(rating: number): { bg: string; text: string } {
     return { bg: "bg-[#FAE3E6]", text: "text-[#DB1D31]" };
 }
 
-const CLIENT_CHART_MONTHS = ["Авг", "Сент", "Окт", "Нояб", "Дек", "Янв"];
-const MOCK_CLIENT_BARS: number[] = [24, 36, 24, 12, 32, 20];
-const MOCK_CLIENT_STATS = { max: { value: 50, month: "Декабре" }, avg: { value: 25, month: "Октябре" }, min: { value: 10, month: "Ноябре" } };
+function shortenLabel(value: string, maxLength = 12): string {
+    if (value.length <= maxLength) return value;
+    return `${value.slice(0, maxLength - 1)}…`;
+}
 
-function formatRangeForExport(range: { start: DateValue; end: DateValue }): string {
-    const s = "start" in range.start ? range.start.toString() : String(range.start);
-    const e = "end" in range.end ? range.end.toString() : String(range.end);
-    return `${s}_${e}`;
+function roundRating(value: number): number {
+    return Math.round(value * 100) / 100;
 }
 
 export default function StatsProfile() {
+    const t = useTranslations();
     const [dateRange, setDateRange] = useState<{ start: DateValue; end: DateValue }>(DEFAULT_RANGE);
     const [exportLoading, setExportLoading] = useState(false);
+    const [stats, setStats] = useState<PeriodStats | null>(null);
+    const [statuses, setStatuses] = useState<ClientStatusItem[]>([]);
+    const [ratingRows, setRatingRows] = useState<RatingRow[]>([]);
+    const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
+    const [resolvedBranchId, setResolvedBranchId] = useState("");
 
-    const handleExportReport = useCallback(() => {
-        setExportLoading(true);
-        const period = formatRangeForExport(dateRange);
-        const payload = {
-            period,
-            stats: MOCK_STATS,
-            statuses: MOCK_STATUSES,
+    const branchId = useSelector((state: RootState) => state.queueProfile.branchId);
+
+    const selectedDateIso = dateRange.start.toString().slice(0, 10);
+    const statusMap = useMemo(() => new Map(statuses.map((status) => [status.key, status])), [statuses]);
+    const ratingChartRows = useMemo(() => ratingRows.filter((row) => row.rating > 0), [ratingRows]);
+    const ratingChartLabels = useMemo(() => ratingChartRows.map((row) => shortenLabel(row.name)), [ratingChartRows]);
+    const ratingChartValues = useMemo(() => ratingChartRows.map((row) => roundRating(row.rating)), [ratingChartRows]);
+    /** Топ менеджеров по числу обслуженных клиентов за выбранную дату (из /stats/managers). */
+    const managerClientsBarsTop = useMemo((): StatBarItem[] => {
+        return [...ratingRows]
+            .map((row, index) => ({
+                key: row.managerId ?? `${row.name}-${index}`,
+                label: row.name,
+                value: row.ticketsServed ?? 0,
+            }))
+            .filter((bar) => bar.value > 0)
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 6);
+    }, [ratingRows]);
+
+    const maxManagerClientsValue = useMemo(
+        () => Math.max(...managerClientsBarsTop.map((item) => item.value), 0),
+        [managerClientsBarsTop],
+    );
+
+    useEffect(() => {
+        if (branchId) {
+            setResolvedBranchId(branchId);
+            return;
+        }
+
+        let cancelled = false;
+
+        async function loadBranchId() {
+            try {
+                const res = await fetch("/api/queue/manager/me");
+                if (!res.ok) return;
+                const json = await res.json();
+                const nextBranchId = json?.data?.branch?.id;
+                if (!cancelled && nextBranchId) {
+                    setResolvedBranchId(String(nextBranchId));
+                }
+            } catch {
+                // ignore
+            }
+        }
+
+        loadBranchId();
+
+        return () => {
+            cancelled = true;
         };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `queue-report-${period}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        setExportLoading(false);
-    }, [dateRange]);
+    }, [branchId]);
 
-    const stats = MOCK_STATS;
+    useEffect(() => {
+        if (!resolvedBranchId || !selectedDateIso) return;
+
+        const controller = new AbortController();
+
+        async function loadStats() {
+            try {
+                const startDateIso = dateRange.start.toString().slice(0, 10);
+                const endDateIso = dateRange.end.toString().slice(0, 10);
+
+                const [queueRes, managersRes, ratingsRes] = await Promise.all([
+                    fetch(`/api/queue/stats/queue?branchId=${encodeURIComponent(resolvedBranchId)}&date=${encodeURIComponent(selectedDateIso)}`, {
+                        signal: controller.signal,
+                    }),
+                    fetch(`/api/queue/stats/managers?branchId=${encodeURIComponent(resolvedBranchId)}&date=${encodeURIComponent(selectedDateIso)}`, {
+                        signal: controller.signal,
+                    }),
+                    fetch(`/api/queue/stats/ratings?branchId=${encodeURIComponent(resolvedBranchId)}&startDate=${encodeURIComponent(startDateIso)}&endDate=${encodeURIComponent(endDateIso)}`, {
+                        signal: controller.signal,
+                    }),
+                ]);
+
+                if (queueRes.ok) {
+                    const json = await queueRes.json();
+                    if (json?.stats) setStats(json.stats as PeriodStats);
+                    if (Array.isArray(json?.statuses)) setStatuses(json.statuses as ClientStatusItem[]);
+                }
+
+                if (managersRes.ok) {
+                    const json = await managersRes.json();
+                    if (Array.isArray(json?.rows)) setRatingRows(json.rows as RatingRow[]);
+                }
+
+                if (ratingsRes.ok) {
+                    const json = await ratingsRes.json();
+                    if (json?.ratings) setRatingSummary(json.ratings as RatingSummary);
+                }
+            } catch (e) {
+                if (e instanceof DOMException && e.name === "AbortError") return;
+                // Ошибки тихо игнорируем, на странице останутся мок-данные
+            }
+        }
+
+        loadStats();
+
+        return () => controller.abort();
+    }, [resolvedBranchId, selectedDateIso, dateRange]);
+
+    const handleExportReport = useCallback(async () => {
+        if (!resolvedBranchId) {
+            return;
+        }
+
+        setExportLoading(true);
+
+        try {
+            const start = dateRange.start.toString().slice(0, 10);
+            const end = dateRange.end.toString().slice(0, 10);
+            const qs = new URLSearchParams({
+                branchId: resolvedBranchId,
+                startDate: start,
+                endDate: end,
+            }).toString();
+
+            const kinds = ["manager-sessions", "clients"] as const;
+
+            for (const kind of kinds) {
+                const res = await fetch(`/api/queue/stats/export/${kind}?${qs}`);
+
+                if (!res.ok) {
+                    await res.json().catch(() => undefined);
+                    continue;
+                }
+
+                const blob = await res.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = objectUrl;
+                const cd = res.headers.get("Content-Disposition");
+                const match = cd?.match(/filename="([^"]+)"/);
+                a.download = match?.[1] ?? `${kind}_${start}_${end}.xlsx`;
+                a.click();
+                URL.revokeObjectURL(objectUrl);
+            }
+        } finally {
+            setExportLoading(false);
+        }
+    }, [dateRange, resolvedBranchId]);
 
     return (
         <div className="flex w-full flex-col items-start gap-[32px]">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-end gap-4 self-stretch">
                 <div className="flex w-full sm:max-w-[304px] pt-[3.07px] flex-col items-start gap-[8.188px]">
                     <div className="flex items-center">
-                        <div className="flex flex-col items-start">
-                            <p className="text-[rgba(7,_7,_31,_0.48)] text-[12.282px] not-italic font-normal leading-[16.335px]">Период</p>
-                        </div>
+                    <div className="flex flex-col items-start">
+                            <p className="text-[rgba(7,_7,_31,_0.48)] text-[12.282px] not-italic font-normal leading-[16.335px]">
+                                {t("stats_period")}
+                            </p>
+                    </div>
                     </div>
                     <DateRangePicker
                         isRequired
@@ -161,7 +287,9 @@ export default function StatsProfile() {
                         <path d="M8.36902 11.0041C8.27429 11.1077 8.14038 11.1667 8 11.1667C7.85962 11.1667 7.72571 11.1077 7.63099 11.0041L4.96432 8.08738C4.77799 7.88358 4.79215 7.56732 4.99595 7.38099C5.19975 7.19465 5.51602 7.20881 5.70235 7.41262L7.5 9.3788V2C7.5 1.72386 7.72386 1.5 8 1.5C8.27614 1.5 8.5 1.72386 8.5 2V9.3788L10.2977 7.41262C10.484 7.20881 10.8003 7.19465 11.0041 7.38099C11.2079 7.56732 11.222 7.88358 11.0357 8.08738L8.36902 11.0041Z" fill="#1C274C" />
                         <path d="M2.5 10C2.5 9.72386 2.27614 9.5 2 9.5C1.72386 9.5 1.5 9.72386 1.5 10V10.0366C1.49999 10.9483 1.49998 11.6832 1.57768 12.2612C1.65836 12.8612 1.83096 13.3665 2.23223 13.7678C2.63351 14.169 3.13876 14.3416 3.73883 14.4223C4.31681 14.5 5.05169 14.5 5.96342 14.5H10.0366C10.9483 14.5 11.6832 14.5 12.2612 14.4223C12.8612 14.3416 13.3665 14.169 13.7678 13.7678C14.169 13.3665 14.3416 12.8612 14.4223 12.2612C14.5 11.6832 14.5 10.9483 14.5 10.0366V10C14.5 9.72386 14.2761 9.5 14 9.5C13.7239 9.5 13.5 9.72386 13.5 10C13.5 10.9569 13.4989 11.6244 13.4312 12.1279C13.3655 12.6171 13.2452 12.8762 13.0607 13.0607C12.8762 13.2452 12.6171 13.3655 12.1279 13.4312C11.6244 13.4989 10.9569 13.5 10 13.5H6C5.04306 13.5 4.37565 13.4989 3.87208 13.4312C3.3829 13.3655 3.12385 13.2452 2.93934 13.0607C2.75483 12.8762 2.63453 12.6171 2.56877 12.1279C2.50106 11.6244 2.5 10.9569 2.5 10Z" fill="#1C274C" />
                     </svg>
-                    <span className="text-[#282D3C] text-[14px] not-italic font-normal leading-[20px]">Выгрузить отчет</span>
+                    <span className="text-[#282D3C] text-[14px] not-italic font-normal leading-[20px]">
+                        {t("stats_export_report")}
+                    </span>
                 </Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[12px] self-stretch">
@@ -178,11 +306,11 @@ export default function StatsProfile() {
                             <path d="M21.4361 22.1567C21.3346 22.4018 21.3346 22.7124 21.3346 23.3337C21.3346 23.9549 21.3346 24.2655 21.4361 24.5106C21.5715 24.8373 21.831 25.0968 22.1577 25.2322C22.4028 25.3337 22.7134 25.3337 23.3346 25.3337C23.9559 25.3337 24.2665 25.3337 24.5115 25.2322C24.8383 25.0968 25.0978 24.8373 25.2331 24.5106C25.3346 24.2655 25.3346 23.9549 25.3346 23.3337C25.3346 22.7124 25.3346 22.4018 25.2331 22.1567C25.0978 21.83 24.8383 21.5705 24.5115 21.4352C24.2665 21.3337 23.9559 21.3337 23.3346 21.3337C22.7134 21.3337 22.4028 21.3337 22.1577 21.4352C21.831 21.5705 21.5715 21.83 21.4361 22.1567Z" fill="#7A5AF9" />
                         </svg>
                         <span className="text-[#282D3C] font-[Gotham] text-[16px] not-italic font-normal leading-[normal]">
-                            Талонов выдано клиентам через QR-код
+                            {t("stats_tickets_qr")}
                         </span>
                     </div>
                     <span className="text-[#282D3C] text-[32px] not-italic font-bold leading-[normal]">
-                        {stats.ticketsByQr}
+                        {stats?.ticketsByQr ?? 0}
                     </span>
                 </div>
                 <div className="flex w-full p-[24px] flex-col items-start gap-[32px] rounded-[32px] bg-[#F4F6FB]">
@@ -191,11 +319,11 @@ export default function StatsProfile() {
                             <path fillRule="evenodd" clipRule="evenodd" d="M9.66002 2.66797H22.34C23.8851 2.66797 24.6577 2.66797 25.2808 2.88478C26.4624 3.29591 27.39 4.25089 27.7894 5.46725C28 6.1087 28 6.90404 28 8.49472V27.1669C28 28.3112 26.6867 28.9184 25.8559 28.1581C25.3678 27.7115 24.6322 27.7115 24.1441 28.1581L23.5 28.7475C22.6446 29.5303 21.3554 29.5303 20.5 28.7475C19.6446 27.9647 18.3554 27.9647 17.5 28.7475C16.6446 29.5303 15.3554 29.5303 14.5 28.7475C13.6446 27.9647 12.3554 27.9647 11.5 28.7475C10.6446 29.5303 9.35545 29.5303 8.5 28.7475L7.85587 28.1581C7.36777 27.7115 6.63223 27.7115 6.14413 28.1581C5.31333 28.9184 4 28.3112 4 27.1669V8.49472C4 6.90404 4 6.1087 4.21061 5.46725C4.60997 4.25089 5.53763 3.29591 6.71918 2.88478C7.34228 2.66797 8.11486 2.66797 9.66002 2.66797ZM20.0793 11.334C20.4471 10.922 20.4113 10.2899 19.9993 9.92204C19.5874 9.55421 18.9552 9.58999 18.5874 10.002L14.5714 14.4998L13.4126 13.202C13.0448 12.79 12.4126 12.7542 12.0007 13.122C11.5887 13.4899 11.5529 14.122 11.9207 14.534L13.8255 16.6673C14.0152 16.8798 14.2866 17.0013 14.5714 17.0013C14.8563 17.0013 15.1276 16.8798 15.3174 16.6673L20.0793 11.334ZM10 19.668C9.44772 19.668 9 20.1157 9 20.668C9 21.2203 9.44772 21.668 10 21.668H22C22.5523 21.668 23 21.2203 23 20.668C23 20.1157 22.5523 19.668 22 19.668H10Z" fill="#0E9718" />
                         </svg>
                         <span className="text-[#282D3C] font-[Gotham] text-[16px] not-italic font-normal leading-[normal]">
-                            Талонов выдано клиентам через КЛМа
+                            {t("stats_tickets_klm")}
                         </span>
                     </div>
                     <span className="text-[#282D3C] text-[32px] not-italic font-bold leading-[normal]">
-                        {stats.ticketsByKlm}
+                        {stats?.ticketsByKlm ?? 0}
                     </span>
                 </div>
                 <div className="flex w-full p-[24px] flex-col items-start gap-[32px] rounded-[32px] bg-[#F4F6FB]">
@@ -205,13 +333,11 @@ export default function StatsProfile() {
                             <path fillRule="evenodd" clipRule="evenodd" d="M12.3333 2.66797C12.3333 2.11568 12.781 1.66797 13.3333 1.66797H18.6667C19.219 1.66797 19.6667 2.11568 19.6667 2.66797C19.6667 3.22025 19.219 3.66797 18.6667 3.66797H13.3333C12.781 3.66797 12.3333 3.22025 12.3333 2.66797Z" fill="#338FFF" />
                         </svg>
                         <span className="text-[#282D3C] font-[Gotham] text-[16px] not-italic font-normal leading-[normal]">
-                            Среднее время
-                            ожидания клиента
-                            в очереди
+                            {t("stats_avg_wait_queue")}
                         </span>
                     </div>
                     <span className="text-[#282D3C] text-[32px] not-italic font-bold leading-[normal]">
-                        {stats.avgWaitInQueue}
+                        {stats?.avgWaitInQueue ?? "—"}
                     </span>
                 </div>
                 <div className="flex w-full p-[24px] flex-col items-start gap-[32px] rounded-[32px] bg-[#F4F6FB]">
@@ -222,21 +348,20 @@ export default function StatsProfile() {
                             <path fillRule="evenodd" clipRule="evenodd" d="M21.0127 3.12111C21.2975 2.6697 21.8978 2.53248 22.3534 2.8146L27.5426 6.02744C27.9983 6.30957 28.1368 6.90422 27.852 7.35562C27.5672 7.80703 26.9669 7.94426 26.5112 7.66213L21.3221 4.44929C20.8664 4.16716 20.7279 3.57252 21.0127 3.12111Z" fill="#F045BF" />
                         </svg>
                         <span className="text-[#282D3C] font-[Gotham] text-[16px] not-italic font-normal leading-[normal]">
-                            Среднее время
-                            ожидания клиента
-                            менеджером
+                            {t("stats_avg_service_time")}
                         </span>
                     </div>
                     <span className="text-[#282D3C] text-[32px] not-italic font-bold leading-[normal]">
-                        {stats.avgWaitByManager}
+                        {stats?.avgServiceTime ?? "—"}
                     </span>
                 </div>
             </div>
             <div className="flex p-[24px] flex-col items-start gap-[24px] self-stretch rounded-[32px] bg-[#F3F5F8]">
                 <span className="text-[#000] text-[24px] not-italic font-medium leading-[32px]">
-                    Статусы клиентов
+                    {t("stats_client_statuses")}
                 </span>
                 <div className="flex flex-wrap items-stretch gap-[12px] self-stretch">
+                    {/* Карточка "Вызваны" */}
                     <div className="flex p-[16px] flex-col items-start gap-[24px] flex-[1_0_0] rounded-[16px] bg-[#FFF]">
                         <div className="flex flex-col justify-center items-start gap-[8px] self-stretch">
                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -245,18 +370,19 @@ export default function StatsProfile() {
                                 <path opacity="0.3" d="M20.903 18.0024C20.2722 18.0101 19.6843 18.0331 19.1719 18.1019C18.3147 18.2172 17.3765 18.4926 16.6013 19.2679C15.826 20.0431 15.5506 20.9814 15.4353 21.8386C15.3318 22.6088 15.3319 23.55 15.332 24.5507V24.78C15.3319 25.7807 15.3318 26.7218 15.4353 27.4921C15.5162 28.0936 15.6759 28.735 16.0319 29.332C16.0209 29.332 16.0098 29.332 15.9987 29.332C5.33203 29.332 5.33203 26.6457 5.33203 23.332C5.33203 20.0183 10.1077 17.332 15.9987 17.332C17.7669 17.332 19.4347 17.5741 20.903 18.0024Z" fill="#1C274C" />
                             </svg>
                             <span className="text-[#000] text-[24px] not-italic font-normal leading-[32px]">
-                                Вызваны
+                                {t("stats_called")}
                             </span>
                         </div>
                         <div className="flex flex-col items-start gap-[4px] self-stretch">
                             <span className="text-[#000] text-[32px] not-italic font-bold leading-[normal]">
-                                81
+                                {statusMap.get("called")?.count ?? 0}
                             </span>
-                            <p className="text-[#2990F7] text-[24px] not-italic font-bold leading-[normal]">
-                                0.00%
+                            <p className="text-[24px] not-italic font-bold leading-[normal] text-[#2990F7]">
+                                {statusMap.get("called")?.percent ?? "0%"}
                             </p>
                         </div>
                     </div>
+                    {/* Карточка "Завершены" */}
                     <div className="flex p-[16px] flex-col items-start gap-[24px] flex-[1_0_0] rounded-[16px] bg-[#FFF]">
                         <div className="flex flex-col justify-center items-start gap-[8px] self-stretch">
                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -265,18 +391,19 @@ export default function StatsProfile() {
                                 <path fillRule="evenodd" clipRule="evenodd" d="M21.9987 29.3333C19.7988 29.3333 18.6989 29.3333 18.0154 28.6499C17.332 27.9665 17.332 26.8666 17.332 24.6667C17.332 22.4668 17.332 21.3668 18.0154 20.6834C18.6989 20 19.7988 20 21.9987 20C24.1986 20 25.2985 20 25.9819 20.6834C26.6654 21.3668 26.6654 22.4668 26.6654 24.6667C26.6654 26.8666 26.6654 27.9665 25.9819 28.6499C25.2985 29.3333 24.1986 29.3333 21.9987 29.3333ZM24.6227 23.6611C24.9265 23.3573 24.9265 22.8649 24.6227 22.5611C24.319 22.2574 23.8265 22.2574 23.5228 22.5611L20.9617 25.1223L20.4746 24.6352C20.1709 24.3315 19.6784 24.3315 19.3747 24.6352C19.0709 24.939 19.0709 25.4314 19.3747 25.7352L20.4117 26.7722C20.7154 27.0759 21.2079 27.0759 21.5116 26.7722L24.6227 23.6611Z" fill="#009C0B" />
                             </svg>
                             <span className="text-[#000] text-[24px] not-italic font-normal leading-[32px]">
-                                Завершены
+                                {t("stats_completed")}
                             </span>
                         </div>
                         <div className="flex flex-col items-start gap-[4px] self-stretch">
                             <span className="text-[#000] text-[32px] not-italic font-bold leading-[normal]">
-                                95
+                                {statusMap.get("completed")?.count ?? 0}
                             </span>
-                            <p className="text-[#009C0B] text-[24px] not-italic font-bold leading-[normal]">
-                                94.05%
+                            <p className="text-[24px] not-italic font-bold leading-[normal] text-[#009C0B]">
+                                {statusMap.get("completed")?.percent ?? "0%"}
                             </p>
                         </div>
                     </div>
+                    {/* Карточка "Не вызваны" */}
                     <div className="flex p-[16px] flex-col items-start gap-[24px] flex-[1_0_0] rounded-[16px] bg-[#FFF]">
                         <div className="flex flex-col justify-center items-start gap-[8px] self-stretch">
                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -285,18 +412,19 @@ export default function StatsProfile() {
                                 <circle opacity="0.3" cx="16.0013" cy="8.0013" r="5.33333" fill="#1C274C" />
                             </svg>
                             <span className="text-[#000] text-[24px] not-italic font-normal leading-[32px]">
-                                Не вызваны
+                                {t("stats_not_called")}
                             </span>
                         </div>
                         <div className="flex flex-col items-start gap-[4px] self-stretch">
                             <span className="text-[#000] text-[32px] not-italic font-bold leading-[normal]">
-                                81
+                                {statusMap.get("notCalled")?.count ?? 0}
                             </span>
-                            <p className="text-[#F5A012] text-[24px] not-italic font-bold leading-[normal]">
-                                94.05%
+                            <p className="text-[24px] not-italic font-bold leading-[normal] text-[#F5A012]">
+                                {statusMap.get("notCalled")?.percent ?? "0%"}
                             </p>
                         </div>
                     </div>
+                    {/* Карточка "Отказались" */}
                     <div className="flex p-[16px] flex-col items-start gap-[24px] flex-[1_0_0] rounded-[16px] bg-[#FFF]">
                         <div className="flex flex-col justify-center items-start gap-[8px] self-stretch">
                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -307,22 +435,24 @@ export default function StatsProfile() {
                                 </g>
                             </svg>
                             <span className="text-[#000] text-[24px] not-italic font-normal leading-[32px]">
-                                Отказались
+                                {t("stats_refused")}
                             </span>
                         </div>
                         <div className="flex flex-col items-start gap-[4px] self-stretch">
                             <span className="text-[#000] text-[32px] not-italic font-bold leading-[normal]">
-                                95
+                                {statusMap.get("refused")?.count ?? 0}
                             </span>
-                            <p className="text-[#DB1D31] text-[24px] not-italic font-bold leading-[normal]">
-                                0%
+                            <p className="text-[24px] not-italic font-bold leading-[normal] text-[#DB1D31]">
+                                {statusMap.get("refused")?.percent ?? "0%"}
                             </p>
                         </div>
                     </div>
                 </div>
             </div>
             <div className="flex flex-col items-start gap-[20px] self-stretch">
-                <span className="text-[#000] text-[24px] not-italic font-medium leading-[32px]">Оценка</span>
+                <span className="text-[#000] text-[24px] not-italic font-medium leading-[32px]">
+                    {t("stats_managers_and_ratings")}
+                </span>
                 <div className="flex flex-col items-start gap-[20px] self-stretch">
                     {/* ── Responsive SVG chart – all labels live inside the viewBox ── */}
                     <div className="flex p-[24px] flex-col items-start self-stretch rounded-[24px] bg-[#F4F6FB] min-w-0">
@@ -331,7 +461,7 @@ export default function StatsProfile() {
                             viewBox={`0 0 ${RATING_CHART.width} ${RATING_CHART.height}`}
                             fill="none"
                             className="w-full h-auto"
-                            aria-label="График оценки"
+                            aria-label={t("stats_rating_chart_aria")}
                         >
                             {/* Horizontal grid lines + Y-axis labels */}
                             {[5, 4, 3, 2, 1].map((n) => {
@@ -363,11 +493,11 @@ export default function StatsProfile() {
                                 );
                             })}
 
-                            {/* Month labels along X axis */}
-                            {RATING_MONTHS.map((month, i) => {
+                            {/* Labels along X axis */}
+                            {ratingChartLabels.map((month, i) => {
                                 const { padding, width, height } = RATING_CHART;
                                 const plotW = width - padding.left - padding.right;
-                                const x = padding.left + (i / (RATING_MONTHS.length - 1)) * plotW;
+                                const x = padding.left + (i / Math.max(1, ratingChartLabels.length - 1)) * plotW;
                                 return (
                                     <text
                                         key={month}
@@ -384,17 +514,19 @@ export default function StatsProfile() {
                             })}
 
                             {/* Chart line */}
-                            <path
-                                d={buildRatingLinePath(MOCK_RATING_CHART_DATA)}
-                                stroke="#16DBCC"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
+                            {ratingChartValues.length > 0 && (
+                                <path
+                                    d={buildRatingLinePath(ratingChartValues)}
+                                    stroke="#16DBCC"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                />
+                            )}
 
                             {/* Data point dots */}
-                            {MOCK_RATING_CHART_DATA.map((v, i) => {
-                                const { x, y } = getRatingPoint(v, i, MOCK_RATING_CHART_DATA.length);
+                            {ratingChartValues.map((v, i) => {
+                                const { x, y } = getRatingPoint(v, i, ratingChartValues.length);
                                 return (
                                     <circle key={i} cx={x} cy={y} r="5" fill="#FFF" stroke="#16DBCC" strokeWidth="2.5" />
                                 );
@@ -404,130 +536,170 @@ export default function StatsProfile() {
 
                     {/* ── Stats cards ── */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-[24px] self-stretch">
-                        {[
-                          { label: "Максимальная оценка", ...MOCK_RATING_STATS.max },
-                          { label: "Средняя оценка", ...MOCK_RATING_STATS.avg },
-                          { label: "Минимальная оценка", ...MOCK_RATING_STATS.min },
-                        ].map(({ label, value, month }) => (
-                            <div key={label} className="flex h-[222px] p-[16px] flex-col justify-between items-start rounded-[16px] bg-[#F4F6FB]">
-                                <div className="flex flex-col justify-center items-start gap-[8px] self-stretch">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="6" r="4" fill="#1C274C" />
-                                        <path d="M20 17.5C20 19.9853 20 22 12 22C4 22 4 19.9853 4 17.5C4 15.0147 7.58172 13 12 13C16.4183 13 20 15.0147 20 17.5Z" fill="#1C274C" />
-                                    </svg>
-                                    <p className="text-[#000] text-[20px] not-italic font-normal leading-[normal]">{label}</p>
+                        {(() => {
+                            const topDistributionEntry = ratingSummary
+                                ? Object.entries(ratingSummary.distribution).sort((a, b) => b[1] - a[1])[0]
+                                : null;
+
+                            const cards = ratingSummary
+                                ? [
+                                    {
+                                        label: t("stats_rating_avg"),
+                                        value: roundRating(ratingSummary.avgScore).toFixed(2),
+                                        month: t("stats_rating_period"),
+                                    },
+                                    {
+                                        label: t("stats_avg_wait_queue"),
+                                        value: stats?.avgWaitInQueue ?? "—",
+                                        month: t("stats_rating_period"),
+                                    },
+                                    {
+                                        label: t("stats_avg_service_time"),
+                                        value: stats?.avgServiceTime ?? "—",
+                                        month: t("stats_rating_period"),
+                                    },
+                                ]
+                                : [
+                                    { label: t("stats_rating_avg"), value: "—", month: "" },
+                                    { label: t("stats_avg_wait_queue"), value: "—", month: "" },
+                                    { label: t("stats_avg_service_time"), value: "—", month: "" },
+                                ];
+
+                            return cards.map(({ label, value, month }) => (
+                                <div key={label} className="flex h-[222px] p-[16px] flex-col justify-between items-start rounded-[16px] bg-[#F4F6FB]">
+                                    <div className="flex flex-col justify-center items-start gap-[8px] self-stretch">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                            <circle cx="12" cy="6" r="4" fill="#1C274C" />
+                                            <path d="M20 17.5C20 19.9853 20 22 12 22C4 22 4 19.9853 4 17.5C4 15.0147 7.58172 13 12 13C16.4183 13 20 15.0147 20 17.5Z" fill="#1C274C" />
+                                        </svg>
+                                        <p className="text-[#000] text-[20px] not-italic font-normal leading-[normal]">{label}</p>
+                                    </div>
+                                    <div className="flex flex-col items-start gap-[4px]">
+                                        <span className="text-[#000] text-[32px] not-italic font-bold leading-[normal]">{value}</span>
+                                        {month && <span className="text-[#1A3C7E] text-[16px] not-italic font-bold leading-[normal]">{month}</span>}
+                                    </div>
                                 </div>
-                                <div className="flex flex-col items-start gap-[4px]">
-                                    <span className="text-[#000] text-[32px] not-italic font-bold leading-[normal]">{value}</span>
-                                    <span className="text-[#1A3C7E] text-[16px] not-italic font-bold leading-[normal]">{month}</span>
-                                </div>
-                            </div>
-                        ))}
+                            ));
+                        })()}
                     </div>
 
                     {/* ── Ratings table ── */}
                     <div className="flex flex-col items-start self-stretch rounded-[16px] !border border-solid !border-[#EBEBEE] bg-[#F4F6FB] overflow-hidden">
                         <div className="flex px-[12px] py-[4px] items-center gap-[24px] self-stretch border-b border-solid border-[#EBEBEE]">
                             <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] min-w-0">
-                                <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">ФИО</span>
+                                <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">
+                                    {t("stats_table_name")}
+                                </span>
                             </div>
                             <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] shrink-0">
-                                <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">Оценка</span>
+                                <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">
+                                    {t("stats_table_served")}
+                                </span>
+                            </div>
+                            <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] shrink-0">
+                                <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">
+                                    {t("stats_table_no_show")}
+                                </span>
+                            </div>
+                            <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] shrink-0">
+                                <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">
+                                    {t("stats_rating")}
+                                </span>
                             </div>
                         </div>
-                        {MOCK_RATING_TABLE.map((row, idx) => {
-                          const badge = getRatingBadgeClass(row.rating);
-                          const isLast = idx === MOCK_RATING_TABLE.length - 1;
-                          return (
-                            <div
-                              key={idx}
-                              className={`flex px-[12px] py-[8px] items-center gap-[24px] self-stretch bg-[#FFF] ${!isLast ? "border-b border-solid border-[#EBEBEE]" : ""}`}
-                            >
-                              <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] min-w-0">
-                                <p className="flex-[1_0_0] text-[#262842] text-[14px] not-italic font-medium leading-[normal] truncate">{row.name}</p>
-                              </div>
-                              <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0">
-                                <div className={`flex px-[12px] py-[4px] justify-center items-center gap-[4px] rounded-[24px] ${badge.bg}`}>
-                                  <span className={`${badge.text} text-[12px] not-italic font-semibold leading-[normal]`}>{row.rating}</span>
+                        {ratingRows.map((row, idx) => {
+                            const badge = getRatingBadgeClass(row.rating);
+                            const isLast = idx === ratingRows.length - 1;
+                            return (
+                                <div
+                                    key={idx}
+                                    className={`flex px-[12px] py-[8px] items-center gap-[24px] self-stretch bg-[#FFF] ${!isLast ? "border-b border-solid border-[#EBEBEE]" : ""}`}
+                                >
+                                    <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] min-w-0">
+                                        <p className="flex-[1_0_0] text-[#262842] text-[14px] not-italic font-medium leading-[normal] truncate">{row.shortName || row.name}</p>
+                                    </div>
+                                    <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0">
+                                        <span className="text-[#262842] text-[14px] not-italic font-medium leading-[normal]">{row.ticketsServed ?? 0}</span>
+                                    </div>
+                                    <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0">
+                                        <span className="text-[#262842] text-[14px] not-italic font-medium leading-[normal]">{row.ticketsNoShow ?? 0}</span>
+                                    </div>
+                                    <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0">
+                                        <div className={`flex px-[12px] py-[4px] justify-center items-center gap-[4px] rounded-[24px] ${badge.bg}`}>
+                                            <span className={`${badge.text} text-[12px] not-italic font-semibold leading-[normal]`}>{roundRating(row.rating)}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                              </div>
-                            </div>
-                          );
+                            );
                         })}
                     </div>
                 </div>
             </div>
             <div className="flex p-[24px] flex-col items-start gap-[24px] self-stretch rounded-[32px] bg-[#F3F5F8]">
-                <span className="text-[#000] text-[24px] not-italic font-medium leading-[32px]">Кол. клиентов</span>
+                <span className="text-[#000] text-[24px] not-italic font-medium leading-[32px]">
+                    {t("stats_clients_count")}
+                </span>
                 <div className="flex w-full px-[25px] py-[22px] flex-col items-start gap-[10px] rounded-[24px] bg-[#FFF] overflow-x-auto">
                     <div className="flex min-w-[520px] lg:min-w-0 items-end gap-[24px] self-stretch">
-                        <div className="flex-1 inline-flex flex-col justify-start items-center gap-2">
-                            <div className="self-stretch h-24 bg-slate-100 rounded-[10px]" />
-                            <div className="self-stretch text-center justify-start text-[#718EBF] text-xs font-normal">Авг</div>
-                        </div>
-                        <div className="flex-1 inline-flex flex-col justify-start items-center gap-2">
-                            <div className="self-stretch h-36 bg-slate-100 rounded-[10px]" />
-                            <div className="self-stretch text-center justify-start text-[#718EBF] text-xs font-normal">Снбр</div>
-                        </div>
-                        <div className="flex-1 inline-flex flex-col justify-start items-center gap-2">
-                            <div className="self-stretch h-24 bg-slate-100 rounded-[10px]" />
-                            <div className="self-stretch text-center justify-start text-[#718EBF] text-xs font-normal">Октб</div>
-                        </div>
-                        <div className="flex-1 inline-flex flex-col justify-start items-center gap-2">
-                            <div className="self-stretch h-12 bg-slate-100 rounded-[10px]" />
-                            <div className="self-stretch text-center justify-start text-[#718EBF] text-xs font-normal">Нбрь</div>
-                        </div>
-                        <div className="flex-1 inline-flex flex-col justify-start items-center gap-2">
-                            <div className="self-stretch text-center justify-start text-slate-700 text-sm font-medium">50</div>
-                            <div className="self-stretch h-32 bg-[#1A3C7E] rounded-[10px] shadow-[0px_0px_35px_0px_rgba(26,60,126,0.20)]" />
-                            <div className="self-stretch text-center justify-start text-[#718EBF] text-xs font-normal">Дкбр</div>
-                        </div>
-                        <div className="flex-1 inline-flex flex-col justify-start items-center gap-2">
-                            <div className="self-stretch h-20 bg-slate-100 rounded-[10px]" />
-                            <div className="self-stretch text-center justify-start text-[#718EBF] text-xs font-normal">Янвр</div>
-                        </div>
+                        {managerClientsBarsTop.length > 0 ? (
+                            managerClientsBarsTop.map((item) => {
+                                const isMax = item.value === maxManagerClientsValue && maxManagerClientsValue > 0;
+                                const minHeight = 48;
+                                const maxHeight = 144;
+                                const barHeight = maxManagerClientsValue > 0
+                                    ? minHeight + (item.value / maxManagerClientsValue) * (maxHeight - minHeight)
+                                    : minHeight;
+
+                                return (
+                                    <div key={item.key} className="flex-1 inline-flex flex-col justify-start items-center gap-2">
+                                        <div className="self-stretch text-center justify-start text-slate-700 text-sm font-medium">{item.value}</div>
+                                        <div
+                                            className={`self-stretch rounded-[10px] ${isMax ? "bg-[#1A3C7E] shadow-[0px_0px_35px_0px_rgba(26,60,126,0.20)]" : "bg-slate-100"}`}
+                                            style={{ height: `${barHeight}px` }}
+                                        />
+                                        <div className="self-stretch text-center justify-start text-[#718EBF] text-xs font-normal">{shortenLabel(item.label, 10)}</div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="flex w-full items-center justify-center py-10 text-sm text-[#718EBF]">
+                                {t("stats_managers_clients_no_data")}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="flex flex-wrap items-stretch gap-4 self-stretch">
-                    <div className="self-stretch p-4 bg-white rounded-2xl inline-flex flex-col justify-between flex-[1_0_0] items-start">
-                        <div className="self-stretch flex flex-col justify-center items-start gap-2">
-                            <div className="w-6 h-6 relative">
-                                <div className="w-2 h-2 left-[8px] top-[2px] absolute bg-blue-950 rounded-full" />
-                                <div className="w-4 h-2 left-[4px] top-[13px] absolute bg-blue-950" />
+                    {[
+                        {
+                            label: t("stats_avg_service_time"),
+                            value: stats?.avgServiceTime ?? "—",
+                            itemLabel: t("stats_rating_period"),
+                        },
+                        {
+                            label: t("stats_top_manager_by_served"),
+                            value: stats?.topManagerByServed ? String(stats.topManagerByServed.ticketsServed) : "—",
+                            itemLabel: stats?.topManagerByServed?.managerName || stats?.topManagerByServed?.managerId || "",
+                        },
+                        {
+                            label: t("stats_refused"),
+                            value: String(stats?.noShowCount ?? 0),
+                            itemLabel: t("stats_rating_period"),
+                        },
+                    ].map((item) => (
+                        <div key={item.label} className="self-stretch p-4 bg-white rounded-2xl inline-flex flex-col justify-between flex-[1_0_0] items-start">
+                            <div className="self-stretch flex flex-col justify-center items-start gap-2">
+                                <div className="w-6 h-6 relative">
+                                    <div className="w-2 h-2 left-[8px] top-[2px] absolute bg-blue-950 rounded-full" />
+                                    <div className="w-4 h-2 left-[4px] top-[13px] absolute bg-blue-950" />
+                                </div>
+                                <div className="justify-center text-[#1A3C7E] text-xl font-normal">{item.label}</div>
                             </div>
-                            <div className="justify-center text-[#1A3C7E] text-xl font-normal">Максимум</div>
-                        </div>
-                        <div className="flex flex-col justify-start items-start gap-1">
-                            <div className="justify-center text-black text-3xl font-bold">50</div>
-                            <div className="justify-center text-[#1A3C7E] text-base font-bold">Декабре</div>
-                        </div>
-                    </div>
-                    <div className="self-stretch p-4 bg-white rounded-2xl inline-flex flex-col justify-between flex-[1_0_0] items-start">
-                        <div className="self-stretch flex flex-col justify-center items-start gap-2">
-                            <div className="w-6 h-6 relative">
-                                <div className="w-2 h-2 left-[8px] top-[2px] absolute bg-blue-950 rounded-full" />
-                                <div className="w-4 h-2 left-[4px] top-[13px] absolute bg-blue-950" />
+                            <div className="flex flex-col justify-start items-start gap-1">
+                                <div className="justify-center text-black text-3xl font-bold">{item.value}</div>
+                                <div className="justify-center text-[#1A3C7E] text-base font-bold">{item.itemLabel}</div>
                             </div>
-                            <div className="justify-center text-[#1A3C7E] text-xl font-normal">Среднее</div>
                         </div>
-                        <div className="flex flex-col justify-start items-start gap-1">
-                            <div className="justify-center text-black text-3xl font-bold">25</div>
-                            <div className="justify-center text-[#1A3C7E] text-base font-bold">Октябре</div>
-                        </div>
-                    </div>
-                    <div className="self-stretch p-4 bg-white rounded-2xl inline-flex flex-col justify-between flex-[1_0_0] items-start">
-                        <div className="self-stretch flex flex-col justify-center items-start gap-2">
-                            <div className="w-6 h-6 relative overflow-hidden">
-                                <div className="w-2 h-2 left-[8px] top-[2px] absolute bg-blue-950 rounded-full" />
-                                <div className="w-4 h-2 left-[4px] top-[13px] absolute bg-blue-950" />
-                            </div>
-                            <div className="justify-center text-[#1A3C7E] text-xl font-normal">Минимальное</div>
-                        </div>
-                        <div className="flex flex-col justify-start items-start gap-1">
-                            <div className="justify-center text-black text-3xl font-bold">10</div>
-                            <div className="justify-center text-[#1A3C7E] text-base font-bold">Ноябре</div>
-                        </div>
-                    </div>
+                    ))}
                 </div>
             </div>
         </div>

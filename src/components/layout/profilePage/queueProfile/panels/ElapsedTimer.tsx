@@ -3,13 +3,16 @@
 import { useState, useEffect } from "react";
 
 export function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (seconds < 3600) return `${m}м ${s}с`;
-  const h = Math.floor(seconds / 3600);
-  const mm = Math.floor((seconds % 3600) / 60);
-  const ss = seconds % 60;
-  return `${h}ч ${mm}м ${ss}с`;
+  if (!Number.isFinite(seconds) || seconds < 0) return "0м 0с";
+  const total = Math.floor(seconds);
+  const s = total % 60;
+  const m = Math.floor((total / 60) % 60);
+  const h = Math.floor(total / 3600);
+
+  if (h > 0) {
+    return `${h}ч ${m}м ${s}с`;
+  }
+  return `${m}м ${s}с`;
 }
 
 export default function ElapsedTimer({
