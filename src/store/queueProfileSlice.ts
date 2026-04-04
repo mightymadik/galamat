@@ -37,6 +37,8 @@ export interface ClientHistoryItem {
   serviceTimeSeconds?: number | null;
   /** Время ожидания в секундах */
   waitTimeSeconds?: number | null;
+  /** Имя менеджера */
+  manager?: string | null;
 }
 
 export type DeskItem = { key: string; label: string };
@@ -180,6 +182,14 @@ const queueProfileSlice = createSlice({
     setHistoryOpen: (state, action: PayloadAction<boolean>) => {
       state.isHistoryOpen = action.payload;
     },
+    forceOffline(state) {
+      state.status = "unavailable";
+      state.phase = "waitingForNext";
+      state.callServicePhase = "waiting";
+      state.pendingStatus = null;
+      state.isStatusModalOpen = false;
+      state.isDeskModalOpen = false;
+    },
     /** Синхронизация из API очереди: статус, список окон, выбранное окно, branchId */
     setProfileFromApi: (
       state,
@@ -217,6 +227,7 @@ export const {
   toggleHistory,
   setHistoryOpen,
   setProfileFromApi,
+  forceOffline,
 } = queueProfileSlice.actions;
 
 export default queueProfileSlice.reducer;

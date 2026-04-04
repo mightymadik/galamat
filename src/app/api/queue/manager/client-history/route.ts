@@ -35,6 +35,13 @@ type HistoryItemRaw = {
     phone?: string | null;
     phoneNumber?: string | null;
   } | null;
+  manager?: {
+    fullName?: string;
+    name?: string;
+    surname?: string;
+    middlename?: string;
+    fio?: string;
+  } | null;
 };
 
 type HistoryResponse = {
@@ -115,6 +122,7 @@ export async function GET(req: NextRequest) {
     const history = items.map((h) => {
       const hClient = h.client || {};
       const hService = h.service || {};
+      const hManager = h.manager || {};
       const waitSeconds =
         typeof h.waitTimeSeconds === "number"
           ? h.waitTimeSeconds
@@ -142,6 +150,7 @@ export async function GET(req: NextRequest) {
         phone: hClient.phone || hClient.phoneNumber || null,
         date,
         service: hService.name || hService.code || null,
+        manager: hManager.fullName || hManager.name || null,
         waitTimeSeconds: waitSeconds,
         serviceTimeSeconds: serviceSeconds,
       };

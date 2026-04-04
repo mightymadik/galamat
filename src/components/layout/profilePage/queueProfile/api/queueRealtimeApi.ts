@@ -46,7 +46,8 @@ export async function subscribeToQueueBranchUpdates(
     return () => {
       if (!socket) return;
       socket.emit("unsubscribe:branch", branchId);
-      socket.removeAllListeners();
+      socket.off("queue:update", handleQueueUpdate);
+      socket.off("queue-updated", handleQueueUpdate);
       socket.disconnect();
       socket = null;
     };

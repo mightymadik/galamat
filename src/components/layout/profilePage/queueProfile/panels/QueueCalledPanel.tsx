@@ -176,6 +176,9 @@ export default function QueueCalledPanel({
                       {t("queue_service")}
                     </span>
                     <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                      {t("manager")}
+                    </span>
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
                       {t("queue_service_time_shortened")}
                     </span>
                     <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
@@ -186,37 +189,34 @@ export default function QueueCalledPanel({
                   <div className="flex flex-col gap-[4px] rounded-2">
                     {hasHistory ? (
                       currentClientHistory.map((item) => {
-                        const date = item.date ? new Date(item.date) : null;
-                        const dateText = date
-                          ? date.toLocaleString("ru-RU", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                        const dateText = item.date
+                          ? new Date(item.date).toLocaleDateString("ru-RU")
                           : "—";
+                      
                         const waitText =
                           typeof item.waitTimeSeconds === "number"
                             ? formatElapsed(item.waitTimeSeconds)
                             : "—";
+                      
                         const serviceText =
                           typeof item.serviceTimeSeconds === "number"
                             ? formatElapsed(item.serviceTimeSeconds)
                             : "—";
+                      
                         return (
                           <div
                             key={item.id}
                             className="grid gap-x-2 p-2 py-[8px] items-center [border-bottom:1px_solid_rgba(19,44,94,0.07)] text-[12px] text-[rgba(44,45,49,0.80)]"
                             style={{
                               gridTemplateColumns:
-                                "minmax(100px,1fr) minmax(90px,1fr) minmax(72px,0.8fr) minmax(64px,0.7fr) minmax(100px,1fr) minmax(72px,0.8fr)",
+                                "minmax(100px,1fr) minmax(90px,1fr) minmax(90px,1fr) minmax(90px,1fr) minmax(90px,1fr) minmax(80px,0.8fr) minmax(80px,0.8fr)",
                             }}
                           >
                             <span className="min-w-0 truncate">{item.name}</span>
                             <span className="min-w-0 truncate">{item.phone ?? "—"}</span>
                             <span className="min-w-0 truncate">{dateText}</span>
                             <span className="min-w-0 truncate">{item.service ?? "—"}</span>
+                            <span className="min-w-0 truncate">{item.manager ?? "—"}</span>
                             <span className="min-w-0 truncate">{serviceText}</span>
                             <span className="min-w-0 truncate">{waitText}</span>
                           </div>

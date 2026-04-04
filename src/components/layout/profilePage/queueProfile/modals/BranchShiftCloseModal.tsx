@@ -4,6 +4,7 @@ import { Button } from "@heroui/button";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/react";
 import { useTranslations } from "next-intl";
 import type { OnlineManagerBlockingClose } from "../api/queueAdminShiftApi";
+import { useAppSelector } from "@/store/hooks";
 
 function managerStatusLabel(
   t: ReturnType<typeof useTranslations>,
@@ -44,6 +45,9 @@ export default function BranchShiftCloseModal({
   showManagerStatus?: boolean;
 }) {
   const t = useTranslations();
+
+  const user = useAppSelector((s) => s.auth.user);
+  managers = managers.filter((m) => m.id !== user?.documentId);
 
   return (
     <Modal

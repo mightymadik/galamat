@@ -28,6 +28,7 @@ import {
   setCurrentClient,
   setFrozenWaitingSeconds,
   setCurrentClientHistory,
+  forceOffline,
 } from "@/store/queueProfileSlice";
 import {
   WAITING_TIMER_SEC,
@@ -254,6 +255,27 @@ export default function QueueProfile() {
     [dispatch],
   );
 
+  const applyForcedOffline = useCallback(() => {
+    dispatch(forceOffline());
+    dispatch(setCurrentClient(null));
+    dispatch(setCurrentClientHistory([]));
+  
+    clearCurrentTicketCookie();
+  
+    setIsCallTicketModalOpen(false);
+    setRedirectServiceId("");
+    setRedirectManagerId("");
+    setRedirectReason("");
+    setCountdown(WAITING_TIMER_SEC);
+    setHasNextClient(false);
+    setReannounceLoading(false);
+    setReannounceCooldownSecondsLeft(0);
+  
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("queue:refresh"));
+    }
+  }, [dispatch]);
+
   // Загрузка: профиль менеджера (me) → branchId, статус, currentCounterId; список всех окон по branchId (/counters)
   useEffect(() => {
     setQueueAccessDenied(false);
@@ -447,6 +469,57 @@ export default function QueueProfile() {
       }
     };
   }, [branchId, currentClient?.id, dispatch]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+  
+    let cancelled = false;
+    let socket: Socket | null = null;
+  
+    const handleStatusUpdate = (payload?: { status?: string }) => {
+      if (cancelled) return;
+      if (payload?.status !== "OFFLINE") return;
+  
+      applyForcedOffline();
+    };
+  
+    async function connect() {
+      try {
+        const res = await fetch("/api/queue/socket-token", {
+          credentials: "include",
+        });
+  
+        const body = (await res.json().catch(() => ({}))) as {
+          token?: string;
+          queueApiUrl?: string;
+        };
+  
+        if (cancelled || !body?.token) return;
+  
+        const socketUrl = body.queueApiUrl?.trim() || undefined;
+  
+        socket = io(socketUrl, {
+          auth: { token: body.token },
+          transports: ["websocket", "polling"],
+        });
+  
+        socket.on("status:update", handleStatusUpdate);
+      } catch {
+        // ignore
+      }
+    }
+  
+    void connect();
+  
+    return () => {
+      cancelled = true;
+  
+      if (!socket) return;
+      socket.off("status:update", handleStatusUpdate);
+      socket.disconnect();
+      socket = null;
+    };
+  }, [applyForcedOffline]);
 
   // Восстанавливаем активный талон из куки при перезагрузке страницы
   useEffect(() => {
@@ -925,32 +998,41 @@ export default function QueueProfile() {
     async (shiftId: string) => {
       setBranchShiftActionLoading(true);
       setBranchShiftError(null);
+  
       const result = await closeBranchShift(shiftId);
+  
       setBranchShiftActionLoading(false);
+  
       if (result.kind === "closed") {
         setBranchShiftId(null);
         setShiftCloseModalOpen(false);
         setShiftCloseManagers([]);
         shiftCloseAttemptIdRef.current = null;
         setBranchShiftBanner("close");
+  
+        applyForcedOffline();
+  
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("queue:refresh"));
         }
         return;
       }
+  
       if (result.kind === "unfinished") {
         setBranchShiftError(t("queue_branch_shift_error_unfinished"));
         return;
       }
+  
       if (result.kind === "onlineManagers") {
         shiftCloseAttemptIdRef.current = shiftId;
         setShiftCloseManagers(result.managers);
         setShiftCloseModalOpen(true);
         return;
       }
+  
       setBranchShiftError(t("queue_branch_shift_error_generic"));
     },
-    [t],
+    [t, applyForcedOffline],
   );
 
   const handleAdminBranchShiftClick = useCallback(async () => {

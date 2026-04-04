@@ -87,16 +87,9 @@ export default function MenuProfile() {
 
     useLayoutEffect(() => {
         if (!isExternalManager) return;
-        const section = searchParams.get("section")?.trim();
-        if (section === "queue") {
-            setActive("queue");
-            return;
-        }
-        const next = new URLSearchParams(searchParams.toString());
-        next.set("section", "queue");
-        router.replace(`${pathname}?${next.toString()}`, { scroll: false });
-        setActive("queue");
-    }, [isExternalManager, searchParams, pathname, router]);
+        const section = searchParams.get("section")?.trim() || "profile";
+        setActive(section);
+    }, [isExternalManager, searchParams]);
 
     const handleLogout = () => {
         dispatch(logoutAuth() as any).then(() => {
@@ -106,7 +99,14 @@ export default function MenuProfile() {
 
     const renderContent = () => {
         if (isExternalManager) {
-            return <QueueProfile />;
+            switch (active) {
+                case "queue":
+                    return <QueueProfile />;
+                case "profile":
+                    return <PersonalInfo />;
+                default:
+                    return <PersonalInfo />;
+            }
         }
         switch (active) {
             case "profile":
@@ -138,9 +138,7 @@ export default function MenuProfile() {
         <div className="wrapper flex flex-col-reverse lg:flex-row gap-[32px]">
             <div className="hidden lg:flex max-w-[308px] flex-col items-start gap-[16px]">
                 <div className="flex p-[16px] flex-col items-start self-stretch rounded-[32px] bg-[#F4F6FB]">
-                    {!isExternalManager && (
-                        <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActiveAndSync} />
-                    )}
+                    <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActiveAndSync} />
                     {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActiveAndSync} />}
                     {(isAdmin || isExternalManager || isManager) && (
                         <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
@@ -171,11 +169,9 @@ export default function MenuProfile() {
                 </div>
             </div>
             <div className="flex bottom-0 mb-[86px] lg:hidden h-auto w-full min-w-[343px] px-[12px] py-[8px] items-start rounded-[32px] bg-[rgba(28,_39,_76,_0.04)] backdrop-filter backdrop-blur-[10px] overflow-x-auto overflow-y-hidden scrollbar-hide">
-                {!isExternalManager && (
-                    <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActiveAndSync} />
-                )}
+                <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActiveAndSync} />
                 {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActiveAndSync} />}
-                {(isAdmin || isExternalManager) && (
+                {(isAdmin || isExternalManager || isManager) && (
                     <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
                 )}
                 {isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
