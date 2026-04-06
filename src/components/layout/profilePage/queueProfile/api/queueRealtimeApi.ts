@@ -24,11 +24,19 @@ export async function subscribeToQueueBranchUpdates(
     let socket: Socket | null = io(socketUrl, {
       auth: { token: body.token },
       transports: ["websocket", "polling"],
+      timeout: 15000,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
-    socket.on("connect", () => {
+    const resync = () => {
       socket?.emit("subscribe:branch", branchId);
-    });
+      onUpdate();
+    };
+
+    socket.on("connect", resync);
 
     const handleQueueUpdate = () => {
       onUpdate();
@@ -44,9 +52,13 @@ export async function subscribeToQueueBranchUpdates(
       // тихо игнорируем — список всё равно обновляется по refresh/первой загрузке
     });
 
+    // Ensure first paint also gets a fresh HTTP state, even before socket events arrive.
+    onUpdate();
+
     return () => {
       if (!socket) return;
       socket.emit("unsubscribe:branch", branchId);
+      socket.off("connect", resync);
       socket.off("queue:update", handleQueueUpdate);
       socket.off("queue-updated", handleQueueUpdate);
       socket.off("manager:status-updated", handleQueueUpdate);

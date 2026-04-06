@@ -276,6 +276,90 @@ export default function QueueProfile() {
     }
   }, [dispatch]);
 
+  const clearActiveTicketState = useCallback(() => {
+    setIsCallTicketModalOpen(false);
+    setCountdown(WAITING_TIMER_SEC);
+    dispatch(goToWaitingForNext());
+    dispatch(setCurrentClient(null));
+    dispatch(setCurrentClientHistory([]));
+    clearCurrentTicketCookie();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("queue:refresh"));
+    }
+  }, [dispatch]);
+
+  type TicketStatusSnapshot = {
+    id?: string;
+    status?: string;
+    waitTimeSeconds?: number | null;
+    ticketCode?: string;
+    client?: { fullName?: string | null; phone?: string | null } | null;
+    branch?: { name?: string | null } | null;
+    service?: { name?: string | null; code?: string | null } | null;
+    manager?: { fullName?: string | null; name?: string | null } | null;
+    counter?: { code?: string | null } | null;
+  };
+
+  const syncTicketStateFromServer = useCallback(
+    async (ticketId: string, baseClient: CurrentClient | null, phase: CallServicePhase) => {
+      try {
+        const res = await fetch(
+          `/api/queue/manager/ticket-status?ticketId=${encodeURIComponent(ticketId)}`,
+          { credentials: "include" },
+        );
+        if (!res.ok) return;
+
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: TicketStatusSnapshot;
+        };
+        const ticket = json.data;
+        if (!ticket || !ticket.id) return;
+
+        const status = ticket.status;
+        if (status === "DONE" || status === "NO_SHOW" || status === "CANCELLED") {
+          clearActiveTicketState();
+          return;
+        }
+
+        const current = baseClient ?? currentClient ?? null;
+        if (!current) return;
+
+        const updated: CurrentClient = {
+          id: String(ticket.id),
+          code: ticket.ticketCode ?? current.code,
+          name: ticket.client?.fullName ?? current.name,
+          phone: ticket.client?.phone ?? current.phone ?? null,
+          waitTimeSeconds:
+            typeof ticket.waitTimeSeconds === "number"
+              ? ticket.waitTimeSeconds
+              : current.waitTimeSeconds ?? null,
+          branchName: ticket.branch?.name ?? current.branchName ?? null,
+          serviceName:
+            ticket.service?.name ?? ticket.service?.code ?? current.serviceName ?? null,
+          managerName:
+            ticket.manager?.fullName ??
+            ticket.manager?.name ??
+            current.managerName ??
+            null,
+          counterCode: ticket.counter?.code ?? current.counterCode ?? null,
+        };
+
+        dispatch(setWithClient());
+        dispatch(setCurrentClient(updated));
+        if (typeof updated.waitTimeSeconds === "number") {
+          dispatch(setFrozenWaitingSeconds(updated.waitTimeSeconds));
+        }
+        if (status === "SERVING") {
+          dispatch(startServicing());
+        }
+        saveCurrentTicketCookie(updated, status === "SERVING" ? "servicing" : phase);
+      } catch {
+        // ignore sync errors, next reconnect/poll will retry
+      }
+    },
+    [clearActiveTicketState, currentClient, dispatch],
+  );
+
   // Загрузка: профиль менеджера (me) → branchId, статус, currentCounterId; список всех окон по branchId (/counters)
   useEffect(() => {
     setQueueAccessDenied(false);
@@ -390,14 +474,7 @@ export default function QueueProfile() {
         status === "DONE" || status === "NO_SHOW" || status === "CANCELLED";
 
       if (terminal) {
-        setIsCallTicketModalOpen(false);
-        dispatch(goToWaitingForNext());
-        dispatch(setCurrentClient(null));
-        clearCurrentTicketCookie();
-        // локально обновляем список очереди
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("queue:refresh"));
-        }
+        clearActiveTicketState();
         return;
       }
 
@@ -446,11 +523,17 @@ export default function QueueProfile() {
         socket = io(socketUrl, {
           auth: { token: body.token },
           transports: ["websocket", "polling"],
+          timeout: 15000,
+          reconnection: true,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
         });
 
         socket.on("connect", () => {
           socket?.emit("subscribe:branch", branchId);
           socket?.emit("subscribe:ticket", ticketId);
+          void syncTicketStateFromServer(ticketId, currentClient ?? null, callServicePhase);
         });
 
         socket.on("ticket:updated", (payload: TicketPayload) => {
@@ -480,7 +563,15 @@ export default function QueueProfile() {
         socket.disconnect();
       }
     };
-  }, [branchId, currentClient?.id, dispatch]);
+  }, [
+    branchId,
+    callServicePhase,
+    clearActiveTicketState,
+    currentClient,
+    currentClient?.id,
+    dispatch,
+    syncTicketStateFromServer,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -513,6 +604,11 @@ export default function QueueProfile() {
         socket = io(socketUrl, {
           auth: { token: body.token },
           transports: ["websocket", "polling"],
+          timeout: 15000,
+          reconnection: true,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
         });
   
         socket.on("status:update", handleStatusUpdate);
@@ -567,7 +663,9 @@ export default function QueueProfile() {
         dispatch(setCurrentClientHistory([]));
       }
     })();
-  }, [dispatch]);
+
+    void syncTicketStateFromServer(client.id, client, callServicePhase);
+  }, [dispatch, syncTicketStateFromServer]);
 
   // Загружаем список услуг для перенаправления по branchId
   useEffect(() => {
