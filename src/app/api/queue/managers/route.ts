@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const QUEUE_API_URL =
   process.env.QUEUE_API_URL || process.env.QUEUE_BACKEND_URL || "http://queue-backend:3001";
 
@@ -50,6 +53,7 @@ export async function GET(req: NextRequest) {
 
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${access}` },
+      cache: "no-store",
     });
     const json = await res.json().catch(() => ({}));
 
@@ -74,7 +78,17 @@ export async function GET(req: NextRequest) {
         return { id, name, shortName: a?.name ?? "", status };
       })
       .filter((m) => m.status !== "OFFLINE");
-    return NextResponse.json({ managers }, { status: 200 });
+    return NextResponse.json(
+      { managers },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      },
+    );
   } catch (e) {
     console.error("[queue/managers]", e);
     return NextResponse.json({ error: "queue_unavailable" }, { status: 502 });
