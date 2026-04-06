@@ -324,15 +324,27 @@ export default function QueueProfile() {
   useEffect(() => {
     if (!adminUnavailableModalOpen || !branchId) return;
     let cancelled = false;
-    setAdminUnavailableListLoading(true);
-    void fetchAvailableManagersForBranch(branchId).then((r) => {
-      if (cancelled) return;
-      setAdminUnavailableListLoading(false);
-      if (r.ok) setAdminUnavailableManagers(r.managers);
-      else setAdminUnavailableManagers([]);
+    let unsubscribeSocket: (() => void) | null = null;
+
+    const loadManagers = () => {
+      setAdminUnavailableListLoading(true);
+      void fetchAvailableManagersForBranch(branchId).then((r) => {
+        if (cancelled) return;
+        setAdminUnavailableListLoading(false);
+        if (r.ok) setAdminUnavailableManagers(r.managers);
+        else setAdminUnavailableManagers([]);
+      });
+    };
+
+    loadManagers();
+
+    void subscribeToQueueBranchUpdates(branchId, loadManagers).then((cleanup) => {
+      unsubscribeSocket = cleanup;
     });
+
     return () => {
       cancelled = true;
+      unsubscribeSocket?.();
     };
   }, [adminUnavailableModalOpen, branchId]);
 
@@ -680,6 +692,7 @@ export default function QueueProfile() {
       return;
     }
     let cancelled = false;
+    let unsubscribeSocket: (() => void) | null = null;
 
     const loadManagers = () => {
       setBranchManagersLoading(true);
@@ -714,8 +727,14 @@ export default function QueueProfile() {
     if (typeof window !== "undefined") {
       window.addEventListener("queue:refresh", onQueueRefresh);
     }
+
+    void subscribeToQueueBranchUpdates(branchId, onQueueRefresh).then((cleanup) => {
+      unsubscribeSocket = cleanup;
+    });
+
     return () => {
       cancelled = true;
+      unsubscribeSocket?.();
       if (typeof window !== "undefined") {
         window.removeEventListener("queue:refresh", onQueueRefresh);
       }

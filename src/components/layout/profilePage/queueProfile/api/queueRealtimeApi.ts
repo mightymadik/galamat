@@ -38,6 +38,7 @@ export async function subscribeToQueueBranchUpdates(
     // а этот UI раньше слушал устаревшее `queue:update`.
     socket.on("queue:update", handleQueueUpdate);
     socket.on("queue-updated", handleQueueUpdate);
+    socket.on("manager:status-updated", handleQueueUpdate);
 
     socket.on("connect_error", () => {
       // тихо игнорируем — список всё равно обновляется по refresh/первой загрузке
@@ -48,6 +49,7 @@ export async function subscribeToQueueBranchUpdates(
       socket.emit("unsubscribe:branch", branchId);
       socket.off("queue:update", handleQueueUpdate);
       socket.off("queue-updated", handleQueueUpdate);
+      socket.off("manager:status-updated", handleQueueUpdate);
       socket.disconnect();
       socket = null;
     };
