@@ -195,6 +195,7 @@ export default function QueueProfile() {
     Array<{ id: string; name: string; status?: string }>
   >([]);
   const [branchManagersLoading, setBranchManagersLoading] = useState(false);
+  const lastTicketStatusSyncAtRef = useRef(0);
 
   const checkHasNextClients = useCallback(async () => {
     if (!branchId) {
@@ -301,7 +302,20 @@ export default function QueueProfile() {
   };
 
   const syncTicketStateFromServer = useCallback(
-    async (ticketId: string, baseClient: CurrentClient | null, phase: CallServicePhase) => {
+    async (
+      ticketId: string,
+      baseClient: CurrentClient | null,
+      phase: CallServicePhase,
+      options?: { force?: boolean },
+    ) => {
+      const force = options?.force === true;
+      const now = Date.now();
+      // Guard against reconnect storms: keep this sync at most once per 5 seconds.
+      if (!force && now - lastTicketStatusSyncAtRef.current < 5000) {
+        return;
+      }
+      lastTicketStatusSyncAtRef.current = now;
+
       try {
         const res = await fetch(
           `/api/queue/manager/ticket-status?ticketId=${encodeURIComponent(ticketId)}`,
@@ -664,7 +678,7 @@ export default function QueueProfile() {
       }
     })();
 
-    void syncTicketStateFromServer(client.id, client, callServicePhase);
+    void syncTicketStateFromServer(client.id, client, callServicePhase, { force: true });
   }, [dispatch, syncTicketStateFromServer]);
 
   // Загружаем список услуг для перенаправления по branchId

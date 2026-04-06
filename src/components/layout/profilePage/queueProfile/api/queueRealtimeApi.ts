@@ -31,15 +31,24 @@ export async function subscribeToQueueBranchUpdates(
       reconnectionDelayMax: 5000,
     });
 
+    const MIN_REFRESH_INTERVAL_MS = 1000;
+    let lastRefreshAt = 0;
+    const safeRefresh = () => {
+      const now = Date.now();
+      if (now - lastRefreshAt < MIN_REFRESH_INTERVAL_MS) return;
+      lastRefreshAt = now;
+      onUpdate();
+    };
+
     const resync = () => {
       socket?.emit("subscribe:branch", branchId);
-      onUpdate();
+      safeRefresh();
     };
 
     socket.on("connect", resync);
 
     const handleQueueUpdate = () => {
-      onUpdate();
+      safeRefresh();
     };
 
     // В текущем бэкенде событие очереди называется `queue-updated`,
@@ -53,7 +62,7 @@ export async function subscribeToQueueBranchUpdates(
     });
 
     // Ensure first paint also gets a fresh HTTP state, even before socket events arrive.
-    onUpdate();
+    safeRefresh();
 
     return () => {
       if (!socket) return;
