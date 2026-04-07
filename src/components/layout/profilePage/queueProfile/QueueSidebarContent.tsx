@@ -24,6 +24,7 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
       onClientArrived,
       onNoShow,
       onCompleteService,
+      actionLoading = false,
       onReannounceDisplay,
       reannounceLoading = false,
       reannounceCooldownSecondsLeft = 0,
@@ -98,8 +99,9 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
 
               <Button
                 isDisabled={
-                  !redirectServiceId || !redirectManagerId || isWaiting
+                  !redirectServiceId || !redirectManagerId || isWaiting || actionLoading
                 }
+                isLoading={actionLoading}
                 onPress={onRedirect}
                 className="mt-[12px] flex w-[100%] h-[40px] p-0 min-w-[100%] min-h-[40px] justify-center items-center gap-[4px] rounded-[12px] bg-[#1A3C7E] disabled:opacity-50 disabled:pointer-events-none"
               >
@@ -135,12 +137,16 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
             </p>
             <ButtonGroup className="w-full" size="lg" variant="flat">
               <Button
+                isDisabled={actionLoading}
+                isLoading={actionLoading}
                 onPress={onClientArrived}
                 className="flex-1 rounded-[12px] bg-[#1A3C7E] text-[#FFF]"
               >
                 {t("queue_yes")}
               </Button>
               <Button
+                isDisabled={actionLoading}
+                isLoading={actionLoading}
                 onPress={onNoShow}
                 className="flex-1 rounded-[12px] border border-[rgba(19,44,94,0.24)] bg-white text-[#1A3C7E]"
               >
@@ -150,6 +156,8 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
           </div>
         ) : (
           <Button
+            isDisabled={actionLoading}
+            isLoading={actionLoading}
             onPress={onCompleteService}
             className="flex h-[52px] min-w-[52px] min-h-[52px] p-[15px] justify-center items-center gap-[4px] self-stretch rounded-[24px] border-[1px] border-solid border-[rgba(19,44,94,0.24)] bg-[#DB1D31]"
           >
@@ -165,6 +173,7 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
   const {
     countdown,
     onCallClient,
+    actionLoading = false,
     isAdminView,
     branchManagers = [],
     branchManagersLoading = false,
@@ -222,6 +231,8 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
       </div>
       {!isAdminView ? (
         <Button
+          isDisabled={actionLoading}
+          isLoading={actionLoading}
           onPress={onCallClient}
           className="flex h-[52px] min-w-[52px] min-h-[52px] p-[15px] justify-center items-center gap-[4px] self-stretch rounded-[24px] bg-[#1A3C7E]"
         >

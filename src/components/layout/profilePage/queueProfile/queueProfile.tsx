@@ -143,6 +143,7 @@ export default function QueueProfile() {
   const [addDeskLoading, setAddDeskLoading] = useState(false);
   const [addDeskError, setAddDeskError] = useState<string | null>(null);
   const [isCallTicketModalOpen, setIsCallTicketModalOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [reannounceLoading, setReannounceLoading] = useState(false);
   const [reannounceCooldownSecondsLeft, setReannounceCooldownSecondsLeft] =
     useState(0);
@@ -878,9 +879,10 @@ export default function QueueProfile() {
 
   const handleRedirect = async () => {
     const reason = redirectReason.trim();
-    if (!currentClient?.id || !redirectServiceId || !redirectManagerId) {
+    if (!currentClient?.id || !redirectServiceId || !redirectManagerId || actionLoading) {
       return;
     }
+    setActionLoading(true);
     try {
       const res = await fetch(
         `/api/queue/manager/transfer-ticket?ticketId=${encodeURIComponent(currentClient.id)}`,
@@ -912,6 +914,8 @@ export default function QueueProfile() {
       }
     } catch {
       // игнорируем, UI не ломаем
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -943,7 +947,8 @@ export default function QueueProfile() {
   };
 
   const handleClientArrived = async () => {
-    if (!currentClient?.id) return;
+    if (!currentClient?.id || actionLoading) return;
+    setActionLoading(true);
     try {
       const res = await fetch(
         `/api/queue/manager/start-ticket?ticketId=${encodeURIComponent(currentClient.id)}`,
@@ -963,11 +968,14 @@ export default function QueueProfile() {
       }
     } catch {
       // игнорируем, UI не ломаем
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleNoShow = async () => {
-    if (!currentClient?.id) return;
+    if (!currentClient?.id || actionLoading) return;
+    setActionLoading(true);
     try {
       const res = await fetch(
         `/api/queue/manager/no-show-ticket?ticketId=${encodeURIComponent(currentClient.id)}`,
@@ -985,11 +993,14 @@ export default function QueueProfile() {
       clearCurrentTicketCookie();
     } catch {
       // игнорируем, UI не ломаем
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleCompleteService = async () => {
-    if (!currentClient?.id) return;
+    if (!currentClient?.id || actionLoading) return;
+    setActionLoading(true);
     try {
       const res = await fetch(
         `/api/queue/manager/complete-ticket?ticketId=${encodeURIComponent(currentClient.id)}`,
@@ -1012,6 +1023,8 @@ export default function QueueProfile() {
       }
     } catch {
       // игнорируем, UI не ломаем
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1068,6 +1081,8 @@ export default function QueueProfile() {
   );
 
   const handleCallClient = useCallback(async () => {
+    if (actionLoading) return;
+    setActionLoading(true);
     try {
       const res = await fetch("/api/queue/manager/call-next", {
         method: "POST",
@@ -1081,8 +1096,10 @@ export default function QueueProfile() {
       applyCallSuccessPayload(payload);
     } catch {
       // тихо игнорируем, чтобы не ломать UI
+    } finally {
+      setActionLoading(false);
     }
-  }, [applyCallSuccessPayload]);
+  }, [actionLoading, applyCallSuccessPayload]);
 
   /** РОП: вызов выбранного талона тихо (без табло); сам РОП в смене и на своём окне — как в call-next. */
   const handleCallSpecificTicket = useCallback(
@@ -1363,6 +1380,7 @@ export default function QueueProfile() {
               onClientArrived={handleClientArrived}
               onNoShow={handleNoShow}
               onCompleteService={handleCompleteService}
+              actionLoading={actionLoading}
               onReannounceDisplay={handleReannounceDisplay}
               reannounceLoading={reannounceLoading}
               reannounceCooldownSecondsLeft={reannounceCooldownSecondsLeft}
@@ -1373,6 +1391,7 @@ export default function QueueProfile() {
               mode="waitingForNext"
               countdown={countdown}
               onCallClient={handleCallClient}
+              actionLoading={actionLoading}
               isAdminView={isAdminUser}
               branchManagers={branchManagersForSidebar}
               branchManagersLoading={branchManagersLoading}

@@ -115,6 +115,7 @@ export type QueueSidebarContentProps =
       onNoShow: () => void;
       /** Завершить обслуживание (DONE) */
       onCompleteService: () => void;
+      actionLoading?: boolean;
       /** Повторить озвучку вызова на табло (после вызова клиента) */
       onReannounceDisplay: () => void;
       reannounceLoading?: boolean;
@@ -127,6 +128,7 @@ export type QueueSidebarContentProps =
       mode: "waitingForNext";
       countdown: number;
       onCallClient: () => void;
+      actionLoading?: boolean;
       /** РОП: вместо таймера — список менеджеров филиала */
       isAdminView?: boolean;
       branchManagers?: Array<{ id: string; name: string; status?: string }>;
