@@ -653,7 +653,7 @@ export default function QueueProfile() {
       socket.disconnect();
       socket = null;
     };
-  }, [applyForcedOffline, user?.id]);
+  }, [applyForcedOffline, user?.id, user?.documentId]);
 
   // Восстанавливаем активный талон из куки при перезагрузке страницы
   useEffect(() => {
