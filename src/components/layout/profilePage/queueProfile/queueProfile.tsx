@@ -595,7 +595,12 @@ export default function QueueProfile() {
   
     let cancelled = false;
     let socket: Socket | null = null;
-    const managerId = user?.id ? String(user.id) : "";
+    const managerId =
+      user?.documentId != null
+        ? String(user.documentId)
+        : user?.id != null
+          ? String(user.id)
+          : "";
   
     const handleStatusUpdate = (payload?: { status?: string }) => {
       if (cancelled) return;
