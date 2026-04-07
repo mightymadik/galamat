@@ -196,6 +196,11 @@ export default function QueueProfile() {
   >([]);
   const [branchManagersLoading, setBranchManagersLoading] = useState(false);
   const lastTicketStatusSyncAtRef = useRef(0);
+  /** Avoid putting `currentClient` in useCallback/useEffect deps — object identity changes every dispatch and caused infinite re-runs (React #185). */
+  const currentClientRef = useRef(currentClient);
+  currentClientRef.current = currentClient;
+  const callServicePhaseRef = useRef(callServicePhase);
+  callServicePhaseRef.current = callServicePhase;
 
   const checkHasNextClients = useCallback(async () => {
     if (!branchId) {
@@ -335,7 +340,7 @@ export default function QueueProfile() {
           return;
         }
 
-        const current = baseClient ?? currentClient ?? null;
+        const current = baseClient ?? currentClientRef.current ?? null;
         if (!current) return;
 
         const updated: CurrentClient = {
@@ -371,7 +376,7 @@ export default function QueueProfile() {
         // ignore sync errors, next reconnect/poll will retry
       }
     },
-    [clearActiveTicketState, currentClient, dispatch],
+    [clearActiveTicketState, dispatch],
   );
 
   // Загрузка: профиль менеджера (me) → branchId, статус, currentCounterId; список всех окон по branchId (/counters)
@@ -494,7 +499,7 @@ export default function QueueProfile() {
 
       // Если статус не терминальный, можем освежить данные клиента и куку
       if (!data) return;
-      const base = currentClient;
+      const base = currentClientRef.current;
       if (!base || data.id !== base.id) return;
       {
         const updated: CurrentClient = {
@@ -518,7 +523,7 @@ export default function QueueProfile() {
         }
         // сохраняем куку с текущей фазой (waiting/servicing), чтобы после перезагрузки
         // восстановить правильное состояние тикета
-        saveCurrentTicketCookie(updated, callServicePhase);
+        saveCurrentTicketCookie(updated, callServicePhaseRef.current);
       }
     };
 
@@ -547,7 +552,11 @@ export default function QueueProfile() {
         socket.on("connect", () => {
           socket?.emit("subscribe:branch", branchId);
           socket?.emit("subscribe:ticket", ticketId);
-          void syncTicketStateFromServer(ticketId, currentClient ?? null, callServicePhase);
+          void syncTicketStateFromServer(
+            ticketId,
+            currentClientRef.current ?? null,
+            callServicePhaseRef.current,
+          );
         });
 
         socket.on("ticket:updated", (payload: TicketPayload) => {
@@ -577,15 +586,7 @@ export default function QueueProfile() {
         socket.disconnect();
       }
     };
-  }, [
-    branchId,
-    callServicePhase,
-    clearActiveTicketState,
-    currentClient,
-    currentClient?.id,
-    dispatch,
-    syncTicketStateFromServer,
-  ]);
+  }, [branchId, clearActiveTicketState, currentClient?.id, dispatch, syncTicketStateFromServer]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
