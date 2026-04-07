@@ -68,7 +68,10 @@ export default function MenuProfile() {
     const isAdmin = normalizedRole === "admin";
     const isManager =
         (normalizedRole === "manager" || isAdmin) && !isExternalManager;
-    const isCashier = normalizedRole === "cashier" || isAdmin;
+    const isCashier =
+        normalizedRole === "cashier" ||
+        normalizedRole === "cshier" ||
+        isAdmin;
 
     const setActiveAndSync = (id: string) => {
         setActive(id);

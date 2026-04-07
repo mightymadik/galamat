@@ -48,9 +48,15 @@ export async function GET(_request: NextRequest) {
     const attrs = raw?.attributes ?? raw;
     const role = String(attrs?.role ?? raw.role ?? "customer").toLowerCase();
 
-    if (role !== "manager" && role !== "admin" && role !== "external_manager") {
+    if (
+      role !== "manager" &&
+      role !== "admin" &&
+      role !== "external_manager" &&
+      role !== "cashier" &&
+      role !== "cshier"
+    ) {
       console.log(
-        "[queue/manager/me] 403: role from Strapi is not manager/admin/external_manager, got role:",
+        "[queue/manager/me] 403: role from Strapi is not manager/admin/external_manager/cashier, got role:",
         role
       );
       return NextResponse.json(
