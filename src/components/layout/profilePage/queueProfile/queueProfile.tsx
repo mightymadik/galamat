@@ -595,6 +595,7 @@ export default function QueueProfile() {
   
     let cancelled = false;
     let socket: Socket | null = null;
+    const managerId = user?.id ? String(user.id) : "";
   
     const handleStatusUpdate = (payload?: { status?: string }) => {
       if (cancelled) return;
@@ -620,7 +621,13 @@ export default function QueueProfile() {
         socket = io(socketUrl, {
           ...getDefaultQueueSocketOptions(),
         });
-  
+
+        socket.on("connect", () => {
+          if (managerId) {
+            socket?.emit("subscribe:manager", managerId);
+          }
+        });
+
         socket.on("status:update", handleStatusUpdate);
       } catch {
         // ignore
@@ -633,11 +640,15 @@ export default function QueueProfile() {
       cancelled = true;
   
       if (!socket) return;
+      if (managerId) {
+        socket.emit("unsubscribe:manager", managerId);
+      }
+      socket.off("connect");
       socket.off("status:update", handleStatusUpdate);
       socket.disconnect();
       socket = null;
     };
-  }, [applyForcedOffline]);
+  }, [applyForcedOffline, user?.id]);
 
   // Восстанавливаем активный талон из куки при перезагрузке страницы
   useEffect(() => {
