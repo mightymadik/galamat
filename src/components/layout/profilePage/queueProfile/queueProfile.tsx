@@ -492,7 +492,14 @@ export default function QueueProfile() {
       const terminal =
         status === "DONE" || status === "NO_SHOW" || status === "CANCELLED";
 
+      // terminal-события (в т.ч. ticket-completed) шлются в комнату филиала — у всех менеджеров.
+      // Сбрасываем UI только если это наш активный талон.
       if (terminal) {
+        const eventTicketId =
+          data?.id != null ? String(data.id) : undefined;
+        if (eventTicketId !== String(ticketId)) {
+          return;
+        }
         clearActiveTicketState();
         return;
       }
