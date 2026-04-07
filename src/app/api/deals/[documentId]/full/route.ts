@@ -27,7 +27,7 @@ export async function GET(
     if (!payload?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
     let effectiveRole: string = payload.role ?? "customer";
-    if (effectiveRole !== "manager" && effectiveRole !== "admin") {
+    if (effectiveRole !== "manager" && effectiveRole !== "admin" && effectiveRole !== "rop") {
       const base = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
       const headers = getStrapiHeaders();
       const customerRes = await strapiAxios
@@ -36,7 +36,7 @@ export async function GET(
       const customer: any = (customerRes?.data as any)?.data?.[0];
       effectiveRole = customer?.role ?? customer?.attributes?.role ?? effectiveRole;
     }
-    const isManager = effectiveRole === "manager" || effectiveRole === "admin";
+    const isManager = effectiveRole === "manager" || effectiveRole === "admin" || effectiveRole === "rop";
     if (!isManager) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     const { documentId } = await params;
@@ -52,7 +52,8 @@ export async function GET(
         "&populate[parking][populate][project][fields][0]=projectName&populate[parking][populate][project][fields][1]=documentId" +
         "&populate[pantry][populate][project][fields][0]=projectName&populate[pantry][populate][project][fields][1]=documentId" +
         "&populate[customer][fields][0]=name&populate[customer][fields][1]=surname&populate[customer][fields][2]=phone&populate[customer][fields][3]=email&populate[customer][fields][4]=iin&populate[customer][fields][5]=birthDate&populate[customer][fields][6]=docNumber&populate[customer][fields][7]=docIssuer&populate[customer][fields][8]=dateIssue&populate[customer][fields][9]=address" +
-        "&populate[manager][fields][0]=id",
+        "&populate[manager][fields][0]=id&populate[manager][fields][1]=name&populate[manager][fields][2]=surname&populate[manager][fields][3]=phone" +
+        "&populate[kazreestrRequestLogs][sort][0]=respondedAt:desc&populate[kazreestrRequestLogs][sort][1]=sentAt:desc&populate[kazreestrRequestLogs][sort][2]=createdAt:desc",
       { headers }
     );
     const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
@@ -83,6 +84,87 @@ export async function GET(
     const saList: any[] = (saRes.data as any)?.data ?? [];
     const sa = Array.isArray(saList) ? saList[0] : null;
 
+    const logsFromDealRelationRaw =
+      deal?.kazreestrRequestLogs ??
+      deal?.attributes?.kazreestrRequestLogs ??
+      null;
+    const logsFromDealRelation: any[] =
+      ((logsFromDealRelationRaw as any)?.data as any[]) ??
+      (Array.isArray(logsFromDealRelationRaw) ? logsFromDealRelationRaw : []);
+
+    const logsQueryTail =
+      `filters[status][$in][0]=sent&filters[status][$in][1]=success&filters[status][$in][2]=failed&filters[status][$in][3]=error` +
+      `&sort[0]=respondedAt:desc&sort[1]=sentAt:desc&sort[2]=createdAt:desc&pagination[pageSize]=50`;
+    const dealIdForFilter = deal?.id ?? deal?.attributes?.id;
+    const kazreestrLogResByDocId = await strapiAxios.get(
+      `${base}/api/kazreestr-request-logs?filters[deal][documentId][$eq]=${encodeURIComponent(documentId)}&${logsQueryTail}`,
+      { headers }
+    ).catch(() => ({ data: {} }));
+    let kazreestrLogList: any[] =
+      logsFromDealRelation.length > 0 ? logsFromDealRelation : ((kazreestrLogResByDocId.data as any)?.data ?? []);
+    if (kazreestrLogList.length === 0 && dealIdForFilter != null) {
+      const kazreestrLogResByDealId = await strapiAxios.get(
+        `${base}/api/kazreestr-request-logs?filters[deal][id][$eq]=${encodeURIComponent(String(dealIdForFilter))}&${logsQueryTail}`,
+        { headers }
+      ).catch(() => ({ data: {} }));
+      kazreestrLogList = (kazreestrLogResByDealId.data as any)?.data ?? [];
+    }
+    const normalizeResponsePayload = (raw: unknown): Record<string, unknown> | null => {
+      if (!raw) return null;
+      if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : null;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    };
+    const extractNameRu = (payload: Record<string, unknown> | null): string | null => {
+      if (!payload) return null;
+      const direct = payload.nameRu;
+      if (typeof direct === "string" && direct.trim()) return direct.trim();
+      const dataNode = payload.data;
+      if (dataNode && typeof dataNode === "object" && !Array.isArray(dataNode)) {
+        const nested = (dataNode as Record<string, unknown>).nameRu;
+        if (typeof nested === "string" && nested.trim()) return nested.trim();
+      }
+      const resultNode = payload.result;
+      if (resultNode && typeof resultNode === "object" && !Array.isArray(resultNode)) {
+        const nested = (resultNode as Record<string, unknown>).nameRu;
+        if (typeof nested === "string" && nested.trim()) return nested.trim();
+      }
+      return null;
+    };
+    const normalizedLogs = (Array.isArray(kazreestrLogList) ? kazreestrLogList : []).map((row: any) => {
+      const status = row?.status ?? row?.attributes?.status ?? null;
+      const operationType = row?.operationType ?? row?.attributes?.operationType ?? null;
+      const httpStatus = row?.httpStatus ?? row?.attributes?.httpStatus ?? null;
+      const sentAt = row?.sentAt ?? row?.attributes?.sentAt ?? null;
+      const respondedAt = row?.respondedAt ?? row?.attributes?.respondedAt ?? null;
+      const messageId = row?.messageId ?? row?.attributes?.messageId ?? null;
+      const responsePayloadRaw = row?.responsePayload ?? row?.attributes?.responsePayload ?? null;
+      const normalizedPayload = normalizeResponsePayload(responsePayloadRaw);
+      return {
+        status,
+        operationType,
+        httpStatus,
+        sentAt,
+        respondedAt,
+        messageId,
+        responsePayload: normalizedPayload,
+        responseNameRu: extractNameRu(normalizedPayload),
+      };
+    }).filter((row: any) => ["sent", "success", "failed", "error"].includes(String(row?.status ?? "")));
+    const latestKazreestrLog =
+      normalizedLogs.find((row: any) => typeof row?.responseNameRu === "string" && row.responseNameRu.trim()) ??
+      normalizedLogs[0] ??
+      null;
+
     const propertyData = ((deal?.property ?? deal?.attributes?.property) as any)?.data ?? deal?.property ?? deal?.attributes?.property;
     const commerceData = ((deal?.commerce ?? deal?.attributes?.commerce) as any)?.data ?? deal?.commerce ?? deal?.attributes?.commerce;
     const parkingData = ((deal?.parking ?? deal?.attributes?.parking) as any)?.data ?? deal?.parking ?? deal?.attributes?.parking;
@@ -103,6 +185,12 @@ export async function GET(
     };
     const cust = deal?.customer ?? deal?.attributes?.customer;
     const custData = (cust as any)?.data ?? cust;
+    const mgr = deal?.manager ?? deal?.attributes?.manager;
+    const mgrData = (mgr as any)?.data ?? mgr;
+    const managerName = mgrData?.name ?? mgrData?.attributes?.name ?? "";
+    const managerSurname = mgrData?.surname ?? mgrData?.attributes?.surname ?? "";
+    const managerPhone = mgrData?.phone ?? mgrData?.attributes?.phone ?? "";
+    const managerDisplayName = [managerSurname, managerName].filter(Boolean).join(" ").trim();
 
     return NextResponse.json({
       deal: {
@@ -114,6 +202,7 @@ export async function GET(
         reserveSum: deal?.reserveSum ?? deal?.attributes?.reserveSum,
         expiresAt: deal?.expiresAt ?? deal?.attributes?.expiresAt,
         paymentMethod: deal?.paymentMethod ?? deal?.attributes?.paymentMethod,
+        kazreestrStatus: deal?.kazreestrStatus ?? deal?.attributes?.kazreestrStatus ?? null,
         realEstateType: selectedType,
         property: selectedEntity
           ? {
@@ -146,6 +235,14 @@ export async function GET(
               address: custData?.address ?? custData?.attributes?.address,
             }
           : null,
+        manager: mgrData
+          ? {
+              name: managerName || undefined,
+              surname: managerSurname || undefined,
+              phone: managerPhone || undefined,
+              displayName: managerDisplayName || undefined,
+            }
+          : null,
       },
       paymentSchedules: scheduleList.map((r: any) => ({
         index: r?.index ?? r?.attributes?.index,
@@ -161,6 +258,21 @@ export async function GET(
       signedAgreement: sa
         ? { signed: sa?.signed ?? sa?.attributes?.signed, signedAt: sa?.signedAt ?? sa?.attributes?.signedAt }
         : null,
+      latestKazreestrRequestLog: latestKazreestrLog
+        ? {
+            status: latestKazreestrLog.status ?? null,
+            responsePayload: latestKazreestrLog.responsePayload ?? null,
+          }
+        : null,
+      kazreestrRequestLogs: normalizedLogs.map((row: any) => ({
+        status: row.status ?? null,
+        operationType: row.operationType ?? null,
+        httpStatus: row.httpStatus ?? null,
+        sentAt: row.sentAt ?? null,
+        respondedAt: row.respondedAt ?? null,
+        messageId: row.messageId ?? null,
+        responsePayload: row.responsePayload ?? null,
+      })),
     });
   } catch (err: any) {
     if (err?.response?.status === 404) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });

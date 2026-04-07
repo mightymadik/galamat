@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Input, Select, SelectItem } from "@heroui/react";
 import { sumPaidFromPaymentRows } from "@/lib/paidFromPayments";
+import { DocumentLink } from "@/components/common/DocumentLink";
 
 export interface CashierScheduleRow {
   documentId: string;
@@ -630,16 +631,14 @@ export default function CashierPayments() {
                     {(agreementsByDeal[deal.documentId] ?? []).length > 0 ? (
                       <div className="mt-2 flex flex-col gap-1">
                         {(agreementsByDeal[deal.documentId] ?? []).map((a) => (
-                          <a
+                          <DocumentLink
                             key={`${deal.documentId}-${a.url}`}
                             href={a.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
                             className="text-xs text-[#1A3C7E] underline underline-offset-2"
                             title={agreementLabel(a)}
                           >
                             {agreementLabel(a)}
-                          </a>
+                          </DocumentLink>
                         ))}
                       </div>
                     ) : (

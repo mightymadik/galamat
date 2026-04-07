@@ -3,6 +3,14 @@ import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders } from "@/lib/strapiServer";
 
+/** Эндпоинт только для PDF договора — всегда inline, чтобы вкладка, а не «Сохранить». */
+function normalizePdfContentType(raw: string | null): string {
+  if (!raw?.trim()) return "application/pdf";
+  const base = raw.split(";")[0].trim().toLowerCase();
+  if (base === "application/octet-stream" || base === "binary/octet-stream") return "application/pdf";
+  return raw.split(";")[0].trim();
+}
+
 export async function GET(req: Request) {
   try {
     const cookieStore = await cookies();
@@ -32,14 +40,13 @@ export async function GET(req: Request) {
       return new NextResponse(text, { status: res.status });
     }
 
-    const contentType = res.headers.get("content-type") ?? "application/pdf";
-    const contentDisposition = res.headers.get("content-disposition") ?? "";
+    const contentType = normalizePdfContentType(res.headers.get("content-type"));
 
     return new NextResponse(res.body, {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        ...(contentDisposition && { "Content-Disposition": contentDisposition }),
+        "Content-Disposition": "inline",
       },
     });
   } catch (e: any) {

@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, store } from "@/store";
 import { Drawer, DrawerContent, DrawerHeader, DrawerBody, Button } from "@heroui/react";
-import { closePay, setStep, setAgreementPayload } from "@/store/paySlice";
+import { closePay, setStep, setAgreementPayload, setBaseContractType } from "@/store/paySlice";
 import { useTranslations } from "next-intl";
 
 const PAY_DEAL_STORAGE_KEY = "payDealId";
@@ -19,6 +19,20 @@ import Contacts from "./contacts/contacts";
 import Sign from "./sign/sign";
 import type { RealEstateType } from "@/types/flat";
 import type { AgreementPayload } from "@/types/agreement";
+
+function agreementTypeForRealEstate(rt: RealEstateType): string {
+    if (rt === "commerce") return "Коммерция";
+    if (rt === "parking") return "Паркинг";
+    if (rt === "pantry") return "Кладовка";
+    return "Квартиры";
+}
+
+function normalizeBaseContractTypeLabel(raw: string): "ДДУ" | "ПДБ" | null {
+    const s = String(raw ?? "").trim();
+    if (s === "ПДБ") return "ПДБ";
+    if (s === "ДДУ") return "ДДУ";
+    return null;
+}
 
 function normalizeAgreementPayloadForConfirm(payload: AgreementPayload): AgreementPayload {
     return {
@@ -221,14 +235,16 @@ const adaptFlat = (flat: FlatType): ComponentFlat => {
 export default function PayModal({ id, realEstateType = "property" }: PayModalProps) {
     const t = useTranslations();
     const dispatch = useDispatch();
-    const { isOpen, step, flat, paymentMethod, agreementPayload, dealDocumentId } = useSelector((state: RootState) => state.pay);
+    const { isOpen, step, flat, paymentMethod, agreementPayload, dealDocumentId, baseContractType } = useSelector((state: RootState) => state.pay);
     const [isMobile, setIsMobile] = useState(false);
     const [activeOption, setActiveOption] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [paymentConfirmLoading, setPaymentConfirmLoading] = useState(false);
     const [paymentConfirmError, setPaymentConfirmError] = useState<string | null>(null);
     const [flatData, setFlat] = useState<ComponentFlat | null>(null);
-    const stepsOrder = ['payment', 'contacts', 'sign'];
+    const [availableBaseContractTypes, setAvailableBaseContractTypes] = useState<("ДДУ" | "ПДБ")[]>(["ДДУ", "ПДБ"]);
+    const [scenarioTypesLoading, setScenarioTypesLoading] = useState(false);
+    const stepsOrder = ['payment', 'scenario', 'contacts', 'approval', 'sign'];
     const currentIndex = stepsOrder.indexOf(step);
     const pendingCloseReasonRef = useRef<"user" | "success" | null>(null);
     const wasOpenRef = useRef(false);
@@ -366,10 +382,56 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
     useEffect(() => {
         if (isOpen) setActiveOption("2h");
     }, [isOpen]);
-    // Шаг бронирования не показываем — сразу оплата
+    // Шаг бронирования не показываем — сразу этап условий оплаты
     useEffect(() => {
         if (step === "reserve") dispatch(setStep("payment"));
     }, [step, dispatch]);
+
+    useEffect(() => {
+        if (!isOpen || step !== "scenario") return;
+        const pid = flatData?.projectDocumentId;
+        if (!pid) return;
+        let cancelled = false;
+        setScenarioTypesLoading(true);
+        fetch(
+            `/api/signed-agreements/available-base-contract-types?projectDocumentId=${encodeURIComponent(pid)}&agreementType=${encodeURIComponent(agreementTypeForRealEstate(realEstateType))}`,
+            { credentials: "include" }
+        )
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data: { baseContractTypes?: unknown[] } | null) => {
+                if (cancelled || !data) return;
+                const raw = Array.isArray(data.baseContractTypes) ? data.baseContractTypes : [];
+                const norm: ("ДДУ" | "ПДБ")[] = [];
+                for (const x of raw) {
+                    const n = normalizeBaseContractTypeLabel(String(x));
+                    if (n && !norm.includes(n)) norm.push(n);
+                }
+                setAvailableBaseContractTypes(norm.length > 0 ? norm : ["ДДУ", "ПДБ"]);
+            })
+            .catch(() => {
+                if (!cancelled) setAvailableBaseContractTypes(["ДДУ", "ПДБ"]);
+            })
+            .finally(() => {
+                if (!cancelled) setScenarioTypesLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, step, flatData?.projectDocumentId, realEstateType]);
+
+    useEffect(() => {
+        if (!isOpen || step !== "scenario") return;
+        if (availableBaseContractTypes.length !== 1) return;
+        const only = availableBaseContractTypes[0];
+        if (baseContractType !== only) dispatch(setBaseContractType(only));
+    }, [isOpen, step, availableBaseContractTypes, baseContractType, dispatch]);
+
+    useEffect(() => {
+        if (step !== "scenario" || availableBaseContractTypes.length === 0) return;
+        if (baseContractType && !availableBaseContractTypes.includes(baseContractType)) {
+            dispatch(setBaseContractType(null));
+        }
+    }, [step, baseContractType, availableBaseContractTypes, dispatch]);
 
 
     const Steps = () => {
@@ -412,7 +474,146 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
                 setPaymentConfirmLoading(false);
             }
             if (payload) dispatch(setAgreementPayload(payload));
+            dispatch(setStep("scenario"));
+        };
+
+        const handleScenarioNext = async () => {
+            if (!baseContractType) return;
+            if (dealDocumentId) {
+                try {
+                    await fetch(`/api/deals/${dealDocumentId}/base-contract-type`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({ baseContractType }),
+                    });
+                } catch {
+                    // non-blocking: generation has backend fallback to default
+                }
+            }
             dispatch(setStep("contacts"));
+        };
+
+        const ApprovalStep = () => {
+            const [requesting, setRequesting] = useState(false);
+            const [checking, setChecking] = useState(false);
+            const [requested, setRequested] = useState(false);
+            const [statusText, setStatusText] = useState<string | null>(null);
+            const [dealStatus, setDealStatus] = useState<string>("");
+            const [approvalError, setApprovalError] = useState<string | null>(null);
+
+            const statusStyle = useMemo(() => {
+                const s = dealStatus.trim();
+                if (s === "Согласование РОП") return "bg-emerald-100 text-emerald-800 border-emerald-300";
+                if (s === "Ожидания договора") return "bg-violet-100 text-violet-800 border-violet-300";
+                if (s === "Договор подписан") return "bg-green-100 text-green-800 border-green-300";
+                if (s === "Отменен") return "bg-red-100 text-red-800 border-red-300";
+                return "bg-slate-100 text-slate-700 border-slate-300";
+            }, [dealStatus]);
+
+            const loadStatus = useCallback(async () => {
+                if (!dealDocumentId) return;
+                const res = await fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/summary`, { credentials: "include" });
+                const json = await res.json().catch(() => ({}));
+                const status = String(json?.dealStatus ?? "").trim();
+                setDealStatus(status);
+                if (status === "Согласование РОП") {
+                    setRequested(true);
+                    setStatusText("Сделка отправлена на согласование РОП");
+                } else if (status === "Ожидания договора" || status === "Договор подписан") {
+                    dispatch(setStep("sign"));
+                    return;
+                } else {
+                    setStatusText(status ? `Текущий статус: ${status}` : null);
+                }
+            }, [dealDocumentId]);
+
+            useEffect(() => {
+                loadStatus().catch(() => {
+                    // ignore initial status errors
+                });
+            }, [loadStatus]);
+
+            const handleRequestApproval = async () => {
+                if (!dealDocumentId || requesting) return;
+                setApprovalError(null);
+                setRequesting(true);
+                try {
+                    const res = await fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/approval`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({ action: "request" }),
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        setApprovalError(json?.error ?? "Не удалось отправить сделку на согласование РОП");
+                        return;
+                    }
+                    setRequested(true);
+                    setStatusText("Сделка отправлена на согласование РОП");
+                } catch {
+                    setApprovalError(t("network_error"));
+                } finally {
+                    setRequesting(false);
+                }
+            };
+
+            const handleCheckApproval = async () => {
+                if (!dealDocumentId || checking) return;
+                setChecking(true);
+                setApprovalError(null);
+                try {
+                    await loadStatus();
+                } catch {
+                    setApprovalError(t("network_error"));
+                } finally {
+                    setChecking(false);
+                }
+            };
+
+            return (
+                <div className="flex flex-col gap-4 self-stretch">
+                    <p className="text-[#122C5E] text-[16px] opacity-70">
+                        Перед подписанием договора отправьте сделку на согласование РОП.
+                    </p>
+                    {dealStatus && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-[#122C5E] text-[14px]">Статус сделки:</span>
+                            <span className={`rounded-full border px-3 py-1 text-[13px] font-medium ${statusStyle}`}>
+                                {dealStatus}
+                            </span>
+                        </div>
+                    )}
+                    {statusText && (
+                        <p className="text-[#2655AF] text-[14px]">{statusText}</p>
+                    )}
+                    {approvalError && (
+                        <p className="text-red-600 text-[14px]">{approvalError}</p>
+                    )}
+                    <Button
+                        onPress={handleRequestApproval}
+                        isLoading={requesting}
+                        isDisabled={!dealDocumentId || requesting || requested}
+                        className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] bg-[#1A3C7E]"
+                    >
+                        <span className="text-[#FFF] text-[15px] not-italic font-medium leading-[20px]">
+                            {requested ? "Отправлено на согласование" : "Отправить на согласование РОП"}
+                        </span>
+                    </Button>
+                    <Button
+                        onPress={handleCheckApproval}
+                        isLoading={checking}
+                        isDisabled={!dealDocumentId || checking}
+                        variant="bordered"
+                        className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] border-[#1A3C7E] text-[#1A3C7E]"
+                    >
+                        <span className="text-[15px] not-italic font-medium leading-[20px]">
+                            Проверить согласование
+                        </span>
+                    </Button>
+                </div>
+            );
         };
         const paymentComponents = {
             full: (
@@ -476,6 +677,42 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
         type PaymentMethod = keyof typeof paymentComponents;
 
         const stepsMap = {
+            scenario: (
+                <div className="flex flex-col gap-4 self-stretch">
+                    <p className="text-[#1A3C7E] text-[14px] font-normal opacity-70">Выберите сценарий сделки</p>
+                    {scenarioTypesLoading ? (
+                        <p className="text-[#7E7E7E] text-[14px]">{t("loading")}</p>
+                    ) : (
+                        <div className="flex items-start gap-[8px]">
+                            {availableBaseContractTypes.includes("ДДУ") && (
+                                <button
+                                    type="button"
+                                    onClick={() => dispatch(setBaseContractType("ДДУ"))}
+                                    className={`flex items-center justify-center h-[64px] w-full px-[10px] py-[4px] rounded-[24px] text-[16px] leading-[24px] font-normal transition-colors ${baseContractType === "ДДУ" ? "bg-[#2655AF] text-white" : "bg-[#F4F6FB] text-[#2655AF]"}`}
+                                >
+                                    ДДУ
+                                </button>
+                            )}
+                            {availableBaseContractTypes.includes("ПДБ") && (
+                                <button
+                                    type="button"
+                                    onClick={() => dispatch(setBaseContractType("ПДБ"))}
+                                    className={`flex items-center justify-center h-[64px] w-full px-[10px] py-[4px] rounded-[24px] text-[16px] leading-[24px] font-normal transition-colors ${baseContractType === "ПДБ" ? "bg-[#2655AF] text-white" : "bg-[#F4F6FB] text-[#2655AF]"}`}
+                                >
+                                    ПДБ
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    <Button
+                        onPress={handleScenarioNext}
+                        isDisabled={!baseContractType || scenarioTypesLoading || availableBaseContractTypes.length === 0}
+                        className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] bg-[#1A3C7E]"
+                    >
+                        <span className="text-[#FFF] text-[15px] not-italic font-medium leading-[20px]">{t("next")}</span>
+                    </Button>
+                </div>
+            ),
             payment: paymentMethod && paymentMethod in paymentComponents
                 ? paymentComponents[paymentMethod as PaymentMethod]
                 : null,
@@ -485,9 +722,10 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
                     flatData={flatData}
                     agreementPayload={agreementPayload}
                     dealDocumentId={dealDocumentId}
-                    onNext={() => dispatch(setStep("sign"))}
+                    onNext={() => dispatch(setStep("approval"))}
                 />
             ),
+            approval: <ApprovalStep />,
 
             sign: (
                 <Sign
@@ -506,9 +744,17 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
     const handleCloseDrawer = () => requestClose("user");
 
     const showCloseButton = step !== "sign";
-    const canGoBack = step === "contacts";
+    const canGoBack = step === "contacts" || step === "scenario" || step === "approval";
     const handleGoBack = () => {
+        if (step === "approval") {
+            dispatch(setStep("contacts"));
+            return;
+        }
         if (step === "contacts") {
+            dispatch(setStep("scenario"));
+            return;
+        }
+        if (step === "scenario") {
             dispatch(setStep("payment"));
         }
     };
@@ -571,11 +817,13 @@ export default function PayModal({ id, realEstateType = "property" }: PayModalPr
                                             </Button>
                                         )}
                                         <span className="truncate">
+                                        {step === "scenario" && "Сценарий сделки"}
                                         {step === "payment" && paymentMethod === "full" && t("full_payment")}
                                         {step === "payment" && paymentMethod === "installment" && t("installment")}
                                         {step === "payment" && paymentMethod === "deffered" && t("deffered")}
                                         {step === "payment" && paymentMethod === "hypothec" && t("hypothec")}
                                         {step === "contacts" && t("personal_information")}
+                                        {step === "approval" && "Согласование РОП"}
                                         {step === "sign" && t("sign_contract")}
                                         </span>
                                     </div>

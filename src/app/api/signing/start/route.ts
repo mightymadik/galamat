@@ -26,6 +26,22 @@ export async function POST(req: Request) {
     const base = getStrapiBaseUrl().replace(/\/api\/?$/, "").replace(/\/$/, "");
     const headers = getStrapiHeaders();
 
+    const dealRes = await strapiAxios.get(
+      `${base}/api/deals/${encodeURIComponent(dealDocumentId)}?fields[0]=dealStatus`,
+      { headers }
+    );
+    const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
+    const dealStatus = String(deal?.dealStatus ?? deal?.attributes?.dealStatus ?? "").trim();
+    /**
+     * Не блокируем отправку по статусу сделки на уровне фронта.
+     * Статусы в реальном процессе могут отличаться (ДДУ/ПДБ, разные пайплайны),
+     * а реальная проверка должна происходить в Strapi `signed-agreements/send-to-sign`.
+     *
+     * Ранее здесь была жёсткая проверка на "Ожидания договора"/"Договор подписан",
+     * из-за чего документы с `requiresSigning=true` могли никогда не отправляться.
+     */
+    void dealStatus;
+
     const res = await strapiAxios.post(
       `${base}/api/signed-agreements/send-to-sign`,
       { dealDocumentId },

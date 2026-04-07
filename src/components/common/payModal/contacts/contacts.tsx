@@ -13,7 +13,7 @@ import {
   setAgreementTemplateType,
   setAgreementNumber,
   setAgreementFiles,
-  setStep as setPayStep,
+  setSigningRequired,
 } from "@/store/paySlice";
 import { withMask } from "use-mask-input";
 import { isValidKzPhoneE164, normalizePhone } from "@/lib/authOtp";
@@ -21,6 +21,10 @@ import OtpInputs from "./otpInputs";
 import type { AgreementPayload } from "@/types/agreement";
 import { useTranslations } from "next-intl";
 import { mapSendCodeErrorMessage } from "@/lib/authErrorI18n";
+import {
+  computeSigningRequiredFromGenerateResponse,
+  filterAgreementFilesForCheckout,
+} from "@/lib/paymentFormUtils";
 
 /** Normalize masked phone to request format: 77756098579 (digits only, 7 prefix) */
 function phoneToRequestFormat(phone: string): string {
@@ -181,8 +185,9 @@ export default function Contacts({
   const t = useTranslations();
   const dispatch = useDispatch();
   const user = useSelector((s: RootState) => s.auth?.user);
+  const baseContractType = useSelector((s: RootState) => s.pay?.baseContractType ?? "ДДУ");
   const isManagerOrAdmin =
-    user?.role === "manager" || user?.role === "admin";
+    user?.role === "manager" || user?.role === "admin" || user?.role === "rop";
 
   const [step, setStep] = useState<BiometricStep>("form");
   const [iin, setIin] = useState("");
@@ -712,7 +717,7 @@ export default function Contacts({
         body: JSON.stringify({
           flatData: flatData ?? undefined,
           agreementPayload,
-          templateType: flatData?.hasDdu !== false ? "ddu" : "pdb",
+          templateType: baseContractType === "ПДБ" ? "pdb" : "ddu",
           dealDocumentId: effectiveDealId ?? undefined,
         }),
         credentials: "include",
@@ -726,8 +731,10 @@ export default function Contacts({
       if (genJson?.fileUrl) dispatch(setAgreementFileUrl(genJson.fileUrl));
       if (genJson?.templateType === "pdb" || genJson?.templateType === "ddu") dispatch(setAgreementTemplateType(genJson.templateType));
       if (genJson?.agreementNumber != null) dispatch(setAgreementNumber(genJson.agreementNumber));
-      if (Array.isArray(genJson?.files)) dispatch(setAgreementFiles(genJson.files));
-      dispatch(setPayStep("sign"));
+      if (Array.isArray(genJson?.files))
+        dispatch(setAgreementFiles(filterAgreementFilesForCheckout(genJson.files)));
+      dispatch(setSigningRequired(computeSigningRequiredFromGenerateResponse(genJson)));
+      onNext();
     } catch {
       setError(t("network_error"));
     } finally {

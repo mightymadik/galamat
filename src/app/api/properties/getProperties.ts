@@ -80,6 +80,9 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
       params["filters[saleStatus][$eq]"] = "открыто";
     }
 
+    // Квартиры только у опубликованных ЖК (draftAndPublish у project; с токеном Strapi отдаёт и черновики)
+    params["filters[project][publishedAt][$notNull]"] = "true";
+
     // Планировки: при пагинации (список/сетка) — только url, без всех форматов; иначе полная подгрузка (страница квартиры)
     if (light) {
       // без планировок
@@ -551,6 +554,7 @@ const DETAIL_POPULATE_PARAMS: Record<string, string> = {
   "populate[platformPlan][populate]": "*",
   "populate[project][fields][0]": "documentId",
   "populate[project][fields][1]": "projectName",
+  "populate[project][fields][2]": "publishedAt",
   "populate[project][populate][complexes][fields][0]": "complexAddress",
   "populate[project][populate][complexes][fields][1]": "locale",
   "populate[project][populate][complexes][fields][2]": "complexDueDate",
@@ -559,6 +563,13 @@ const DETAIL_POPULATE_PARAMS: Record<string, string> = {
   "populate[project][populate][complexes][populate][complexHero][populate][complexHeroImage]": "true",
   "populate[paymentConditions][populate]": "paymentCondition",
 };
+
+function projectIsPublishedForPublic(item: any): boolean {
+  const project = item?.project?.data ?? item?.project;
+  if (!project || typeof project !== "object") return true;
+  const pub = project.publishedAt ?? project?.attributes?.publishedAt;
+  return pub != null && String(pub).trim() !== "";
+}
 
 /** Загрузить одну квартиру по documentId для детальной страницы (по ссылке /flats/[documentId]) */
 export async function getPropertyByDocumentId(documentId: string | number): Promise<PropertyDetailItem | null> {
@@ -596,6 +607,8 @@ export async function getPropertyByDocumentId(documentId: string | number): Prom
     }
 
     if (!item || typeof item !== "object") return null;
+
+    if (!projectIsPublishedForPublic(item)) return null;
 
     // Условия оплаты: Strapi может вернуть paymentConditions или paymentCondtions
     let paymentCondtionsRaw = item.paymentConditions ?? item.paymentCondtions;
@@ -641,6 +654,8 @@ export async function getPropertyById(id: string | number): Promise<PropertyDeta
 
     if (!item || typeof item !== "object") return null;
 
+    if (!projectIsPublishedForPublic(item)) return null;
+
     return mapRawPropertyToDetail(item, locale);
   } catch (error) {
     return null;
@@ -675,6 +690,8 @@ export async function getPropertyFiltersMetadata(options?: { onlyAvailable?: boo
       params["filters[propertyStatus][$eq]"] = "свободно";
       params["filters[saleStatus][$eq]"] = "открыто";
     }
+
+    params["filters[project][publishedAt][$notNull]"] = "true";
 
     // Получаем все данные с пагинацией
     const allProperties: any[] = [];

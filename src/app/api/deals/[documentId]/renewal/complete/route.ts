@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import {
+  dealHasSignedAgreementOfTemplate,
+  managerForbiddenForDeal,
+  resolveEffectiveRole,
+} from "@/lib/dealManagerAuth";
 
 /**
  * POST /api/deals/[documentId]/renewal/complete
@@ -31,16 +36,17 @@ export async function POST(
     const base = getStrapiBaseUrl().replace(/\/$/, "");
     const headers = getStrapiHeaders();
 
-    let effectiveRole: string = payload.role ?? "customer";
-    if (effectiveRole !== "manager" && effectiveRole !== "admin") {
-      const customerRes = await strapiAxios
-        .get(`${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role`, { headers })
-        .catch(() => null);
-      const customer: any = (customerRes?.data as any)?.data?.[0];
-      effectiveRole = customer?.role ?? customer?.attributes?.role ?? effectiveRole;
-    }
+    const effectiveRole = await resolveEffectiveRole(payload, base, headers);
     if (effectiveRole !== "manager" && effectiveRole !== "admin")
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+    const newCustRes = await strapiAxios.get(
+      `${base}/api/customers?filters[documentId][$eq]=${encodeURIComponent(newCustomerDocumentId)}&pagination[pageSize]=1&fields[0]=documentId`,
+      { headers }
+    );
+    if (!(newCustRes.data as any)?.data?.[0]) {
+      return NextResponse.json({ error: "Новый клиент не найден" }, { status: 400 });
+    }
 
     const dealRes = await strapiAxios.get(
       `${base}/api/deals/${dealDocumentId}?populate[manager][fields][0]=id&populate[property][fields][0]=documentId`,
@@ -49,9 +55,21 @@ export async function POST(
     const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
     if (!deal) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
 
-    const managerId = deal?.manager?.id ?? deal?.attributes?.manager?.id ?? (deal?.manager as any)?.data?.id;
-    if (effectiveRole === "manager" && managerId != null && Number(managerId) !== Number(payload.sub))
+    if (managerForbiddenForDeal(effectiveRole, payload.sub, deal))
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+    const renewalSigned = await dealHasSignedAgreementOfTemplate(
+      base,
+      headers,
+      dealDocumentId,
+      "Переоформление"
+    );
+    if (!renewalSigned) {
+      return NextResponse.json(
+        { error: "Сначала дождитесь подписания договора переоформления (проверка статуса в Doodocs)" },
+        { status: 400 }
+      );
+    }
 
     await strapiAxios.put(
       `${base}/api/deals/${dealDocumentId}`,

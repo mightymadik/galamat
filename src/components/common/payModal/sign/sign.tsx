@@ -1,15 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@heroui/button";
 import Image from "next/image";
 import type { AgreementPayload } from "@/types/agreement";
 import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "@/store";
-import { setAgreementFileUrl } from "@/store/paySlice";
-import { formatPriceDisplay } from "@/lib/paymentFormUtils";
+import { setAgreementFileUrl, setSigningRequired } from "@/store/paySlice";
+import { formatPriceDisplay, parseRequiresSigningField, filterAgreementFilesForCheckout } from "@/lib/paymentFormUtils";
 import { useTranslations } from "next-intl";
 import type { RealEstateType } from "@/types/flat";
+import { DocumentLink } from "@/components/common/DocumentLink";
 
 function formatSignedAt(iso: string | null | undefined): string {
     if (!iso) return "";
@@ -29,6 +30,13 @@ interface DocStatus {
     signUrl?: string;
     signed: boolean;
     signedAt: string | null;
+}
+
+/** На шаге оплаты/подписания ДДУ не показываем документы расторжения/переоформления с той же сделки/истории. */
+const CHECKOUT_SIGNING_EXCLUDED_TEMPLATE_TYPES = new Set(["Расторжение", "Переоформление"]);
+
+function filterCheckoutSigningDocs(docs: DocStatus[]): DocStatus[] {
+    return docs.filter((d) => !CHECKOUT_SIGNING_EXCLUDED_TEMPLATE_TYPES.has(d.templateType));
 }
 
 interface SignProps {
@@ -69,12 +77,30 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
     const payFlatDocumentId = useSelector((state: RootState) => state.pay.flat?.documentId);
     const agreementFileUrl = useSelector((state: RootState) => state.pay.agreementFileUrl);
     const agreementFiles = useSelector((state: RootState) => state.pay.agreementFiles);
+    const checkoutAgreementFiles = useMemo(
+        () => filterAgreementFilesForCheckout(agreementFiles),
+        [agreementFiles]
+    );
     const agreementTemplateType = useSelector((state: RootState) => state.pay.agreementTemplateType);
     const agreementNumber = useSelector((state: RootState) => state.pay.agreementNumber);
     const dealDocumentId = useSelector((state: RootState) => state.pay.dealDocumentId);
+    const signingRequiredFromStore = useSelector((state: RootState) => state.pay.signingRequired);
     const isPdb = agreementTemplateType === "pdb";
 
-    const allDocsSigned = docStatuses.length > 0 && docStatuses.every((d) => d.signed);
+    const signingRequired = useMemo(() => {
+        if (signingRequiredFromStore !== null) return signingRequiredFromStore;
+        if (checkoutAgreementFiles.length === 0) return true;
+        return checkoutAgreementFiles.some((f) => parseRequiresSigningField(f.requiresSigning));
+    }, [signingRequiredFromStore, checkoutAgreementFiles]);
+
+    const checkoutSigningDocs = useMemo(
+        () => filterCheckoutSigningDocs(docStatuses),
+        [docStatuses]
+    );
+
+    const doodocsAllSigned =
+        checkoutSigningDocs.length > 0 && checkoutSigningDocs.every((d) => d.signed);
+    const canComplete = !signingRequired || doodocsAllSigned;
 
     useEffect(() => {
         setSentToSign(false);
@@ -84,14 +110,20 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
             .then((r) => r.json().catch(() => ({})))
             .then((data: any) => {
                 if (data?.agreementFileUrl) dispatch(setAgreementFileUrl(data.agreementFileUrl));
+                if (typeof data?.signingRequired === "boolean") {
+                    dispatch(setSigningRequired(data.signingRequired));
+                }
                 const status = String(data?.dealStatus ?? "").trim();
                 const isSigningFlowStatus =
                     status === "Ожидания договора" ||
-                    status === "Договор подписан" ||
-                    status === "Оплачено";
+                    status === "Договор подписан";
                 // Old/cancelled deals can keep doodocsDocumentId in history.
                 // Consider link as "sent" only when the deal is in signing flow statuses.
-                if (Boolean(data?.doodocsDocumentId) && isSigningFlowStatus) {
+                if (
+                    signingRequired &&
+                    Boolean(data?.doodocsDocumentId) &&
+                    isSigningFlowStatus
+                ) {
                     setSentToSign(true);
                 }
                 if (!data?.agreementFileUrl) {
@@ -104,7 +136,7 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                 }
             })
             .catch(() => { });
-    }, [dealDocumentId, dispatch]);
+    }, [dealDocumentId, dispatch, signingRequired]);
 
     const docTypeLabel = agreementTemplateType === "ddu" ? "ДДУ" : agreementTemplateType === "pdb" ? "ПДБ" : "";
     const contractName =
@@ -115,6 +147,7 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                 : "Договор";
 
     const handleSendToDoodocs = async () => {
+        if (!signingRequired) return;
         if (!dealDocumentId) {
             setSignError("dealDocumentId отсутствует");
             return;
@@ -136,15 +169,19 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
             }
             setSentToSign(true);
             if (Array.isArray(startJson.documents)) {
-                setDocStatuses(startJson.documents.map((d: any) => ({
-                    templateType: d.templateType,
-                    documentName: d.documentName,
-                    recordDocumentId: d.recordDocumentId,
-                    doodocsDocumentId: d.doodocsDocumentId,
-                    signUrl: d.signUrl,
-                    signed: false,
-                    signedAt: null,
-                })));
+                setDocStatuses(
+                    filterCheckoutSigningDocs(
+                        startJson.documents.map((d: any) => ({
+                            templateType: d.templateType,
+                            documentName: d.documentName,
+                            recordDocumentId: d.recordDocumentId,
+                            doodocsDocumentId: d.doodocsDocumentId,
+                            signUrl: d.signUrl,
+                            signed: false,
+                            signedAt: null,
+                        }))
+                    )
+                );
             }
             setSendingToSign(false);
         } catch {
@@ -155,7 +192,7 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
     };
 
     const handleCheckStatus = async () => {
-        if (!dealDocumentId) return;
+        if (!signingRequired || !dealDocumentId) return;
         setSignError(null);
         setCheckingStatus(true);
         try {
@@ -166,22 +203,27 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                 body: JSON.stringify({ dealDocumentId }),
             });
             const data = await res.json().catch(() => ({}));
-            const remoteDocs: DocStatus[] = Array.isArray(data.documents)
-                ? data.documents.map((d: any) => ({
-                    templateType: d.templateType,
-                    documentName: d.documentName,
-                    recordDocumentId: d.recordDocumentId,
-                    doodocsDocumentId: d.doodocsDocumentId,
-                    signUrl: d.signUrl,
-                    signed: Boolean(d.signed),
-                    signedAt: d.signedAt ?? null,
-                }))
-                : [];
+            const remoteDocs: DocStatus[] = filterCheckoutSigningDocs(
+                Array.isArray(data.documents)
+                    ? data.documents.map((d: any) => ({
+                          templateType: d.templateType,
+                          documentName: d.documentName,
+                          recordDocumentId: d.recordDocumentId,
+                          doodocsDocumentId: d.doodocsDocumentId,
+                          signUrl: d.signUrl,
+                          signed: Boolean(d.signed),
+                          signedAt: d.signedAt ?? null,
+                      }))
+                    : []
+            );
 
             if (data.allSigned) {
                 setDocStatuses((prev) => {
-                    if (prev.length === 0) return remoteDocs.map((d) => ({ ...d, signed: true }));
-                    return prev.map((d) => ({
+                    const prevFiltered = filterCheckoutSigningDocs(prev);
+                    if (prevFiltered.length === 0) {
+                        return remoteDocs.map((d) => ({ ...d, signed: true }));
+                    }
+                    return prevFiltered.map((d) => ({
                         ...d,
                         signed: true,
                         signedAt: remoteDocs.find((dd) => dd.templateType === d.templateType)?.signedAt ?? d.signedAt
@@ -190,7 +232,9 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
             } else if (remoteDocs.length > 0) {
                 setDocStatuses((prev) => {
                     if (prev.length === 0) return remoteDocs;
-                    return prev.map((d) => {
+                    const prevFiltered = filterCheckoutSigningDocs(prev);
+                    if (prevFiltered.length === 0) return remoteDocs;
+                    return prevFiltered.map((d) => {
                         const remote = remoteDocs.find((dd) => dd.doodocsDocumentId === d.doodocsDocumentId || dd.templateType === d.templateType);
                         if (remote) {
                             return {
@@ -308,20 +352,19 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                             <path fillRule="evenodd" clipRule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z" stroke="#7E7E7E" strokeWidth="1.5" strokeLinecap="round" />
                         </svg>
                         <span className="text-[#122C5E] text-[16px] not-italic font-normal leading-[100%]">
-                            {t("sign_contract")}
+                            {signingRequired ? t("sign_contract") : t("generated_documents")}
                         </span>
                     </div>
                 </div>
 
                 {/* Generated files list */}
-                {!isPdb && agreementFiles.length > 0 && (
+                {!isPdb && checkoutAgreementFiles.length > 0 && (
                     <div className="flex flex-col gap-1 self-stretch">
                         <p className="text-[#122C5E] text-[14px] font-medium">{t("generated_documents")}:</p>
-                        {agreementFiles.map((f, i) => {
+                        {checkoutAgreementFiles.map((f, i) => {
                             const label = f.documentName?.replace(/\.(docx|pdf)$/i, "") || `${templateTypeLabel(f.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
                             return (
-                                <a key={i} href={f.fileUrl}
-                                    download={`${label}.docx`}
+                                <DocumentLink key={i} href={f.fileUrl}
                                     className="flex items-center gap-2 text-[#2655AF] text-[13px] underline truncate">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -329,26 +372,32 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                                         <line x1="12" y1="15" x2="12" y2="3" />
                                     </svg>
                                     {label}
-                                </a>
+                                </DocumentLink>
                             );
                         })}
                     </div>
                 )}
 
-                {isPdb && agreementFileUrl && !allDocsSigned && (
+                {isPdb && agreementFileUrl && signingRequired && !doodocsAllSigned && (
                     <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
                         {t("precontract_generated")}
                     </p>
                 )}
-                {isPdb && allDocsSigned && (
+                {isPdb && signingRequired && doodocsAllSigned && (
                     <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
-                        {t("contract_signed")} {formatSignedAt(docStatuses.find((d) => d.signed)?.signedAt)}.
+                        {t("contract_signed")}{" "}
+                        {formatSignedAt(checkoutSigningDocs.find((d) => d.signed)?.signedAt)}.
+                    </p>
+                )}
+                {isPdb && !signingRequired && agreementFileUrl && (
+                    <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
+                        {t("agreement_ready_without_signing")}
                     </p>
                 )}
 
-                {sentToSign && docStatuses.length > 0 && (
+                {sentToSign && checkoutSigningDocs.length > 0 && (
                     <div className="flex flex-col gap-1 self-stretch">
-                        {docStatuses.map((d, i) => (
+                        {checkoutSigningDocs.map((d, i) => (
                             <div key={i} className="flex items-center gap-2">
                                 <span className={`w-2 h-2 rounded-full ${d.signed ? 'bg-green-500' : 'bg-yellow-500'}`} />
                                 <span className="text-[14px] text-[#122C5E]">
@@ -359,25 +408,24 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                     </div>
                 )}
 
-                {sentToSign && docStatuses.length === 0 && (
+                {sentToSign && checkoutSigningDocs.length === 0 && (
                     <p className="text-[#2655AF] text-[14px] not-italic font-normal leading-[20px]">
                         {t("link_to_signing_sent_to_whatsapp")}
                     </p>
                 )}
 
                 {/* Signed documents download section */}
-                {docStatuses.some((d) => d.signed && (d.recordDocumentId || d.doodocsDocumentId)) && (
+                {checkoutSigningDocs.some((d) => d.signed && (d.recordDocumentId || d.doodocsDocumentId)) && (
                     <div className="flex flex-col gap-1 self-stretch">
                         <p className="text-[#122C5E] text-[14px] font-medium">{t("signed_documents")}:</p>
-                        {docStatuses
+                        {checkoutSigningDocs
                             .filter((d) => d.signed && (d.recordDocumentId || d.doodocsDocumentId))
                             .map((d, i) => {
                                 const label = d.documentName?.replace(/\.(docx|pdf)$/i, "") || `${templateTypeLabel(d.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
                                 return (
-                                    <a
+                                    <DocumentLink
                                         key={i}
                                         href={`/api/signed-agreements/download-signed?doodocsDocumentId=${encodeURIComponent(d.doodocsDocumentId ?? "")}${dealDocumentId ? `&dealDocumentId=${encodeURIComponent(dealDocumentId)}` : ""}`}
-                                        download={`${label}.pdf`}
                                         className="flex items-center gap-2 text-[#2655AF] text-[13px] underline"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -386,7 +434,7 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                                             <line x1="12" y1="15" x2="12" y2="3" />
                                         </svg>
                                         {label} (PDF)
-                                    </a>
+                                    </DocumentLink>
                                 );
                             })}
                     </div>
@@ -401,18 +449,18 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                     </p>
                 )}
             </div>
-            <div className="flex flex-col gap-3 self-stretch">
-                {!sentToSign && (
+                <div className="flex flex-col gap-3 self-stretch">
+                {signingRequired && !sentToSign && (
                     <Button
                         onPress={handleSendToDoodocs}
-                        isDisabled={sendingToSign || (!agreementFileUrl && agreementFiles.length === 0)}
+                        isDisabled={sendingToSign || (!agreementFileUrl && checkoutAgreementFiles.length === 0)}
                         className="flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] bg-[#1A3C7E]">
                         <span className="text-[#FFF] text-[15px] not-italic font-medium leading-[20px]">
                             {sendingToSign ? t("sending") : t("send_to_sign")}
                         </span>
                     </Button>
                 )}
-                {sentToSign && !allDocsSigned && (
+                {signingRequired && sentToSign && !doodocsAllSigned && (
                     <Button
                         onPress={handleCheckStatus}
                         isDisabled={checkingStatus}
@@ -424,10 +472,10 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                 )}
                 <Button
                     onPress={handleFinish}
-                    isDisabled={completing || !allDocsSigned}
-                    className="bg-[#DB1D31] flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] border border-[#1A3C7E] disabled:opacity-50 disabled:cursor-not-allowed">
+                    isDisabled={completing || !canComplete}
+                    className="bg-[#02D15C] flex h-[52px] min-w-[52px] min-h-[52px] pl-[15px] pr-[15px] py-[15px] justify-center items-center self-stretch rounded-[16px] border border-[#1A3C7E] disabled:opacity-50 disabled:cursor-not-allowed">
                     <span className="text-white text-[15px] not-italic font-medium leading-[20px]">
-                        {completing ? t("loading") : !allDocsSigned ? t("contract_not_signed") : t("finish")}
+                        {completing ? t("loading") : !canComplete ? t("contract_not_signed") : t("finish")}
                     </span>
                 </Button>
             </div>

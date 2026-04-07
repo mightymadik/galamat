@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import { toClientMediaUrl } from "@/lib/uploadsProxyUrl";
 
 /**
  * GET: для текущего пользователя возвращает сводку по сделке (статус, квартира, doodocs id, agreementFileUrl).
@@ -15,7 +16,8 @@ export async function GET(
     const cookieStore = await cookies();
     const access = cookieStore.get("access_token")?.value;
     if (!access) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    verifyAccessToken(access);
+    const jwtPayload = verifyAccessToken(access);
+    if (!jwtPayload?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
     const resolved = await params;
     const documentId = resolved?.documentId;
@@ -88,14 +90,50 @@ export async function GET(
 
     // Ссылка на файл договора по сделке — чтобы кнопка «Отправить на подпись» была доступна после перезагрузки
     let agreementFileUrl: string | null = null;
+    let signingRequired: boolean | null = null;
     try {
+      // "true"/"false" строка в JS не должна становиться true через Boolean("false")
+      const boolFromScalar = (value: unknown): boolean => {
+        if (value === true) return true;
+        if (value === false) return false;
+        if (typeof value === "number") return value === 1;
+        if (typeof value === "string") {
+          const v = value.trim().toLowerCase();
+          if (v === "true" || v === "1" || v === "yes") return true;
+          if (v === "false" || v === "0" || v === "no" || v === "") return false;
+        }
+        return false;
+      };
+
+      const createdAtMs = (row: any): number => {
+        const raw = String(row?.createdAt ?? row?.attributes?.createdAt ?? "");
+        const ms = Date.parse(raw);
+        return Number.isFinite(ms) ? ms : 0;
+      };
+
       // Strapi v5: пробуем полный populate, затем только relation
       const saRes = await strapiAxios.get(
-        `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(documentId)}&sort[0]=createdAt:desc&pagination[pageSize]=1&populate[signedAgreement]=true`,
+        `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(documentId)}&sort[0]=createdAt:desc&pagination[pageSize]=100&populate[signedAgreement]=true&fields[0]=templateType&fields[1]=requiresSigning&fields[2]=createdAt`,
         { headers }
       );
       const saList: any[] = (saRes.data as any)?.data ?? [];
-      const sa = Array.isArray(saList) ? saList[0] : null;
+      const checkoutRows = (Array.isArray(saList) ? saList : []).filter((row: any) => {
+        const tt = String(row?.templateType ?? row?.attributes?.templateType ?? "").trim();
+        return tt !== "Расторжение" && tt !== "Переоформление";
+      });
+      if (checkoutRows.length > 0) {
+        // Берём последнее «поколение» документов: всё в окне 30 минут от максимального createdAt.
+        // Это соответствует логике на бэкенде, где документы генерируются пачкой и имеют разные createdAt.
+        const windowMs = 30 * 60 * 1000;
+        const msList = checkoutRows.map(createdAtMs);
+        const maxMs = Math.max(...msList);
+        const latestGeneration = checkoutRows.filter((row: any, i: number) => msList[i] >= maxMs - windowMs);
+        signingRequired = latestGeneration.some((row: any) =>
+          boolFromScalar(row?.requiresSigning ?? row?.attributes?.requiresSigning)
+        );
+      }
+
+      const sa = checkoutRows[0] ?? null;
       if (sa) {
         const file = sa?.signedAgreement ?? sa?.attributes?.signedAgreement;
         const fileData = (file as any)?.data ?? file ?? file?.data;
@@ -104,17 +142,9 @@ export async function GET(
           (typeof (fileData?.attributes as any)?.url === "string" && (fileData?.attributes as any).url) ||
           (typeof (file as any)?.url === "string" && (file as any).url);
         if (url) {
-          let path: string;
-          try {
-            path = url.startsWith("http") ? new URL(url).pathname : (url.startsWith("/") ? url : `/${url}`);
-          } catch {
-            path = url.startsWith("/") ? url : `/${url}`;
-          }
-          if (path?.startsWith("/uploads/")) {
-            agreementFileUrl = `/api/strapi-file?path=${encodeURIComponent(path)}`;
-          } else {
-            agreementFileUrl = url.startsWith("http") ? url : `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
-          }
+          const resolved =
+            url.startsWith("http") ? url : `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+          agreementFileUrl = toClientMediaUrl(resolved);
         }
       }
     } catch {
@@ -128,6 +158,7 @@ export async function GET(
       projectDocumentId: projectDocumentId ?? null,
       doodocsDocumentId: doodocsDocumentId ?? null,
       agreementFileUrl,
+      signingRequired,
     });
   } catch (err: any) {
     const status = err?.response?.status;

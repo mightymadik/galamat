@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Input, Select, SelectItem } from "@heroui/react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import KanbanColumn from "./KanbanColumn";
 import DealDrawer from "./DealDrawer";
 import type { DealCardItem } from "./types";
@@ -22,6 +23,7 @@ const STATUS_TO_KEY: Record<string, string> = {
   "Бронь": "status_reservation",
   "Ожидания оплаты": "status_awaiting_payment",
   "Оплачено": "status_paid",
+  "Согласование РОП": "status_rop_approval",
   "Ожидания договора": "status_awaiting_contract",
   "Договор подписан": "status_contract_signed",
   "Просрочен": "status_overdue",
@@ -38,6 +40,9 @@ function getTodayIsoDate(): string {
 
 export default function DealsKanban() {
   const t = useTranslations();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [deals, setDeals] = useState<DealCardItem[]>([]);
   const [byStatus, setByStatus] = useState<Record<string, DealCardItem[]>>({});
   const [loading, setLoading] = useState(true);
@@ -52,6 +57,7 @@ export default function DealsKanban() {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [excludeCancelled, setExcludeCancelled] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+  const selectedFromQueryRef = useRef(false);
 
   const fetchDeals = useCallback(async () => {
     const params = new URLSearchParams();
@@ -74,6 +80,7 @@ export default function DealsKanban() {
       const list = json.deals ?? [];
       setDeals(list);
       setByStatus(json.byStatus ?? {});
+
       setError(null);
       if (!projectFilter && list.length > 0) {
         const names = new Set<string>();
@@ -89,6 +96,14 @@ export default function DealsKanban() {
       setLoading(false);
     }
   }, [search, projectFilter, paymentMethodFilter, createdAtFrom, createdAtTo, overdueOnly, excludeCancelled, t]);
+
+  useEffect(() => {
+    if (selectedFromQueryRef.current) return;
+    const dealId = searchParams.get("deal");
+    if (!dealId) return;
+    selectedFromQueryRef.current = true;
+    setSelectedDealId(dealId);
+  }, [searchParams]);
 
   useEffect(() => {
     fetchDeals();
@@ -246,7 +261,13 @@ export default function DealsKanban() {
               status={status}
               statusLabel={t(STATUS_TO_KEY[status] ?? status)}
               deals={list}
-              onCardClick={(deal) => setSelectedDealId(deal.documentId)}
+              onCardClick={(deal) => {
+                setSelectedDealId(deal.documentId);
+                const next = new URLSearchParams(searchParams.toString());
+                next.set("deal", deal.documentId);
+                const qs = next.toString();
+                router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+              }}
             />
           );
         })}
@@ -255,7 +276,13 @@ export default function DealsKanban() {
       {selectedDealId && (
         <DealDrawer
           dealDocumentId={selectedDealId}
-          onClose={() => setSelectedDealId(null)}
+          onClose={() => {
+            setSelectedDealId(null);
+            const next = new URLSearchParams(searchParams.toString());
+            next.delete("deal");
+            const qs = next.toString();
+            router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+          }}
           onUpdated={fetchDeals}
         />
       )}

@@ -21,7 +21,7 @@ async function fetchProjectLocalePairs(
   const pageSize = 100;
 
   while (true) {
-    const url = `${baseUrl}/api/properties?${baseFilter}${availabilityFilter}filters[priceCheckmate][$gte]=10000000&fields[0]=id&populate[project][fields][0]=id&populate[project][fields][1]=district&populate[project][fields][2]=projectName&locale=${locale}&pagination[page]=${page}&pagination[pageSize]=${pageSize}`;
+    const url = `${baseUrl}/api/properties?${baseFilter}${availabilityFilter}filters[project][publishedAt][$notNull]=true&filters[priceCheckmate][$gte]=10000000&fields[0]=id&populate[project][fields][0]=id&populate[project][fields][1]=district&populate[project][fields][2]=projectName&locale=${locale}&pagination[page]=${page}&pagination[pageSize]=${pageSize}`;
     const res = await strapiAxios.get(url, { headers });
     if (!Array.isArray(res?.data?.data)) break;
 

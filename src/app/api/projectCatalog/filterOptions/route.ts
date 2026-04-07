@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     
     // Базовые параметры: город + только доступные к продаже квартиры
     const baseFilter = city ? `filters[project][city][cityName][$eq]=${encodeURIComponent(city)}&` : "";
-    const availabilityFilter = `filters[propertyStatus][$eq]=свободно&filters[saleStatus][$eq]=открыто&`;
+    const availabilityFilter = `filters[propertyStatus][$eq]=свободно&filters[saleStatus][$eq]=открыто&filters[project][publishedAt][$notNull]=true&`;
     
     if (type === "rooms") {
       // Оптимизированный запрос: получаем только поле room, используем пагинацию для получения всех уникальных значений

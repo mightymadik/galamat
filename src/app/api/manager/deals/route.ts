@@ -9,6 +9,7 @@ export const DEAL_STATUS_COLUMNS = [
   "Бронь",
   "Ожидания оплаты",
   "Оплачено",
+  "Согласование РОП",
   "Ожидания договора",
   "Договор подписан",
   "Просрочен",
@@ -31,8 +32,9 @@ export async function GET(request: NextRequest) {
     const payload = verifyAccessToken(access);
     if (!payload?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    let isManager = payload.role === "manager" || payload.role === "admin";
+    let isManager = payload.role === "manager" || payload.role === "admin" || payload.role === "rop";
     let isAdmin = payload.role === "admin";
+    let isRop = payload.role === "rop";
     if (!isManager) {
       const base = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
       const headers = getStrapiHeaders();
@@ -41,8 +43,9 @@ export async function GET(request: NextRequest) {
         .catch(() => null);
       const customer: any = (customerRes?.data as any)?.data?.[0];
       const currentRole = customer?.role ?? customer?.attributes?.role ?? payload.role;
-      isManager = currentRole === "manager" || currentRole === "admin";
+      isManager = currentRole === "manager" || currentRole === "admin" || currentRole === "rop";
       isAdmin = currentRole === "admin";
+      isRop = currentRole === "rop";
     }
     if (!isManager) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -61,7 +64,7 @@ export async function GET(request: NextRequest) {
     const managerId = payload.sub;
 
     let filters: string[] = [];
-    if (!isAdmin) {
+    if (!isAdmin && !isRop) {
       filters.push(`filters[manager][id][$eq]=${encodeURIComponent(managerId)}`);
     }
 
@@ -106,7 +109,7 @@ export async function GET(request: NextRequest) {
     const rawList: any[] = (res.data as any)?.data ?? [];
     let deals = Array.isArray(rawList) ? rawList : [];
 
-    if (deals.length === 0 && !isAdmin) {
+    if (deals.length === 0 && !isAdmin && !isRop) {
       const byDocIdUrl =
         `${base}/api/deals?filters[manager][documentId][$eq]=${encodeURIComponent(String(managerId))}` +
         `&${sort}&${pagination}&${populate}` +

@@ -63,7 +63,7 @@ export default function MenuProfile() {
     const router = useRouter();
     const dispatch = useDispatch();
     const user = useSelector((state: RootState) => state.auth.user);
-    const isManager = user?.role === "manager" || user?.role === "admin";
+    const isManager = user?.role === "manager" || user?.role === "rop" || user?.role === "admin";
     const isCashier = user?.role === "cashier" || user?.role === "admin";
     const isAdmin = user?.role === "admin";
 

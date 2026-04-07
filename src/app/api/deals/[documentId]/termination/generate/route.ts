@@ -2,30 +2,10 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
-import Docxtemplater from "docxtemplater";
-import PizZip from "pizzip";
-import { buildAgreementNumber, agreementNumberForFilename } from "@/lib/agreementNumber";
-
-function formatIin(iin: string | number | null | undefined): string {
-  if (iin == null) return "";
-  const s = String(iin).replace(/\D/g, "");
-  return s.length <= 12 ? s.padStart(12, "0") : s.slice(-12);
-}
-
-function formatDateRu(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(String(iso).replace(" ", "T").slice(0, 10));
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function fullName(surname: string, name: string, middlename: string): string {
-  return [surname, name, middlename].filter(Boolean).join(" ") || "—";
-}
 
 /**
  * POST /api/deals/[documentId]/termination/generate
- * Bank details are fetched from the customer's profile (iik, bik, bank relation).
+ * Proxies to Strapi custom controller `signed-agreements/generate-termination`.
  */
 export async function POST(
   req: Request,
@@ -56,6 +36,7 @@ export async function POST(
     if (effectiveRole !== "manager" && effectiveRole !== "admin")
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
+    // Enforce manager ownership (same logic as before).
     const dealRes = await strapiAxios.get(
       `${base}/api/deals/${dealDocumentId}` +
         "?populate[property][populate][project][populate][developer]=true" +
@@ -76,205 +57,13 @@ export async function POST(
     if (effectiveRole === "manager" && managerId != null && Number(managerId) !== Number(payload.sub))
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-    const cust = deal?.customer ?? deal?.attributes?.customer;
-    const custData = (cust as any)?.data ?? cust;
-    if (!custData?.documentId && !custData?.id)
-      return NextResponse.json({ error: "У сделки нет клиента" }, { status: 400 });
-
-    const realEstateCandidates = [
-      deal?.property ?? deal?.attributes?.property,
-      deal?.commerce ?? deal?.attributes?.commerce,
-      deal?.parking ?? deal?.attributes?.parking,
-      deal?.pantry ?? deal?.attributes?.pantry,
-    ];
-    const selectedRealEstate =
-      realEstateCandidates
-        .map((rel) => ((rel as any)?.data ?? rel))
-        .find((entity: any) => entity?.documentId || entity?.id) ?? null;
-    const propData = selectedRealEstate;
-    const project = propData?.project ?? propData?.attributes?.project?.data ?? propData?.attributes?.project;
-    const projectDocumentId = project?.documentId ?? project?.id;
-    if (!projectDocumentId)
-      return NextResponse.json({ error: "У сделки нет объекта/проекта" }, { status: 400 });
-
-    const agreementsRes = await strapiAxios.get(
-      `${base}/api/agreements` +
-        `?filters[project][documentId][$eq]=${encodeURIComponent(projectDocumentId)}` +
-        `&pagination[pageSize]=1&populate[terminationTemplate]=true&populate[project][populate][developer]=true`,
+    const generated = await strapiAxios.post(
+      `${base}/api/signed-agreements/generate-termination`,
+      { dealDocumentId },
       { headers }
     );
-    const agreementItem: any = (agreementsRes.data as any)?.data?.[0];
-    if (!agreementItem)
-      return NextResponse.json({ error: "По проекту не найден шаблон договоров (agreement)" }, { status: 404 });
 
-    const termMedia = agreementItem?.terminationTemplate ?? agreementItem?.attributes?.terminationTemplate;
-    const termUrlRaw = Array.isArray(termMedia) ? termMedia[0]?.url : termMedia?.url;
-    const termUrl = termUrlRaw?.startsWith("http") ? termUrlRaw : termUrlRaw ? base + (termUrlRaw.startsWith("/") ? "" : "/") + termUrlRaw : null;
-    if (!termUrl)
-      return NextResponse.json({ error: "У соглашения нет шаблона расторжения (terminationTemplate)" }, { status: 404 });
-
-    const agreementCode = agreementItem?.agreementCode ?? agreementItem?.attributes?.agreementCode ?? "";
-    const agreementType = agreementItem?.agreementType ?? agreementItem?.attributes?.agreementType ?? "Квартиры";
-
-    const dev = project?.developer ?? project?.attributes?.developer?.data ?? project?.attributes?.developer;
-    const developerName = (dev?.name ?? dev?.attributes?.name ?? "Застройщик").trim() || "Застройщик";
-    const bin = String(dev?.bin ?? dev?.attributes?.bin ?? "").replace(/\D/g, "").padStart(12, "0").slice(-12);
-    const developerAddressRus = dev?.addressRus ?? dev?.attributes?.addressRus ?? "";
-    const developerAddressKz = dev?.addressKz ?? dev?.attributes?.addressKz ?? "";
-    const iik = dev?.iik ?? dev?.attributes?.iik ?? "";
-    const bank = dev?.bank ?? dev?.attributes?.bank ?? "";
-    const bik = dev?.bik ?? dev?.attributes?.bik ?? "";
-    const developerPhoneNumber = dev?.phoneNumber ?? dev?.attributes?.phoneNumber ?? "";
-
-    const house = propData?.house ?? propData?.attributes?.house ?? "";
-    const apartmentNumber = propData?.apartmentNumber ?? propData?.attributes?.apartmentNumber ?? "";
-    const entrance = propData?.entrance ?? propData?.attributes?.entrance ?? "";
-    const agreementNumber = buildAgreementNumber(agreementCode, house, apartmentNumber, entrance);
-
-    const currentDate = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
-
-    const saListRes = await strapiAxios.get(
-      `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(dealDocumentId)}&filters[templateType][$eq]=ДДУ&sort[0]=createdAt:desc&pagination[pageSize]=1&fields[0]=signedAt&fields[1]=createdAt`,
-      { headers }
-    );
-    const saList: any[] = (saListRes.data as any)?.data ?? [];
-    const firstSa = Array.isArray(saList) ? saList[0] : null;
-    const signedAtRaw = firstSa?.signedAt ?? firstSa?.attributes?.signedAt ?? firstSa?.createdAt ?? firstSa?.attributes?.createdAt;
-    const signedAt = signedAtRaw ? formatDateRu(signedAtRaw) : currentDate;
-    const dateddu = signedAt;
-
-    const complexes = project?.complexes ?? project?.attributes?.complexes?.data ?? project?.attributes?.complexes ?? [];
-    const firstComplex = Array.isArray(complexes) ? complexes[0] : complexes;
-    const complexAddress =
-      firstComplex?.complexAddress ?? firstComplex?.attributes?.complexAddress ?? project?.projectName ?? project?.attributes?.projectName ?? "";
-
-    const attrs = custData?.attributes ?? custData;
-    const customerName = fullName(
-      custData?.surname ?? attrs?.surname ?? "",
-      custData?.name ?? attrs?.name ?? "",
-      custData?.middlename ?? attrs?.middlename ?? ""
-    );
-    const customerDocNumber = String(custData?.docNumber ?? attrs?.docNumber ?? "");
-    const customerDocIssuer = custData?.docIssuer ?? attrs?.docIssuer ?? "";
-    const customerDateIssue = formatDateRu(custData?.dateIssue ?? attrs?.dateIssue);
-    const customerIIN = formatIin(custData?.iin ?? attrs?.iin);
-    const customerAddress = custData?.address ?? attrs?.address ?? "";
-    const customerPhone = custData?.phone ?? attrs?.phone ?? "";
-    const customerEmail = custData?.email ?? attrs?.email ?? "";
-
-    const custIik = custData?.iik ?? attrs?.iik ?? "";
-    const custBik = custData?.bik ?? attrs?.bik ?? "";
-    const custBankRel = custData?.bank ?? attrs?.bank;
-    const custBankData = (custBankRel as any)?.data ?? custBankRel;
-    const custBankAttrs = custBankData?.attributes ?? custBankData;
-    const custBankName = custBankAttrs?.nameBank ?? custBankData?.nameBank ?? "";
-    const custBankAddressRu = custBankAttrs?.addressBankRus ?? custBankData?.addressBankRus ?? "";
-    const custBankAddressKz = custBankAttrs?.addressBankKz ?? custBankData?.addressBankKz ?? "";
-
-    const replaceData: Record<string, unknown> = {
-      dateddu,
-      agreementNumber,
-      signedAt,
-      currentDate,
-      complexAddress,
-      developerName,
-      bin,
-      developerAddressRus,
-      developerAddressKz,
-      iik,
-      bank,
-      bik,
-      developerPhoneNumber,
-      customerName,
-      "\u0441ustomerName": customerName,
-      customerDocNumber,
-      "\u0441ustomerDocNumber": customerDocNumber,
-      customerDocIssuer,
-      "\u0441ustomerDocIssuer": customerDocIssuer,
-      customerDateIssue,
-      "\u0441ustomerDateIssue": customerDateIssue,
-      customerIIN,
-      "\u0441ustomerIIN": customerIIN,
-      customerAddress,
-      "\u0441ustomerAdress": customerAddress,
-      customerAdress: customerAddress,
-      customerPhone,
-      "\u0441ustomerPhone": customerPhone,
-      customerEmail,
-      "\u0441ustomerEmail": customerEmail,
-      customerIIK: custIik,
-      customerBIK: custBik,
-      customerBank: custBankName,
-      customerBankname: custBankName,
-      customerBankAddressrru: custBankAddressRu,
-      customerBankAddressrKz: custBankAddressKz,
-    };
-
-    const templateRes = await fetch(termUrl);
-    if (!templateRes.ok)
-      return NextResponse.json({ error: "Не удалось загрузить шаблон расторжения" }, { status: 502 });
-    const templateBuffer = Buffer.from(await templateRes.arrayBuffer());
-
-    const zip = new PizZip(templateBuffer);
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-      nullGetter: () => "",
-    });
-    doc.render(replaceData);
-    const outZip = doc.getZip();
-    const outBuffer = outZip.generate({
-      type: "nodebuffer",
-      compression: "DEFLATE",
-      compressionOptions: { level: 9 },
-    });
-
-    const FormData = (await import("form-data")).default;
-    const form = new FormData();
-    form.append("files", outBuffer, {
-      filename: `Расторжение ${agreementNumberForFilename(agreementNumber)}.docx`,
-      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    });
-    const uploadRes = await strapiAxios.post(`${base}/api/upload`, form, {
-      headers: { ...headers, ...form.getHeaders() },
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity,
-    });
-    const uploadData = (uploadRes.data as any) ?? [];
-    const firstFile = Array.isArray(uploadData) ? uploadData[0] : uploadData;
-    const fileId = firstFile?.id;
-    if (!fileId)
-      return NextResponse.json({ error: "Ошибка загрузки сгенерированного файла" }, { status: 502 });
-
-    const rawUrl = firstFile?.url ?? "";
-    const fileUrl =
-      typeof rawUrl === "string" && rawUrl
-        ? rawUrl.startsWith("http")
-          ? rawUrl
-          : `${base.replace(/\/api\/?$/, "").replace(/\/$/, "")}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`
-        : null;
-
-    const saCreateRes = await strapiAxios.post(
-      `${base}/api/signed-agreements`,
-      {
-        data: {
-          user: payload.sub,
-          signedAgreement: fileId,
-          agreementType: agreementType as "Квартиры" | "Коммерция" | "Паркинг" | "Кладовка",
-          deal: { connect: [dealDocumentId] },
-        },
-      },
-      { headers }
-    );
-    const saCreated = (saCreateRes.data as any)?.data ?? saCreateRes.data;
-    const signedAgreementDocumentId = saCreated?.documentId ?? saCreated?.id ?? null;
-
-    return NextResponse.json({
-      status: "ok",
-      fileUrl,
-      signedAgreementDocumentId,
-      agreementNumber,
-    });
+    return NextResponse.json((generated.data as any) ?? { status: "ok" });
   } catch (e: any) {
     console.error("[deals/termination/generate]", e?.response?.data ?? e);
     return NextResponse.json(

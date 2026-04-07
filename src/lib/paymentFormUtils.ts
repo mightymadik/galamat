@@ -563,3 +563,46 @@ export function getDefferedPreview(
     remainder,
   };
 }
+
+/** Флаг подписи с API/Strapi: нельзя полагаться на Boolean("false"). */
+export function parseRequiresSigningField(value: unknown): boolean {
+  if (value === true) return true;
+  if (value === false) return false;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const v = value.trim().toLowerCase();
+    if (v === "true" || v === "1" || v === "yes") return true;
+    if (v === "false" || v === "0" || v === "no" || v === "") return false;
+  }
+  return false;
+}
+
+/**
+ * Нужна ли электронная подпись после ответа generate.
+ * Подпись только если хотя бы у одного файла requiresSigning === true (явно).
+ */
+/** Не показывать в оформлении ДДУ после смены клиента / повторной сделке по тому же лоту. */
+const CHECKOUT_EXCLUDED_TEMPLATE_TYPES = new Set(["Расторжение", "Переоформление"]);
+
+export function filterAgreementFilesForCheckout<T extends { templateType?: string }>(files: T[]): T[] {
+  return files.filter((f) => !CHECKOUT_EXCLUDED_TEMPLATE_TYPES.has(String(f?.templateType ?? "").trim()));
+}
+
+export function computeSigningRequiredFromGenerateResponse(genJson: {
+  signingRequired?: unknown;
+  files?: Array<{ requiresSigning?: unknown; templateType?: string }>;
+}): boolean {
+  const sr = genJson?.signingRequired;
+  if (typeof sr === "boolean") return sr;
+  if (typeof sr === "number") return sr === 1;
+  if (typeof sr === "string") {
+    const v = sr.trim().toLowerCase();
+    if (v === "false" || v === "0" || v === "no") return false;
+    if (v === "true" || v === "1" || v === "yes") return true;
+  }
+  const files = filterAgreementFilesForCheckout(genJson?.files ?? []);
+  if (files.length > 0) {
+    return files.some((f) => parseRequiresSigningField(f?.requiresSigning));
+  }
+  return true;
+}

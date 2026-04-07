@@ -296,7 +296,7 @@
   "contract_number_step_description": "Укажите номер договора ДДУ перед генерацией документа.",
   "contract_number_required": "Введите номер договора",
   "generate_contract": "Сгенерировать договор",
-  "finish": "Завершить",
+  "finish": "Заключить сделку",
   "my_documents": "Мои документы",
   "identity_document": "Удостоверение личности",
   "document_data_not_filled": "Данные документа не заполнены. Нажмите «Редактировать» и заполните по биометрике.",
@@ -326,6 +326,7 @@
   "failed_to_get_agreement": "Не удалось получить договор.",
   "status_reservation": "Бронь",
   "status_awaiting_payment": "Ожидания оплаты",
+  "status_rop_approval": "Согласование РОП",
   "status_awaiting_contract": "Ожидания договора",
   "status_contract_signed": "Договор подписан",
   "status_canceled": "Отменен",
@@ -518,5 +519,6 @@
   "otp_send_limit_reached": "Превышено количество отправленных кодов.",
   "required_field": "Обязательное поле",
   "fill_required_fields": "Заполните обязательные поля",
+  "agreement_ready_without_signing": "Документ сформирован. Электронная подпись не требуется — можете завершить оформление.",
   "quarter": "квартал"
 }

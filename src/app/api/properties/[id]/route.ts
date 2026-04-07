@@ -31,6 +31,7 @@ export async function GET(
         path: cfg.apiPath,
         params: {
           "filters[documentId][$eq]": String(id),
+          "filters[project][publishedAt][$notNull]": "true",
           "pagination[pageSize]": "1",
           "populate[project][fields][0]": "projectName",
           "populate[project][fields][1]": "district",
