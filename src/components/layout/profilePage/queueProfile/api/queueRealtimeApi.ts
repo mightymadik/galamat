@@ -1,4 +1,5 @@
 import { io, type Socket } from "socket.io-client";
+import { getDefaultQueueSocketOptions } from "@/lib/queueSocket";
 
 type QueueSocketTokenResponse = {
   token?: string;
@@ -18,17 +19,11 @@ export async function subscribeToQueueBranchUpdates(
       credentials: "include",
     });
     const body = (await res.json().catch(() => ({}))) as QueueSocketTokenResponse;
-    if (!body?.token) return null;
+    if (!res.ok) return null;
     const socketUrl = body.queueApiUrl?.trim() || undefined;
 
     let socket: Socket | null = io(socketUrl, {
-      auth: { token: body.token },
-      transports: ["websocket", "polling"],
-      timeout: 15000,
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      ...getDefaultQueueSocketOptions(),
     });
 
     const MIN_REFRESH_INTERVAL_MS = 1000;

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@heroui/react";
 import { io, type Socket } from "socket.io-client";
+import { getDefaultQueueSocketOptions } from "@/lib/queueSocket";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import type {
   QueueProfileStatus,
@@ -540,20 +541,13 @@ export default function QueueProfile() {
           credentials: "include",
         });
         const body = (await res.json().catch(() => ({}))) as {
-          token?: string;
           queueApiUrl?: string;
         };
-        if (cancelled || !body?.token) return;
+        if (cancelled || !res.ok) return;
         const socketUrl = body.queueApiUrl?.trim() || undefined;
 
         socket = io(socketUrl, {
-          auth: { token: body.token },
-          transports: ["websocket", "polling"],
-          timeout: 15000,
-          reconnection: true,
-          reconnectionAttempts: Infinity,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000,
+          ...getDefaultQueueSocketOptions(),
         });
 
         socket.on("connect", () => {
@@ -615,22 +609,15 @@ export default function QueueProfile() {
         });
   
         const body = (await res.json().catch(() => ({}))) as {
-          token?: string;
           queueApiUrl?: string;
         };
   
-        if (cancelled || !body?.token) return;
+        if (cancelled || !res.ok) return;
   
         const socketUrl = body.queueApiUrl?.trim() || undefined;
   
         socket = io(socketUrl, {
-          auth: { token: body.token },
-          transports: ["websocket", "polling"],
-          timeout: 15000,
-          reconnection: true,
-          reconnectionAttempts: Infinity,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000,
+          ...getDefaultQueueSocketOptions(),
         });
   
         socket.on("status:update", handleStatusUpdate);
