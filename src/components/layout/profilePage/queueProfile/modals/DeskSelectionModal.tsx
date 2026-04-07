@@ -96,14 +96,9 @@ export default function DeskSelectionModal({
           )}
           {canAddDesks && (
             <div className="flex flex-col gap-[8px]">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center">
                 <span className="text-[#282D3C] text-[14px] font-medium leading-[normal]">
                   {t("queue_add_desk")}
-                </span>
-                <span
-                  className={`text-[12px] font-normal ${atMaxDesks ? "text-[#DB1D31]" : "text-[rgba(7,7,31,0.40)]"}`}
-                >
-                  {desks.length} / {MAX_DESKS}
                 </span>
               </div>
               <div className="flex items-center gap-[8px]">

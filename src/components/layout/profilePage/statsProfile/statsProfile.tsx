@@ -60,13 +60,13 @@ const DEFAULT_RANGE = {
 
 const RATING_CHART = { width: 908, height: 148, padding: { top: 14, right: 16, bottom: 36, left: 44 } };
 
-/** Строит path для линии графика оценки. values — значения по месяцам (1–5), Y в SVG: 5 сверху, 1 снизу. */
+/** Строит path для линии графика оценки. values — значения по месяцам (1–10), Y в SVG: 10 сверху, 1 снизу. */
 function buildRatingLinePath(values: number[]): string {
   const { width, height, padding } = RATING_CHART;
   const plotW = width - padding.left - padding.right;
   const plotH = height - padding.top - padding.bottom;
   const minY = 1;
-  const maxY = 5;
+  const maxY = 10;
   if (values.length === 0) return "";
   const points = values.map((v, i) => {
     const x = padding.left + (i / Math.max(1, values.length - 1)) * plotW;
@@ -82,14 +82,16 @@ function getRatingPoint(v: number, i: number, total: number): { x: number; y: nu
   const plotW = width - padding.left - padding.right;
   const plotH = height - padding.top - padding.bottom;
   const x = padding.left + (i / Math.max(1, total - 1)) * plotW;
-  const y = padding.top + ((5 - Math.min(5, Math.max(1, v))) / 4) * plotH;
+  const minY = 1;
+  const maxY = 10;
+  const y = padding.top + ((maxY - Math.min(maxY, Math.max(minY, v))) / (maxY - minY)) * plotH;
   return { x, y };
 }
 
 function getRatingBadgeClass(rating: number): { bg: string; text: string } {
-    if (rating >= 4.5) return { bg: "bg-[#D4FBEC]", text: "text-[#0F6D4B]" };
-    if (rating >= 3.5) return { bg: "bg-[#D4FBEC]", text: "text-[#0F6D4B]" };
-    if (rating >= 2.5) return { bg: "bg-[#EFEFF4]", text: "text-[#262842]" };
+    if (rating >= 8) return { bg: "bg-[#D4FBEC]", text: "text-[#0F6D4B]" };
+    if (rating >= 6) return { bg: "bg-[#D4FBEC]", text: "text-[#0F6D4B]" };
+    if (rating >= 4) return { bg: "bg-[#EFEFF4]", text: "text-[#262842]" };
     return { bg: "bg-[#FAE3E6]", text: "text-[#DB1D31]" };
 }
 
@@ -464,10 +466,10 @@ export default function StatsProfile() {
                             aria-label={t("stats_rating_chart_aria")}
                         >
                             {/* Horizontal grid lines + Y-axis labels */}
-                            {[5, 4, 3, 2, 1].map((n) => {
+                            {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => {
                                 const { padding, width, height } = RATING_CHART;
                                 const plotH = height - padding.top - padding.bottom;
-                                const y = padding.top + ((5 - n) / 4) * plotH;
+                                const y = padding.top + ((10 - n) / 9) * plotH;
                                 return (
                                     <g key={n}>
                                         <line
