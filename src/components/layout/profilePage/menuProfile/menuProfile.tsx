@@ -143,7 +143,7 @@ export default function MenuProfile() {
                 <div className="flex p-[16px] flex-col items-start self-stretch rounded-[32px] bg-[#F4F6FB]">
                     <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActiveAndSync} />
                     {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActiveAndSync} />}
-                    {(isAdmin || isExternalManager || isManager) && (
+                    {(isAdmin || isExternalManager || isManager || isCashier) && (
                         <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
                     )}
                     {isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
@@ -174,7 +174,7 @@ export default function MenuProfile() {
             <div className="flex bottom-0 mb-[86px] lg:hidden h-auto w-full min-w-[343px] px-[12px] py-[8px] items-start rounded-[32px] bg-[rgba(28,_39,_76,_0.04)] backdrop-filter backdrop-blur-[10px] overflow-x-auto overflow-y-hidden scrollbar-hide">
                 <MenuButton id="profile" iconActive="/img/profile-white.svg" iconInactive="/img/profile-black.svg" text={t("profile")} active={active} setActive={setActiveAndSync} />
                 {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActiveAndSync} />}
-                {(isAdmin || isExternalManager || isManager) && (
+                {(isAdmin || isExternalManager || isManager || isCashier) && (
                     <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
                 )}
                 {isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
