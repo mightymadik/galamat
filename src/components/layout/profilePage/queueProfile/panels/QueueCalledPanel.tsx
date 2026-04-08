@@ -2,7 +2,7 @@
 
 import { Button } from "@heroui/button";
 import { useAppSelector } from "@/store/hooks";
-import ElapsedTimer, { formatElapsed } from "./ElapsedTimer";
+import ElapsedTimer, { elapsedSecondsSinceIso, formatElapsed } from "./ElapsedTimer";
 import { useTranslations } from "next-intl";
 
 export default function QueueCalledPanel({
@@ -105,8 +105,8 @@ export default function QueueCalledPanel({
                 <span className="text-[#000] text-[16px] not-italic font-bold leading-[normal]">0м 0с</span>
               ) : (
                 <ElapsedTimer
-                  key="servicing"
-                  initialSeconds={0}
+                  key={`${currentClient?.id ?? ""}-svc-${currentClient?.servingAt ?? ""}`}
+                  initialSeconds={elapsedSecondsSinceIso(currentClient?.servingAt)}
                   className="text-[#000] text-[16px] not-italic font-bold leading-[normal]"
                 />
               )}

@@ -71,6 +71,18 @@ import {
 /** Временно без паузы между повторными вызовами на табло (раньше 15 с). */
 const REANNOUNCE_COOLDOWN_SEC = 15;
 
+function normalizeServingAt(raw: unknown): string | null {
+  if (raw == null) return null;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const t = Date.parse(raw);
+    return Number.isFinite(t) ? new Date(t).toISOString() : null;
+  }
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return new Date(raw).toISOString();
+  }
+  return null;
+}
+
 function saveCurrentTicketCookie(
   client: CurrentClient,
   callServicePhase: CallServicePhase = "waiting",
@@ -168,8 +180,9 @@ export default function QueueProfile() {
   const isWaitingForNext = status === "available" && phase === "waitingForNext";
   const isWithClient = status === "available" && phase === "withClient";
   const user = useAppSelector((s) => s.auth.user);
-  const canAddDesks = user?.role === "admin";
-  const isAdminUser = user?.role === "admin";
+  const normalizedRole = String(user?.role ?? "").toLowerCase();
+  const isAdminUser = normalizedRole === "admin" || normalizedRole === "rop";
+  const canAddDesks = isAdminUser;
   const [branchShiftId, setBranchShiftId] = useState<string | null>(null);
   const [branchShiftLoading, setBranchShiftLoading] = useState(false);
   const [branchShiftActionLoading, setBranchShiftActionLoading] = useState(false);
@@ -301,6 +314,7 @@ export default function QueueProfile() {
     status?: string;
     waitTimeSeconds?: number | null;
     ticketCode?: string;
+    servingAt?: unknown;
     client?: { fullName?: string | null; phone?: string | null } | null;
     branch?: { name?: string | null } | null;
     service?: { name?: string | null; code?: string | null } | null;
@@ -345,6 +359,11 @@ export default function QueueProfile() {
         const current = baseClient ?? currentClientRef.current ?? null;
         if (!current) return;
 
+        const servingAtIso =
+          status === "SERVING"
+            ? normalizeServingAt(ticket.servingAt) ?? current.servingAt ?? null
+            : null;
+
         const updated: CurrentClient = {
           id: String(ticket.id),
           code: ticket.ticketCode ?? current.code,
@@ -363,6 +382,7 @@ export default function QueueProfile() {
             current.managerName ??
             null,
           counterCode: ticket.counter?.code ?? current.counterCode ?? null,
+          servingAt: servingAtIso,
         };
 
         dispatch(setWithClient());
@@ -479,6 +499,7 @@ export default function QueueProfile() {
       id?: string;
       status?: string;
       waitTimeSeconds?: number | null;
+      servingAt?: unknown;
       code?: string;
       name?: string;
       phone?: string | null;
@@ -511,6 +532,14 @@ export default function QueueProfile() {
       const base = currentClientRef.current;
       if (!base || data.id !== base.id) return;
       {
+        const st = data.status;
+        let nextServingAt: string | null | undefined;
+        if (st === "SERVING") {
+          nextServingAt =
+            normalizeServingAt(data.servingAt) ?? base.servingAt ?? null;
+        } else if (st === "CALLED" || st === "WAITING") {
+          nextServingAt = null;
+        }
         const updated: CurrentClient = {
           id: base.id,
           code: data.code ?? base.code,
@@ -525,6 +554,8 @@ export default function QueueProfile() {
             data.service?.name ?? data.service?.code ?? base.serviceName ?? null,
           managerName: data.manager?.name ?? base.managerName ?? null,
           counterCode: data.counter?.code ?? base.counterCode ?? null,
+          servingAt:
+            nextServingAt !== undefined ? nextServingAt : base.servingAt ?? null,
         };
         dispatch(setCurrentClient(updated));
         if (typeof updated.waitTimeSeconds === "number") {
@@ -976,11 +1007,19 @@ export default function QueueProfile() {
       if (!res.ok) {
         return;
       }
+      const body = (await res.json().catch(() => ({}))) as {
+        data?: { servingAt?: unknown };
+      };
+      const servingAtIso =
+        normalizeServingAt(body?.data?.servingAt) ?? new Date().toISOString();
       setIsCallTicketModalOpen(false);
       // переводим фазу в "обслуживание", не трогая зафиксированное время ожидания
       dispatch(startServicing());
-      if (currentClient) {
-        saveCurrentTicketCookie(currentClient, "servicing");
+      const client = currentClientRef.current;
+      if (client) {
+        const merged: CurrentClient = { ...client, servingAt: servingAtIso };
+        dispatch(setCurrentClient(merged));
+        saveCurrentTicketCookie(merged, "servicing");
       }
     } catch {
       // игнорируем, UI не ломаем
@@ -1074,6 +1113,7 @@ export default function QueueProfile() {
           serviceName: payload.service?.name ?? payload.service?.code ?? null,
           managerName: payload.manager?.name ?? null,
           counterCode: payload.counter?.code ?? null,
+          servingAt: null,
         };
         dispatch(setWithClient());
         dispatch(setCurrentClient(current));

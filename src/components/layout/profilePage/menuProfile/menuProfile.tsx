@@ -65,7 +65,8 @@ export default function MenuProfile() {
     const user = useSelector((state: RootState) => state.auth.user);
     const normalizedRole = user?.role?.toLowerCase?.() ?? "";
     const isExternalManager = normalizedRole === "external_manager";
-    const isAdmin = normalizedRole === "admin";
+    const isRop = normalizedRole === "rop";
+    const isAdmin = normalizedRole === "admin" || isRop;
     const isManager =
         (normalizedRole === "manager" || isAdmin) && !isExternalManager;
     const isCashier =

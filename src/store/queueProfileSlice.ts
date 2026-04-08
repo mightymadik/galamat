@@ -24,6 +24,8 @@ export interface CurrentClient {
   managerName?: string | null;
   /** Код окна (например, WINDOW_1) */
   counterCode?: string | null;
+  /** ISO-время начала обслуживания (SERVING), с бэка — для таймера после перезагрузки */
+  servingAt?: string | null;
 }
 
 export interface ClientHistoryItem {

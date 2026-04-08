@@ -13,7 +13,37 @@ type ManagerStatsItem = {
   ticketsServed: number;
   ticketsNoShow: number;
   avgRating: number | null;
+  breakTimeSeconds?: number;
+  lunchTimeSeconds?: number;
+  totalServiceTimeSeconds?: number;
 };
+
+function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds)) {
+    return "—";
+  }
+
+  const totalSeconds = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    if (remainingSeconds > 0) {
+      return `${hours} ч ${minutes} мин ${remainingSeconds} сек`;
+    }
+    return `${hours} ч ${minutes} мин`;
+  }
+
+  if (minutes > 0) {
+    if (remainingSeconds > 0) {
+      return `${minutes} мин ${remainingSeconds} сек`;
+    }
+    return `${minutes} мин`;
+  }
+
+  return `${remainingSeconds} сек`;
+}
 
 type ManagerItemRaw = {
   id?: string;
@@ -122,6 +152,9 @@ export async function GET(req: NextRequest) {
       ticketsServed: item.ticketsServed,
       ticketsNoShow: item.ticketsNoShow,
       rating: item.avgRating ?? 0,
+      breakTime: formatDuration(item.breakTimeSeconds ?? 0),
+      lunchTime: formatDuration(item.lunchTimeSeconds ?? 0),
+      serviceTimeTotal: formatDuration(item.totalServiceTimeSeconds ?? 0),
     }));
 
     return NextResponse.json({ rows }, { status: 200 });

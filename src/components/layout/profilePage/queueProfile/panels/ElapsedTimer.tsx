@@ -15,6 +15,14 @@ export function formatElapsed(seconds: number): string {
   return `${m}м ${s}с`;
 }
 
+/** Секунды с момента ISO-времени (для таймера обслуживания по servingAt с сервера). */
+export function elapsedSecondsSinceIso(iso: string | null | undefined): number {
+  if (!iso) return 0;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return 0;
+  return Math.max(0, Math.floor((Date.now() - t) / 1000));
+}
+
 export default function ElapsedTimer({
   initialSeconds = 0,
   className = "text-[#000] text-[16px] not-italic font-bold leading-[normal]",
@@ -26,9 +34,9 @@ export default function ElapsedTimer({
 
   useEffect(() => {
     const start = Date.now() - initialSeconds * 1000;
-    const id = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - start) / 1000));
-    }, 1000);
+    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [initialSeconds]);
 

@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   const payload = verifyAccessToken(access);
   if (!payload) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const role = (payload.role ?? "").toLowerCase();
-  if (role !== "admin") {
+  if (role !== "admin" && role !== "rop") {
     return NextResponse.json({ error: "forbidden", message: "only_admin" }, { status: 403 });
   }
 

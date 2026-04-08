@@ -14,7 +14,8 @@ export function requireAdminAccessToken(cookieStore: CookieStoreLike):
     return { response: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   }
   const payload = verifyAccessToken(access);
-  if (!payload?.sub || payload.role !== "admin") {
+  const role = String(payload?.role ?? "").toLowerCase();
+  if (!payload?.sub || (role !== "admin" && role !== "rop")) {
     return { response: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
   }
   return { access };

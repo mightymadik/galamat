@@ -38,6 +38,9 @@ type RatingRow = {
     ticketsServed?: number;
     ticketsNoShow?: number;
     rating: number;
+    breakTime?: string;
+    lunchTime?: string;
+    serviceTimeTotal?: string;
 };
 
 /** Столбец диаграммы: подпись снизу + число сверху (услуги или менеджеры). */
@@ -586,7 +589,7 @@ export default function StatsProfile() {
                     </div>
 
                     {/* ── Ratings table ── */}
-                    <div className="flex flex-col items-start self-stretch rounded-[16px] !border border-solid !border-[#EBEBEE] bg-[#F4F6FB] overflow-hidden">
+                    <div className="flex flex-col items-start self-stretch rounded-[16px] !border border-solid !border-[#EBEBEE] bg-[#F4F6FB] overflow-x-auto overflow-y-hidden">
                         <div className="flex px-[12px] py-[4px] items-center gap-[24px] self-stretch border-b border-solid border-[#EBEBEE]">
                             <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] min-w-0">
                                 <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">
@@ -601,6 +604,21 @@ export default function StatsProfile() {
                             <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] shrink-0">
                                 <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">
                                     {t("stats_table_no_show")}
+                                </span>
+                            </div>
+                            <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] shrink-0 min-w-[88px]">
+                                <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">
+                                    {t("stats_table_break_time")}
+                                </span>
+                            </div>
+                            <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] shrink-0 min-w-[88px]">
+                                <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">
+                                    {t("stats_table_lunch_time")}
+                                </span>
+                            </div>
+                            <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] shrink-0 min-w-[88px]">
+                                <span className="text-[#626379] text-[14px] not-italic font-medium leading-[normal]">
+                                    {t("stats_table_service_time_total")}
                                 </span>
                             </div>
                             <div className="flex p-[4px] items-center gap-[10px] flex-[1_0_0] shrink-0">
@@ -625,6 +643,15 @@ export default function StatsProfile() {
                                     </div>
                                     <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0">
                                         <span className="text-[#262842] text-[14px] not-italic font-medium leading-[normal]">{row.ticketsNoShow ?? 0}</span>
+                                    </div>
+                                    <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0 min-w-[88px]">
+                                        <span className="text-[#262842] text-[14px] not-italic font-medium leading-[normal] whitespace-nowrap">{row.breakTime ?? "—"}</span>
+                                    </div>
+                                    <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0 min-w-[88px]">
+                                        <span className="text-[#262842] text-[14px] not-italic font-medium leading-[normal] whitespace-nowrap">{row.lunchTime ?? "—"}</span>
+                                    </div>
+                                    <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0 min-w-[88px]">
+                                        <span className="text-[#262842] text-[14px] not-italic font-medium leading-[normal] whitespace-nowrap">{row.serviceTimeTotal ?? "—"}</span>
                                     </div>
                                     <div className="flex p-[4px] items-center gap-[8px] flex-[1_0_0] shrink-0">
                                         <div className={`flex px-[12px] py-[4px] justify-center items-center gap-[4px] rounded-[24px] ${badge.bg}`}>

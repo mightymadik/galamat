@@ -49,7 +49,8 @@ export async function POST(req: NextRequest) {
   }
 
   const silentBoard = body.silentBoard === true;
-  if (silentBoard && tokenPayload.role !== "admin") {
+  const normalizedRole = String(tokenPayload.role ?? "").toLowerCase();
+  if (silentBoard && normalizedRole !== "admin" && normalizedRole !== "rop") {
     return NextResponse.json({ error: "silent_call_admin_only" }, { status: 403 });
   }
 
