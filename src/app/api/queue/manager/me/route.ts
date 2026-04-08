@@ -51,12 +51,13 @@ export async function GET(_request: NextRequest) {
     if (
       role !== "manager" &&
       role !== "admin" &&
+      role !== "rop" &&
       role !== "external_manager" &&
       role !== "cashier" &&
       role !== "cshier"
     ) {
       console.log(
-        "[queue/manager/me] 403: role from Strapi is not manager/admin/external_manager/cashier, got role:",
+        "[queue/manager/me] 403: role from Strapi is not manager/admin/rop/external_manager/cashier, got role:",
         role
       );
       return NextResponse.json(
