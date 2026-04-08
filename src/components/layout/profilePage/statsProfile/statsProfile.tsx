@@ -58,7 +58,7 @@ const DEFAULT_RANGE = {
     end: parseDate(new Date().toISOString().slice(0, 10)),
 };
 
-const RATING_CHART = { width: 908, height: 148, padding: { top: 14, right: 16, bottom: 36, left: 44 } };
+const RATING_CHART = { width: 908, height: 208, padding: { top: 24, right: 16, bottom: 46, left: 44 } };
 
 /** Строит path для линии графика оценки. values — значения по месяцам (1–10), Y в SVG: 10 сверху, 1 снизу. */
 function buildRatingLinePath(values: number[]): string {
@@ -457,7 +457,7 @@ export default function StatsProfile() {
                 </span>
                 <div className="flex flex-col items-start gap-[20px] self-stretch">
                     {/* ── Responsive SVG chart – all labels live inside the viewBox ── */}
-                    <div className="flex p-[24px] flex-col items-start self-stretch rounded-[24px] bg-[#F4F6FB] min-w-0">
+                    <div className="flex px-[24px] py-[30px] flex-col items-start self-stretch rounded-[24px] bg-[#F4F6FB] min-w-0">
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
                             viewBox={`0 0 ${RATING_CHART.width} ${RATING_CHART.height}`}
