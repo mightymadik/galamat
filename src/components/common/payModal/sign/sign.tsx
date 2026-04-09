@@ -422,10 +422,11 @@ export default function Sign({ flatData, agreementPayload, realEstateType = "pro
                             .filter((d) => d.signed && (d.recordDocumentId || d.doodocsDocumentId))
                             .map((d, i) => {
                                 const label = d.documentName?.replace(/\.(docx|pdf)$/i, "") || `${templateTypeLabel(d.templateType)}${agreementNumber ? ` ${agreementNumber}` : ""}`;
+                                const routeName = `${label}.pdf`;
                                 return (
                                     <DocumentLink
                                         key={i}
-                                        href={`/api/signed-agreements/download-signed?doodocsDocumentId=${encodeURIComponent(d.doodocsDocumentId ?? "")}${dealDocumentId ? `&dealDocumentId=${encodeURIComponent(dealDocumentId)}` : ""}`}
+                                        href={`/api/signed-agreements/download-signed/${encodeURIComponent(routeName)}?doodocsDocumentId=${encodeURIComponent(d.doodocsDocumentId ?? "")}${dealDocumentId ? `&dealDocumentId=${encodeURIComponent(dealDocumentId)}` : ""}`}
                                         className="flex items-center gap-2 text-[#2655AF] text-[13px] underline"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import { managerForbiddenForDeal, resolveEffectiveRole } from "@/lib/dealManagerAuth";
 import { toClientMediaUrl } from "@/lib/uploadsProxyUrl";
 
 /**
@@ -28,6 +29,7 @@ export async function GET(
     const base = getStrapiBaseUrl().replace(/\/$/, "");
     const baseUrl = base.replace(/\/api\/?$/, "");
     const headers = getStrapiHeaders();
+    const strapiOrigin = base.replace(/\/api\/?$/, "");
 
     // Запрос со всеми типами недвижимости; по возможности с project.
     let deal: any = null;
@@ -47,6 +49,42 @@ export async function GET(
       deal = (fallbackRes.data as any)?.data ?? fallbackRes.data;
     }
     if (!deal) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
+
+    const rawCustomer = deal?.customer ?? deal?.attributes?.customer;
+    const customerNode = (rawCustomer as any)?.data ?? rawCustomer;
+    const dealCustomerIdRaw =
+      customerNode?.id ?? customerNode?.attributes?.id ?? null;
+    const dealCustomerDocIdRaw =
+      customerNode?.documentId ?? customerNode?.attributes?.documentId ?? null;
+    const dealCustomerId =
+      dealCustomerIdRaw != null ? Number(dealCustomerIdRaw) : null;
+    const isCustomerById =
+      dealCustomerId != null && Number.isFinite(dealCustomerId) && dealCustomerId === Number(jwtPayload.sub);
+    let isCustomerByDocumentId = false;
+    if (!isCustomerById && dealCustomerDocIdRaw != null) {
+      try {
+        const meRes = await strapiAxios.get(
+          `${base}/api/customers?filters[id][$eq]=${encodeURIComponent(String(jwtPayload.sub))}&pagination[pageSize]=1&fields[0]=documentId`,
+          { headers }
+        );
+        const me = (meRes.data as any)?.data?.[0];
+        const meDocId = me?.documentId ?? me?.attributes?.documentId ?? null;
+        isCustomerByDocumentId = meDocId != null && String(meDocId) === String(dealCustomerDocIdRaw);
+      } catch {
+        isCustomerByDocumentId = false;
+      }
+    }
+    const isCustomer = isCustomerById || isCustomerByDocumentId;
+
+    const effectiveRole = await resolveEffectiveRole(jwtPayload, strapiOrigin, headers);
+    const roleLower = String(effectiveRole || "").toLowerCase();
+    const isStaff = roleLower === "admin" || roleLower === "manager" || roleLower === "cashier" || roleLower === "rop";
+    if (isStaff && roleLower === "manager" && managerForbiddenForDeal(effectiveRole, jwtPayload.sub, deal)) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    if (!isCustomer && !isStaff) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
 
     const dealStatus = deal?.dealStatus ?? deal?.attributes?.dealStatus;
     const doodocsDocumentId = deal?.doodocsDocumentId ?? deal?.attributes?.doodocsDocumentId ?? null;

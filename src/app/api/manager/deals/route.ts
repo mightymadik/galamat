@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
 import { PAID_PAYMENT_STATUS } from "@/lib/paidFromPayments";
+import { resolveEffectiveRole } from "@/lib/dealManagerAuth";
 
 /** Колонки Kanban в порядке отображения */
 export const DEAL_STATUS_COLUMNS = [
@@ -32,21 +33,13 @@ export async function GET(request: NextRequest) {
     const payload = verifyAccessToken(access);
     if (!payload?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    let isManager = payload.role === "manager" || payload.role === "admin" || payload.role === "rop";
-    let isAdmin = payload.role === "admin";
-    let isRop = payload.role === "rop";
-    if (!isManager) {
-      const base = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
-      const headers = getStrapiHeaders();
-      const customerRes = await strapiAxios
-        .get(`${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role`, { headers })
-        .catch(() => null);
-      const customer: any = (customerRes?.data as any)?.data?.[0];
-      const currentRole = customer?.role ?? customer?.attributes?.role ?? payload.role;
-      isManager = currentRole === "manager" || currentRole === "admin" || currentRole === "rop";
-      isAdmin = currentRole === "admin";
-      isRop = currentRole === "rop";
-    }
+    const origin = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
+    const originHeaders = getStrapiHeaders();
+    const effectiveRole = await resolveEffectiveRole(payload, origin, originHeaders);
+    const roleLower = String(effectiveRole || "").toLowerCase();
+    const isManager = roleLower === "manager" || roleLower === "admin" || roleLower === "rop";
+    const isAdmin = roleLower === "admin";
+    const isRop = roleLower === "rop";
     if (!isManager) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     const { searchParams } = new URL(request.url);

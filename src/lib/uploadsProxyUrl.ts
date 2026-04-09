@@ -5,6 +5,18 @@
 
 export const MEDIA_FILE_API_PATH = "/api/media/file";
 
+function inferFilenameFromUploadsPath(path: string): string | undefined {
+  if (!path.startsWith("/uploads/")) return undefined;
+  const tail = path.split("/").pop();
+  if (!tail) return undefined;
+  try {
+    const decoded = decodeURIComponent(tail).trim();
+    return decoded || undefined;
+  } catch {
+    return tail.trim() || undefined;
+  }
+}
+
 export function strapiPublicOrigin(): string {
   const base = process.env.STRAPI_URL ?? "";
   return base.replace(/\/api\/?$/, "").replace(/\/$/, "");
@@ -12,8 +24,9 @@ export function strapiPublicOrigin(): string {
 
 export function uploadsPathToMediaFileUrl(path: string, name?: string): string {
   const q = new URLSearchParams({ path });
-  const n = name?.trim();
+  const n = name?.trim() || inferFilenameFromUploadsPath(path);
   if (n) q.set("name", n);
+  if (n) return `${MEDIA_FILE_API_PATH}/${encodeURIComponent(n)}?${q.toString()}`;
   return `${MEDIA_FILE_API_PATH}?${q.toString()}`;
 }
 

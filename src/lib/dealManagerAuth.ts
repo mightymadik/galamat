@@ -2,24 +2,27 @@ import { strapiAxios } from "@/lib/strapiServer";
 
 export type AccessPayload = { sub: number; role?: string };
 
-/** Роль из JWT или из записи customer в Strapi (как в остальных deal API routes). */
+/**
+ * Роль всегда сверяем со Strapi.
+ *
+ * Нельзя доверять `payload.role` из JWT как источнику прав:
+ * токен может быть выдан до изменения роли пользователя в Strapi.
+ */
 export async function resolveEffectiveRole(
   payload: AccessPayload,
   base: string,
   headers: Record<string, string>
 ): Promise<string> {
-  let effectiveRole: string = payload.role ?? "customer";
-  if (effectiveRole !== "manager" && effectiveRole !== "admin" && effectiveRole !== "rop") {
-    const customerRes = await strapiAxios
-      .get(
-        `${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role`,
-        { headers }
-      )
-      .catch(() => null);
-    const customer: any = (customerRes?.data as any)?.data?.[0];
-    effectiveRole = customer?.role ?? customer?.attributes?.role ?? effectiveRole;
-  }
-  return effectiveRole;
+  const fallback = payload.role ?? "customer";
+  const customerRes = await strapiAxios
+    .get(
+      `${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role`,
+      { headers }
+    )
+    .catch(() => null);
+  const customer: any = (customerRes?.data as any)?.data?.[0];
+  const role = customer?.role ?? customer?.attributes?.role ?? fallback;
+  return role || "customer";
 }
 
 /** true, если manager не имеет права на эту сделку. */
