@@ -83,9 +83,20 @@ function normalizeServingAt(raw: unknown): string | null {
   return null;
 }
 
+function sanitizeManagerDisplayName(
+  rawName: string | null | undefined,
+  managerId?: string | null,
+): string | null {
+  const name = typeof rawName === "string" ? rawName.trim() : "";
+  if (!name) return null;
+  if (managerId && name === managerId) return null;
+  return name;
+}
+
 function saveCurrentTicketCookie(
   client: CurrentClient,
   callServicePhase: CallServicePhase = "waiting",
+  managerId?: string,
 ) {
   if (typeof document === "undefined") return;
   try {
@@ -93,6 +104,7 @@ function saveCurrentTicketCookie(
       JSON.stringify({
         client,
         callServicePhase,
+        managerId,
       } satisfies CurrentTicketCookiePayload),
     );
     document.cookie = `${CURRENT_TICKET_COOKIE}=${value}; path=/; max-age=3600`;
@@ -106,7 +118,7 @@ function clearCurrentTicketCookie() {
   document.cookie = `${CURRENT_TICKET_COOKIE}=; path=/; max-age=0`;
 }
 
-function readCurrentTicketCookie():
+function readCurrentTicketCookie(expectedManagerId?: string):
   | {
       client: CurrentClient;
       callServicePhase: CallServicePhase;
@@ -126,6 +138,11 @@ function readCurrentTicketCookie():
     // Новый формат: { client, callServicePhase }
     if ("client" in parsed && parsed.client && typeof parsed.client === "object") {
       const client = parsed.client as CurrentClient;
+      const cookieManagerId =
+        typeof parsed.managerId === "string" && parsed.managerId.trim()
+          ? parsed.managerId.trim()
+          : null;
+      if (expectedManagerId && cookieManagerId !== expectedManagerId) return null;
       const phase: CallServicePhase =
         parsed.callServicePhase === "servicing" ? "servicing" : "waiting";
       return { client, callServicePhase: phase };
@@ -154,6 +171,7 @@ export default function QueueProfile() {
   const [deskSelectionError, setDeskSelectionError] = useState<string | null>(null);
   const [addDeskLoading, setAddDeskLoading] = useState(false);
   const [addDeskError, setAddDeskError] = useState<string | null>(null);
+  const [deskConfirmLoading, setDeskConfirmLoading] = useState(false);
   const [isCallTicketModalOpen, setIsCallTicketModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [reannounceLoading, setReannounceLoading] = useState(false);
@@ -180,6 +198,12 @@ export default function QueueProfile() {
   const isWaitingForNext = status === "available" && phase === "waitingForNext";
   const isWithClient = status === "available" && phase === "withClient";
   const user = useAppSelector((s) => s.auth.user);
+  const currentManagerId =
+    user?.documentId != null
+      ? String(user.documentId)
+      : user?.id != null
+        ? String(user.id)
+        : "";
   const normalizedRole = String(user?.role ?? "").toLowerCase();
   const isAdminUser = normalizedRole === "admin" || normalizedRole === "rop";
   const canAddDesks = isAdminUser;
@@ -224,7 +248,7 @@ export default function QueueProfile() {
     }
 
     try {
-      const res = await fetch("/api/queue/manager/next-tickets", {
+      const res = await fetch("/api/queue/manager/eligible-next-tickets", {
         credentials: "include",
       });
       const json = await res.json().catch(() => ({}));
@@ -234,9 +258,23 @@ export default function QueueProfile() {
         return;
       }
 
-      const list = ((json as { data?: QueueTicket[] }).data ?? []).filter(
-        (t) => t && t.id,
-      );
+      const payload = json as {
+        data?: QueueTicket[];
+        debug?: { reason?: string | null };
+      };
+      const list = (payload.data ?? []).filter((t) => t && t.id);
+      const reason = payload.debug?.reason ?? null;
+
+      // Если бэк явно говорит, что «нет подходящих талонов» или «нет услуг» — не тикаем таймер.
+      if (
+        reason === "no_matching_tickets" ||
+        reason === "manager_no_services" ||
+        reason === "not_next_turn"
+      ) {
+        setHasNextClient(false);
+        return;
+      }
+
       setHasNextClient(list.length > 0);
     } catch {
       setHasNextClient(false);
@@ -247,22 +285,41 @@ export default function QueueProfile() {
     async (profileData: ManagerProfile) => {
       const { status: backendStatus, branch, currentCounterId } = profileData;
       const nextBranchId = branch?.id;
+      const normalizedCurrentCounterId =
+        currentCounterId != null ? String(currentCounterId) : "";
       let nextDesks: { key: string; label: string }[] = [];
       if (nextBranchId) {
         const countersRes = await getCounters(nextBranchId);
         if (countersRes.data?.length) {
-          const availableCounters = countersRes.data.filter(
-            (c) => (c.status ?? "available") === "available",
-          );
+          const availableCounters = countersRes.data.filter((c) => {
+            const counterId =
+              c.documentId != null
+                ? String(c.documentId)
+                : c.id != null
+                  ? String(c.id)
+                  : "";
+            const statusRaw =
+              c.status != null ? String(c.status).toLowerCase() : "available";
+            const isAvailable = statusRaw === "available";
+
+            // Текущее окно менеджера должно отображаться даже если оно занято.
+            return isAvailable || (normalizedCurrentCounterId !== "" && counterId === normalizedCurrentCounterId);
+          });
           nextDesks = availableCounters.map((c) => ({
-            key: (c.documentId ?? c.id) as string,
+            key:
+              c.documentId != null
+                ? String(c.documentId)
+                : c.id != null
+                  ? String(c.id)
+                  : "",
             label: (c.name as string) || (c.code as string) || String(c.id),
           }));
         }
       }
       const chosenDesk =
-        currentCounterId && nextDesks.some((d) => d.key === currentCounterId)
-          ? currentCounterId
+        normalizedCurrentCounterId &&
+        nextDesks.some((d) => d.key === normalizedCurrentCounterId)
+          ? normalizedCurrentCounterId
           : nextDesks[0]?.key ?? "";
       dispatch(
         setProfileFromApi({
@@ -318,8 +375,8 @@ export default function QueueProfile() {
     client?: { fullName?: string | null; phone?: string | null } | null;
     branch?: { name?: string | null } | null;
     service?: { name?: string | null; code?: string | null } | null;
-    manager?: { fullName?: string | null; name?: string | null } | null;
-    counter?: { code?: string | null } | null;
+    manager?: { id?: string | null; fullName?: string | null; name?: string | null } | null;
+    counter?: { id?: string | null; code?: string | null } | null;
   };
 
   const syncTicketStateFromServer = useCallback(
@@ -356,6 +413,19 @@ export default function QueueProfile() {
           return;
         }
 
+        if (!isAdminUser) {
+          const ticketManagerId =
+            ticket.manager?.id != null ? String(ticket.manager.id) : "";
+          const ticketCounterId =
+            ticket.counter?.id != null ? String(ticket.counter.id) : "";
+          if (!ticketManagerId || (currentManagerId && ticketManagerId !== currentManagerId)) {
+            return;
+          }
+          if (selectedDesk && ticketCounterId && ticketCounterId !== selectedDesk) {
+            return;
+          }
+        }
+
         const current = baseClient ?? currentClientRef.current ?? null;
         if (!current) return;
 
@@ -364,6 +434,10 @@ export default function QueueProfile() {
             ? normalizeServingAt(ticket.servingAt) ?? current.servingAt ?? null
             : null;
 
+        const resolvedManagerName = sanitizeManagerDisplayName(
+          ticket.manager?.fullName ?? ticket.manager?.name ?? null,
+          ticket.manager?.id != null ? String(ticket.manager.id) : currentManagerId,
+        );
         const updated: CurrentClient = {
           id: String(ticket.id),
           code: ticket.ticketCode ?? current.code,
@@ -377,10 +451,7 @@ export default function QueueProfile() {
           serviceName:
             ticket.service?.name ?? ticket.service?.code ?? current.serviceName ?? null,
           managerName:
-            ticket.manager?.fullName ??
-            ticket.manager?.name ??
-            current.managerName ??
-            null,
+            resolvedManagerName ?? current.managerName ?? null,
           counterCode: ticket.counter?.code ?? current.counterCode ?? null,
           servingAt: servingAtIso,
         };
@@ -393,19 +464,26 @@ export default function QueueProfile() {
         if (status === "SERVING") {
           dispatch(startServicing());
         }
-        saveCurrentTicketCookie(updated, status === "SERVING" ? "servicing" : phase);
+        saveCurrentTicketCookie(
+          updated,
+          status === "SERVING" ? "servicing" : phase,
+          currentManagerId,
+        );
       } catch {
         // ignore sync errors, next reconnect/poll will retry
       }
     },
-    [clearActiveTicketState, dispatch],
+    [clearActiveTicketState, currentManagerId, dispatch, isAdminUser, selectedDesk],
   );
 
   // Загрузка: профиль менеджера (me) → branchId, статус, currentCounterId; список всех окон по branchId (/counters)
   useEffect(() => {
     setQueueAccessDenied(false);
     getManagerProfile().then(async (profileRes) => {
-      if (profileRes.status === 403 || profileRes.error === "forbidden") {
+      if (
+        (profileRes.status === 403 || profileRes.error === "forbidden") &&
+        normalizedRole !== "external_manager"
+      ) {
         setQueueAccessDenied(true);
         return;
       }
@@ -463,7 +541,9 @@ export default function QueueProfile() {
 
     loadManagers();
 
-    void subscribeToQueueBranchUpdates(branchId, loadManagers).then((cleanup) => {
+    void subscribeToQueueBranchUpdates(branchId, loadManagers, {
+      listen: ["managerStatus"],
+    }).then((cleanup) => {
       unsubscribeSocket = cleanup;
     });
 
@@ -552,7 +632,10 @@ export default function QueueProfile() {
           branchName: data.branch?.name ?? base.branchName ?? null,
           serviceName:
             data.service?.name ?? data.service?.code ?? base.serviceName ?? null,
-          managerName: data.manager?.name ?? base.managerName ?? null,
+          managerName:
+            sanitizeManagerDisplayName(data.manager?.name ?? null, currentManagerId) ??
+            base.managerName ??
+            null,
           counterCode: data.counter?.code ?? base.counterCode ?? null,
           servingAt:
             nextServingAt !== undefined ? nextServingAt : base.servingAt ?? null,
@@ -563,7 +646,7 @@ export default function QueueProfile() {
         }
         // сохраняем куку с текущей фазой (waiting/servicing), чтобы после перезагрузки
         // восстановить правильное состояние тикета
-        saveCurrentTicketCookie(updated, callServicePhaseRef.current);
+        saveCurrentTicketCookie(updated, callServicePhaseRef.current, currentManagerId);
       }
     };
 
@@ -688,22 +771,71 @@ export default function QueueProfile() {
 
   // Восстанавливаем активный талон из куки при перезагрузке страницы
   useEffect(() => {
-    const saved = readCurrentTicketCookie();
+    const saved = readCurrentTicketCookie(currentManagerId);
     if (!saved) return;
     const { client, callServicePhase } = saved;
-    // сначала переводим UI в режим "с клиентом"
-    dispatch(setWithClient());
-    dispatch(setCurrentClient(client));
-    if (typeof client.waitTimeSeconds === "number") {
-      dispatch(setFrozenWaitingSeconds(client.waitTimeSeconds));
-    }
-
-    if (callServicePhase === "servicing") {
-      dispatch(startServicing());
-    }
-
-    // Подгружаем историю обращений для активного талона
     (async () => {
+      // Валидация cookie: не восстанавливаем чужой талон при гонках/перезапуске вкладок.
+      try {
+        const statusRes = await fetch(
+          `/api/queue/manager/ticket-status?ticketId=${encodeURIComponent(client.id)}`,
+          { credentials: "include" },
+        );
+        if (!statusRes.ok) {
+          clearCurrentTicketCookie();
+          return;
+        }
+        const statusJson = (await statusRes.json().catch(() => ({}))) as {
+          data?: {
+            status?: string;
+            manager?: { id?: string | null } | null;
+            counter?: { id?: string | null } | null;
+          };
+        };
+        const ticket = statusJson.data;
+        if (!ticket) {
+          clearCurrentTicketCookie();
+          return;
+        }
+        if (
+          ticket.status === "DONE" ||
+          ticket.status === "NO_SHOW" ||
+          ticket.status === "CANCELLED"
+        ) {
+          clearCurrentTicketCookie();
+          return;
+        }
+        if (!isAdminUser) {
+          const ticketManagerId =
+            ticket.manager?.id != null ? String(ticket.manager.id) : "";
+          const ticketCounterId =
+            ticket.counter?.id != null ? String(ticket.counter.id) : "";
+          if (!ticketManagerId || (currentManagerId && ticketManagerId !== currentManagerId)) {
+            clearCurrentTicketCookie();
+            return;
+          }
+          if (selectedDesk && ticketCounterId && ticketCounterId !== selectedDesk) {
+            clearCurrentTicketCookie();
+            return;
+          }
+        }
+      } catch {
+        clearCurrentTicketCookie();
+        return;
+      }
+
+      // сначала переводим UI в режим "с клиентом"
+      dispatch(setWithClient());
+      dispatch(setCurrentClient(client));
+      if (typeof client.waitTimeSeconds === "number") {
+        dispatch(setFrozenWaitingSeconds(client.waitTimeSeconds));
+      }
+
+      if (callServicePhase === "servicing") {
+        dispatch(startServicing());
+      }
+
+      // Подгружаем историю обращений для активного талона
       try {
         const res = await fetch(
           `/api/queue/manager/client-history?ticketId=${encodeURIComponent(client.id)}`,
@@ -719,10 +851,10 @@ export default function QueueProfile() {
       } catch {
         dispatch(setCurrentClientHistory([]));
       }
-    })();
 
-    void syncTicketStateFromServer(client.id, client, callServicePhase, { force: true });
-  }, [dispatch, syncTicketStateFromServer]);
+      await syncTicketStateFromServer(client.id, client, callServicePhase, { force: true });
+    })();
+  }, [currentManagerId, dispatch, isAdminUser, selectedDesk, syncTicketStateFromServer]);
 
   // Загружаем список услуг для перенаправления по branchId
   useEffect(() => {
@@ -782,6 +914,7 @@ export default function QueueProfile() {
       setNewDeskName("");
       setAddDeskError(null);
       setDeskSelectionError(null);
+      setDeskConfirmLoading(false);
     }
   }, [isDeskModalOpen, selectedDesk]);
 
@@ -830,7 +963,9 @@ export default function QueueProfile() {
     // Сразу грузим состояние (на случай, если очередь уже не пуста).
     refresh();
 
-    void subscribeToQueueBranchUpdates(branchId, refresh).then((cleanup) => {
+    void subscribeToQueueBranchUpdates(branchId, refresh, {
+      listen: ["queue"],
+    }).then((cleanup) => {
       unsubscribe = cleanup;
     });
 
@@ -876,23 +1011,15 @@ export default function QueueProfile() {
 
     loadManagers();
 
-    const onQueueRefresh = () => {
-      if (!cancelled) loadManagers();
-    };
-    if (typeof window !== "undefined") {
-      window.addEventListener("queue:refresh", onQueueRefresh);
-    }
-
-    void subscribeToQueueBranchUpdates(branchId, onQueueRefresh).then((cleanup) => {
+    void subscribeToQueueBranchUpdates(branchId, loadManagers, {
+      listen: ["managerStatus"],
+    }).then((cleanup) => {
       unsubscribeSocket = cleanup;
     });
 
     return () => {
       cancelled = true;
       unsubscribeSocket?.();
-      if (typeof window !== "undefined") {
-        window.removeEventListener("queue:refresh", onQueueRefresh);
-      }
     };
   }, [isAdminUser, branchId, isWaitingForNext]);
 
@@ -1019,7 +1146,7 @@ export default function QueueProfile() {
       if (client) {
         const merged: CurrentClient = { ...client, servingAt: servingAtIso };
         dispatch(setCurrentClient(merged));
-        saveCurrentTicketCookie(merged, "servicing");
+        saveCurrentTicketCookie(merged, "servicing", currentManagerId);
       }
     } catch {
       // игнорируем, UI не ломаем
@@ -1100,6 +1227,25 @@ export default function QueueProfile() {
   const applyCallSuccessPayload = useCallback(
     (payload: CallTicketSuccessPayload | undefined) => {
       if (payload) {
+        const payloadManagerId =
+          payload.manager?.id != null ? String(payload.manager.id) : "";
+        const payloadCounterId =
+          payload.counter?.id != null ? String(payload.counter.id) : "";
+
+        // Anti-race guard: обычный менеджер принимает только "свой" вызов.
+        if (!isAdminUser) {
+          if (!payloadManagerId || (currentManagerId && payloadManagerId !== currentManagerId)) {
+            return;
+          }
+          if (selectedDesk && payloadCounterId && payloadCounterId !== selectedDesk) {
+            return;
+          }
+        }
+
+        const resolvedManagerName = sanitizeManagerDisplayName(
+          payload.manager?.name ?? null,
+          payloadManagerId || currentManagerId,
+        );
         const current: CurrentClient = {
           id: payload.ticketId || "",
           code: payload.code || "",
@@ -1111,7 +1257,7 @@ export default function QueueProfile() {
               : null,
           branchName: payload.branch?.name ?? null,
           serviceName: payload.service?.name ?? payload.service?.code ?? null,
-          managerName: payload.manager?.name ?? null,
+          managerName: resolvedManagerName,
           counterCode: payload.counter?.code ?? null,
           servingAt: null,
         };
@@ -1121,7 +1267,7 @@ export default function QueueProfile() {
           dispatch(setFrozenWaitingSeconds(current.waitTimeSeconds));
         }
         dispatch(setCurrentClientHistory(payload.history ?? []));
-        saveCurrentTicketCookie(current, "waiting");
+        saveCurrentTicketCookie(current, "waiting", currentManagerId);
         setIsCallTicketModalOpen(true);
       } else {
         dispatch(setCurrentClient(null));
@@ -1133,7 +1279,7 @@ export default function QueueProfile() {
         window.dispatchEvent(new Event("queue:refresh"));
       }
     },
-    [dispatch],
+    [currentManagerId, dispatch, isAdminUser, selectedDesk],
   );
 
   const handleCallClient = useCallback(async () => {
@@ -1149,13 +1295,22 @@ export default function QueueProfile() {
       }
       const json = await res.json().catch(() => ({}));
       const payload = (json as { data?: CallTicketSuccessPayload }).data;
+      const payloadManagerId =
+        payload?.manager?.id != null ? String(payload.manager.id) : "";
+
+      // Защита от гонки: если талон уже закрепился за другим менеджером,
+      // не переводим текущий UI в "с клиентом".
+      if (!isAdminUser && currentManagerId && payloadManagerId !== currentManagerId) {
+        await checkHasNextClients();
+        return;
+      }
       applyCallSuccessPayload(payload);
     } catch {
       // тихо игнорируем, чтобы не ломать UI
     } finally {
       setActionLoading(false);
     }
-  }, [actionLoading, applyCallSuccessPayload]);
+  }, [actionLoading, applyCallSuccessPayload, currentManagerId, checkHasNextClients, isAdminUser]);
 
   /** РОП: вызов выбранного талона тихо (без табло); сам РОП в смене и на своём окне — как в call-next. */
   const handleCallSpecificTicket = useCallback(
@@ -1309,32 +1464,37 @@ export default function QueueProfile() {
   }, [pendingStatus, dispatch]);
 
   const handleConfirmDeskAndGoOnline = useCallback(async () => {
-    if (!draftDesk) return;
+    if (!draftDesk || deskConfirmLoading) return;
     setDeskSelectionError(null);
-    const counterRes = await setManagerCurrentCounter(draftDesk);
-    if (!counterRes.ok) {
-      if (counterRes.status === 409) {
-        // Для известных ошибок показываем только локализованный текст,
-        // не подмешивая русское сообщение с бэка.
-        setDeskSelectionError(t("queue_start_shift_error_busy"));
-      } else {
-        setDeskSelectionError(t("queue_start_shift_error_generic"));
+    setDeskConfirmLoading(true);
+    try {
+      const counterRes = await setManagerCurrentCounter(draftDesk);
+      if (!counterRes.ok) {
+        if (counterRes.status === 409) {
+          // Для известных ошибок показываем только локализованный текст,
+          // не подмешивая русское сообщение с бэка.
+          setDeskSelectionError(t("queue_start_shift_error_busy"));
+        } else {
+          setDeskSelectionError(t("queue_start_shift_error_generic"));
+        }
+        return;
       }
-      return;
-    }
-    const statusRes = await setManagerStatus("AVAILABLE");
-    if (statusRes.ok) {
-      dispatch(confirmDeskAndGoOnline(draftDesk));
-    } else {
-      if (statusRes.error === "SHIFT_CLOSED") {
-        setDeskSelectionError("Сначала откройте смену филиала");
-      } else if (statusRes.status === 409) {
-        setDeskSelectionError(t("queue_start_shift_error_busy"));
+      const statusRes = await setManagerStatus("AVAILABLE");
+      if (statusRes.ok) {
+        dispatch(confirmDeskAndGoOnline(draftDesk));
       } else {
-        setDeskSelectionError(t("queue_start_shift_error_generic"));
+        if (statusRes.error === "SHIFT_CLOSED") {
+          setDeskSelectionError("Сначала откройте смену филиала");
+        } else if (statusRes.status === 409) {
+          setDeskSelectionError(t("queue_start_shift_error_busy"));
+        } else {
+          setDeskSelectionError(t("queue_start_shift_error_generic"));
+        }
       }
+    } finally {
+      setDeskConfirmLoading(false);
     }
-  }, [draftDesk, dispatch, t]);
+  }, [deskConfirmLoading, draftDesk, dispatch, t]);
 
   if (queueAccessDenied) {
     return (
@@ -1484,6 +1644,7 @@ export default function QueueProfile() {
         desks={desks}
         canAddDesks={canAddDesks}
         addDeskLoading={addDeskLoading}
+        confirmLoading={deskConfirmLoading}
         addDeskError={addDeskError}
         selectionError={deskSelectionError}
         onDraftDeskChange={setDraftDesk}
@@ -1498,7 +1659,11 @@ export default function QueueProfile() {
         onClose={() => setIsCallTicketModalOpen(false)}
         clientName={currentClient?.name ?? undefined}
         ticketNumber={currentClient?.code ?? undefined}
-        managerName={currentClient?.managerName ?? user?.name ?? t("queue_default_manager_name")}
+        managerName={
+          sanitizeManagerDisplayName(currentClient?.managerName, currentManagerId) ??
+          user?.name ??
+          t("queue_default_manager_name")
+        }
       />
 
       <BranchShiftCloseModal

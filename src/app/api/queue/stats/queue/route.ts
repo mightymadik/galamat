@@ -20,6 +20,7 @@ type QueueStatsBackendResponse = {
       ticketsServed: number;
     } | null;
     byStatus: Record<string, number>;
+    bySource?: Record<string, number>;
     byService: Array<{
       serviceId: string;
       serviceName: string;
@@ -134,10 +135,8 @@ export async function GET(req: NextRequest) {
       serviceName: serviceNameMap.get(service.serviceId) || service.serviceName || service.serviceId,
     }));
 
-    // По текущей бизнес-логике все талоны из БД считаем выданными через QR.
-    // Отдельный источник для КЛМа бэкенд пока не отдает.
-    const ticketsByQr = data.total;
-    const ticketsByKlm = 0;
+    const ticketsByQr = data.bySource?.CLIENT_QR ?? 0;
+    const ticketsByAdm = (data.bySource?.ADM_CREATED ?? 0) + (data.bySource?.MANAGER_CREATED ?? 0);
 
     const called = (data.byStatus["CALLED"] ?? 0) + (data.byStatus["SERVING"] ?? 0);
     const done = data.byStatus["DONE"] ?? 0;
@@ -151,7 +150,7 @@ export async function GET(req: NextRequest) {
       {
         stats: {
           ticketsByQr,
-          ticketsByKlm,
+          ticketsByAdm,
           avgWaitInQueue: formatDuration(data.avgWaitTimeSeconds),
           avgServiceTime: formatDuration(data.avgServiceTimeSeconds),
           noShowCount: data.noShowCount ?? 0,

@@ -54,6 +54,8 @@ const MenuButton: React.FC<MenuButtonProps> = ({ id, iconActive, iconInactive, t
 
 export default function MenuProfile() {
     const t = useTranslations();
+    const isDevelopmentMode =
+        process.env.NEXT_PUBLIC_IS_DEVELOPMENT_MODE === "true";
     const searchParams = useSearchParams();
     const pathname = usePathname();
     const [active, setActive] = useState(() => {
@@ -69,11 +71,11 @@ export default function MenuProfile() {
     const isAdmin = normalizedRole === "admin" || isRop;
     const isManager =
         (normalizedRole === "manager" || isAdmin) && !isExternalManager;
-    const canAccessQueue = isManager || isExternalManager;
-    const isCashier =
+        const isCashier =
         normalizedRole === "cashier" ||
         normalizedRole === "cshier" ||
         isAdmin;
+    const canAccessQueue = isManager || isExternalManager || isCashier;
 
     const setActiveAndSync = (id: string) => {
         setActive(id);
@@ -87,14 +89,32 @@ export default function MenuProfile() {
     useEffect(() => {
         const section = searchParams.get("section");
         const next = section && section.trim() ? section.trim() : "profile";
-        setActive((prev) => (prev === next ? prev : next));
-    }, [searchParams]);
+        const allowedDevSections = isAdmin ? ["profile", "queue", "stats"] : ["profile", "queue"];
+        const safeNext =
+            isDevelopmentMode && !allowedDevSections.includes(next)
+                ? "profile"
+                : next;
+        if (safeNext !== next) {
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete("section");
+            router.replace(
+                params.toString() ? `${pathname}?${params.toString()}` : pathname,
+                { scroll: false }
+            );
+        }
+        setActive((prev) => (prev === safeNext ? prev : safeNext));
+    }, [searchParams, isDevelopmentMode, pathname, router, isAdmin]);
 
     useLayoutEffect(() => {
         if (!isExternalManager) return;
         const section = searchParams.get("section")?.trim() || "profile";
-        setActive(section);
-    }, [isExternalManager, searchParams]);
+        const allowedDevSections = isAdmin ? ["profile", "queue", "stats"] : ["profile", "queue"];
+        const safeSection =
+            isDevelopmentMode && !allowedDevSections.includes(section)
+                ? "profile"
+                : section;
+        setActive(safeSection);
+    }, [isExternalManager, isDevelopmentMode, searchParams, isAdmin]);
 
     const handleLogout = () => {
         dispatch(logoutAuth() as any).then(() => {
@@ -103,6 +123,17 @@ export default function MenuProfile() {
     };
 
     const renderContent = () => {
+        if (isDevelopmentMode) {
+            switch (active) {
+                case "queue":
+                    return canAccessQueue ? <QueueProfile /> : <PersonalInfo />;
+                case "stats":
+                    return isAdmin ? <StatsProfile /> : <PersonalInfo />;
+                case "profile":
+                default:
+                    return <PersonalInfo />;
+            }
+        }
         if (isExternalManager) {
             switch (active) {
                 case "queue":
@@ -148,10 +179,10 @@ export default function MenuProfile() {
                     {canAccessQueue && (
                         <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
                     )}
-                    {isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
-                    {isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
-                    {isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActiveAndSync} />}
-                    {!isExternalManager && (
+                    {!isDevelopmentMode && isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
+                    {!isDevelopmentMode && isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
+                    {!isDevelopmentMode && isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActiveAndSync} />}
+                    {!isDevelopmentMode && !isExternalManager && (
                         <>
                             <MenuButton id="bonus" iconActive="/img/ticket-white.svg" iconInactive="/img/ticket-black.svg" text={t("gala_bonus_menu")} active={active} setActive={setActiveAndSync} />
                             <MenuButton id="objects" iconActive="/img/home-white.svg" iconInactive="/img/home-black.svg" text={t("my_objects")} active={active} setActive={setActiveAndSync} />
@@ -179,10 +210,10 @@ export default function MenuProfile() {
                 {canAccessQueue && (
                     <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
                 )}
-                {isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
-                {isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
-                {isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActiveAndSync} />}
-                {!isExternalManager && (
+                {!isDevelopmentMode && isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
+                {!isDevelopmentMode && isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
+                {!isDevelopmentMode && isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActiveAndSync} />}
+                {!isDevelopmentMode && !isExternalManager && (
                     <>
                         <MenuButton id="bonus" iconActive="/img/ticket-white.svg" iconInactive="/img/ticket-black.svg" text={t("gala_bonus_menu")} active={active} setActive={setActiveAndSync} />
                         <MenuButton id="objects" iconActive="/img/home-white.svg" iconInactive="/img/home-black.svg" text={t("my_objects")} active={active} setActive={setActiveAndSync} />

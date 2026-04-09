@@ -9,7 +9,7 @@ import { subscribeToQueueBranchUpdates } from "./api/queueRealtimeApi";
 /**
  * Список очереди, когда менеджер "Доступен".
  * Подгружает тикеты с queue-backend через Next.js API:
- * GET /api/queue/manager/next-tickets.
+ * GET /api/queue/manager/queue-list.
  * По сокету подписывается на branch и при событии queue:update обновляет список.
  * У РОП (admin): кнопка «Вызвать» у строки — тихий вызов выбранного талона (сам РОП на своём окне).
  */
@@ -23,6 +23,7 @@ export default function QueueNextClientsList({
   const [tickets, setTickets] = useState<QueueTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugReason, setDebugReason] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,9 +33,10 @@ export default function QueueNextClientsList({
       if (!silent) {
         setLoading(true);
         setError(null);
+        setDebugReason(null);
       }
       try {
-        const res = await fetch("/api/queue/manager/next-tickets", {
+        const res = await fetch("/api/queue/manager/queue-list", {
           credentials: "include",
         });
         const json = await res.json().catch(() => ({}));
@@ -42,14 +44,25 @@ export default function QueueNextClientsList({
           if (!cancelled) {
             setError((json as { error?: string })?.error ?? "queue_error");
             setTickets([]);
+            setDebugReason(null);
           }
           return;
         }
-        const list = ((json as { data?: QueueTicket[] }).data ?? []).filter(
-          (row) => row && row.id,
-        );
+        const rawData = (json as { data?: unknown }).data;
+        const safeData = Array.isArray(rawData) ? (rawData as QueueTicket[]) : [];
+        const list = safeData
+          .filter((row) => row && row.id)
+          .sort((a, b) => {
+            const aPosition = typeof a.position === "number" ? a.position : Number.MAX_SAFE_INTEGER;
+            const bPosition = typeof b.position === "number" ? b.position : Number.MAX_SAFE_INTEGER;
+            if (aPosition !== bPosition) return aPosition - bPosition;
+            return a.id.localeCompare(b.id);
+          });
         if (!cancelled) {
           setTickets(list);
+          setDebugReason(
+            (json as { debug?: { reason?: string | null } })?.debug?.reason ?? null,
+          );
         }
       } catch (e) {
         console.error("[QueueNextClientsList] failed to load tickets", e);
@@ -66,9 +79,13 @@ export default function QueueNextClientsList({
     void loadTickets();
 
     if (branchId && typeof window !== "undefined") {
-      subscribeToQueueBranchUpdates(branchId, () => {
-        if (!cancelled) void loadTickets(true);
-      })
+      subscribeToQueueBranchUpdates(
+        branchId,
+        () => {
+          if (!cancelled) void loadTickets(true);
+        },
+        { listen: ["queue"] },
+      )
         .then((unsubscribe) => {
           if (cancelled) {
             unsubscribe?.();
@@ -99,6 +116,18 @@ export default function QueueNextClientsList({
 
   const hasTickets = tickets.length > 0;
   const [first, ...rest] = tickets;
+  const debugReasonText =
+    debugReason === "manager_not_available"
+      ? "Статус менеджера не Доступен"
+      : debugReason === "manager_counter_not_selected"
+        ? "Не выбрано окно менеджера"
+        : debugReason === "shift_not_started_or_expired"
+          ? "Смена не начата или истекла сессия смены"
+          : debugReason === "manager_no_branch"
+            ? "Менеджер не привязан к филиалу"
+            : debugReason === "no_matching_tickets"
+              ? "Нет подходящих талонов для этого менеджера"
+              : null;
 
   const renderRowActions = (row: QueueTicket) => {
     if (!showRowCallActions || !onCallRow || !isAdmin) return null;
@@ -140,8 +169,11 @@ export default function QueueNextClientsList({
       )}
 
       {!loading && !error && !hasTickets && (
-        <div className="flex items-center justify-center w-full py-4 text-[14px] text-[rgba(7,7,31,0.48)]">
-          {t("queue_no_one_in_queue")}
+        <div className="flex flex-col items-center justify-center w-full py-4 text-[14px] text-[rgba(7,7,31,0.48)] gap-1">
+          <span>{t("queue_no_one_in_queue")}</span>
+          {debugReasonText && (
+            <span className="text-[12px] text-[rgba(7,7,31,0.56)]">{debugReasonText}</span>
+          )}
         </div>
       )}
 

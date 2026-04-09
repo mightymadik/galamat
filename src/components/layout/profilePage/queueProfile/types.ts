@@ -10,6 +10,7 @@ export type CurrentTicketCookiePayload =
   | {
       client: StoreCurrentClient;
       callServicePhase?: CallServicePhase;
+      managerId?: string;
     }
   // для обратной совместимости со старыми куками, где хранился только CurrentClient
   | (StoreCurrentClient & { callServicePhase?: CallServicePhase });
@@ -20,6 +21,7 @@ export type RedirectOption = { id: string; name: string };
 /** Тикет в списке «следующие клиенты». */
 export type QueueTicket = {
   id: string;
+  position?: number;
   name: string;
   code: string;
 };
@@ -60,6 +62,7 @@ export type DeskSelectionModalProps = {
   desks: { key: string; label: string }[];
   canAddDesks: boolean;
   addDeskLoading?: boolean;
+  confirmLoading?: boolean;
   addDeskError?: string | null;
   /** Ошибка выбора окна (например, окно уже занято) */
   selectionError?: string | null;

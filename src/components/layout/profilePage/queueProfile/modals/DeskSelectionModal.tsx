@@ -25,6 +25,7 @@ export default function DeskSelectionModal({
   desks,
   canAddDesks,
   addDeskLoading = false,
+  confirmLoading = false,
   addDeskError = null,
   selectionError = null,
   onDraftDeskChange,
@@ -106,7 +107,7 @@ export default function DeskSelectionModal({
                   placeholder={t("queue_desk_name_placeholder")}
                   value={newDeskName}
                   onValueChange={onNewDeskNameChange}
-                  isDisabled={atMaxDesks || addDeskLoading}
+                  isDisabled={atMaxDesks || addDeskLoading || confirmLoading}
                   maxLength={40}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onAddDesk();
@@ -119,7 +120,9 @@ export default function DeskSelectionModal({
                   }}
                 />
                 <Button
-                  isDisabled={!newDeskName.trim() || atMaxDesks || addDeskLoading}
+                  isDisabled={
+                    !newDeskName.trim() || atMaxDesks || addDeskLoading || confirmLoading
+                  }
                   isLoading={addDeskLoading}
                   onPress={onAddDesk}
                   className="rounded-[12px] bg-[#1A3C7E] text-white h-[40px] min-w-[40px] px-[14px] disabled:opacity-40"
@@ -157,12 +160,14 @@ export default function DeskSelectionModal({
           <Button
             variant="flat"
             onPress={onCancel}
+            isDisabled={confirmLoading}
             className="rounded-[12px] border border-[rgba(19,44,94,0.24)] bg-white text-[#1A3C7E]"
           >
             {t("queue_cancel")}
           </Button>
           <Button
-            isDisabled={!draftDesk}
+            isDisabled={!draftDesk || confirmLoading}
+            isLoading={confirmLoading}
             onPress={onConfirm}
             className="rounded-[12px] bg-[#1A3C7E] text-white disabled:opacity-50"
           >

@@ -453,7 +453,7 @@
   "stats_period": "Кезең",
   "stats_export_report": "Есепті жүктеу",
   "stats_tickets_qr": "QR-код арқылы клиенттерге берілген талондар",
-  "stats_tickets_klm": "КЛМ арқылы клиенттерге берілген талондар",
+  "stats_tickets_adm": "АДМ арқылы клиенттерге берілген талондар",
   "stats_avg_wait_queue": "Кезекте клиенттің орташа күту уақыты",
   "stats_avg_wait_manager": "Менеджердің клиентті орташа күту уақыты",
   "stats_client_statuses": "Клиенттер статустары",

@@ -16,19 +16,13 @@ type ManagerMeResponse = {
   };
 };
 
-type BranchQueueResponse = {
-  waiting?: any[];
-  [key: string]: unknown;
-};
-
 /**
  * POST /api/queue/manager/call-next
  *
- * Вызывает первого клиента из очереди филиала менеджера.
+ * Вызывает следующего клиента по round-robin на бэкенде.
  * 1) Берём access_token из cookies
  * 2) Через /api/auth/manager/me узнаём branchId менеджера
- * 3) Запрашиваем /api/tickets/queue/:branchId, берём первый waiting
- * 4) Делаем PUT /api/tickets/:id/call
+ * 3) POST /api/tickets/call-next — бэк выбирает талон по round-robin и вызывает его
  */
 export async function POST(_req: NextRequest) {
   const cookieStore = await cookies();
@@ -65,56 +59,10 @@ export async function POST(_req: NextRequest) {
       );
     }
 
-    // 2) Очередь филиала
-    const queueRes = await fetch(
-      `${QUEUE_API_URL}/api/tickets/queue/${encodeURIComponent(branchId)}`,
-      {
-        headers: { Authorization: `Bearer ${access}` },
-      },
-    );
-    const queueJson = (await queueRes
-      .json()
-      .catch(() => ({}))) as { success?: boolean; data?: BranchQueueResponse };
-
-    if (!queueRes.ok || !queueJson?.data) {
-      return NextResponse.json(
-        queueJson || { error: "queue_error" },
-        { status: queueRes.status || 502 },
-      );
-    }
-
-    const payloadData = queueJson.data;
-    const waiting = (payloadData.waiting as any[]) ?? [];
-    // Аналогичная защита от "утекших" отмененных тикетов при гонках обновления.
-    const waitingFiltered = waiting.filter((t: any) => {
-      const status =
-        (typeof t?.status === "string" ? t.status : undefined) ??
-        (typeof t?.ticketStatus === "string" ? t.ticketStatus : undefined) ??
-        (typeof t?.state === "string" ? t.state : undefined);
-
-      if (!status) return true;
-      return status === "WAITING";
+    const callRes = await fetch(`${QUEUE_API_URL}/api/tickets/call-next`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${access}` },
     });
-
-    const first = waitingFiltered[0];
-
-    if (!first?.id) {
-      return NextResponse.json(
-        { error: "no_waiting_tickets" },
-        { status: 409 },
-      );
-    }
-
-    const ticketId = String(first.id);
-
-    // 3) Вызов талона
-    const callRes = await fetch(
-      `${QUEUE_API_URL}/api/tickets/${encodeURIComponent(ticketId)}/call`,
-      {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${access}` },
-      },
-    );
     const callJson = await callRes.json().catch(() => ({}));
 
     if (!callRes.ok) {
@@ -123,6 +71,9 @@ export async function POST(_req: NextRequest) {
         { status: callRes.status || 502 },
       );
     }
+
+    const called = (callJson as { data?: { id?: string } }).data;
+    const ticketId = called?.id ? String(called.id) : "";
 
     const responsePayload = await buildQueueCallTicketResponse(
       callJson,

@@ -8,6 +8,7 @@ const QUEUE_API_URL =
 const KIND_TO_PATH: Record<string, string> = {
   "manager-sessions": "/api/admin/stats/export/manager-sessions",
   clients: "/api/admin/stats/export/clients",
+  "manager-status-actions": "/api/admin/stats/export/manager-status-actions",
 };
 
 export async function GET(

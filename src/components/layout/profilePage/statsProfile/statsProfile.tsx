@@ -10,7 +10,7 @@ import { useTranslations } from "next-intl";
 /** Показатели за период */
 type PeriodStats = {
     ticketsByQr: number;
-    ticketsByKlm: number;
+    ticketsByAdm: number;
     avgWaitInQueue: string;
     avgServiceTime: string;
     noShowCount: number;
@@ -110,7 +110,7 @@ function roundRating(value: number): number {
 export default function StatsProfile() {
     const t = useTranslations();
     const [dateRange, setDateRange] = useState<{ start: DateValue; end: DateValue }>(DEFAULT_RANGE);
-    const [exportLoading, setExportLoading] = useState(false);
+    const [exportLoadingKind, setExportLoadingKind] = useState<string | null>(null);
     const [stats, setStats] = useState<PeriodStats | null>(null);
     const [statuses, setStatuses] = useState<ClientStatusItem[]>([]);
     const [ratingRows, setRatingRows] = useState<RatingRow[]>([]);
@@ -219,12 +219,12 @@ export default function StatsProfile() {
         return () => controller.abort();
     }, [resolvedBranchId, selectedDateIso, dateRange]);
 
-    const handleExportReport = useCallback(async () => {
+    const handleExportReport = useCallback(async (kind: "clients" | "manager-status-actions" | "manager-sessions") => {
         if (!resolvedBranchId) {
             return;
         }
 
-        setExportLoading(true);
+        setExportLoadingKind(kind);
 
         try {
             const start = dateRange.start.toString().slice(0, 10);
@@ -234,29 +234,27 @@ export default function StatsProfile() {
                 startDate: start,
                 endDate: end,
             }).toString();
+            const res = await fetch(`/api/queue/stats/export/${kind}?${qs}`);
 
-            const kinds = ["manager-sessions", "clients"] as const;
-
-            for (const kind of kinds) {
-                const res = await fetch(`/api/queue/stats/export/${kind}?${qs}`);
-
-                if (!res.ok) {
-                    await res.json().catch(() => undefined);
-                    continue;
-                }
-
-                const blob = await res.blob();
-                const objectUrl = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = objectUrl;
-                const cd = res.headers.get("Content-Disposition");
-                const match = cd?.match(/filename="([^"]+)"/);
-                a.download = match?.[1] ?? `${kind}_${start}_${end}.xlsx`;
-                a.click();
-                URL.revokeObjectURL(objectUrl);
+            if (!res.ok) {
+                await res.json().catch(() => undefined);
+                return;
             }
+
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = objectUrl;
+            const fileNameByKind: Record<string, string> = {
+                clients: `Отчет по клиентам ${start} - ${end}.xlsx`,
+                "manager-status-actions": `Отчет по статусам менеджеров ${start} - ${end}.xlsx`,
+                "manager-sessions": `Сводка по менеджерам ${start} - ${end}.xlsx`,
+            };
+            a.download = fileNameByKind[kind] ?? `${kind}_${start}_${end}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(objectUrl);
         } finally {
-            setExportLoading(false);
+            setExportLoadingKind(null);
         }
     }, [dateRange, resolvedBranchId]);
 
@@ -281,21 +279,41 @@ export default function StatsProfile() {
                         }}
                     />
                 </div>
-                <Button
-                    variant="bordered"
-                    size="sm"
-                    isLoading={exportLoading}
-                    onPress={handleExportReport}
-                    className="flex h-[40px] min-w-[40px] min-h-[40px] pl-[13px] pr-[13px] py-[11px] justify-center items-center gap-[4px] rounded-[12px] !border-[1.5px] !border-solid !border-[#F3F3F3]"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-                        <path d="M8.36902 11.0041C8.27429 11.1077 8.14038 11.1667 8 11.1667C7.85962 11.1667 7.72571 11.1077 7.63099 11.0041L4.96432 8.08738C4.77799 7.88358 4.79215 7.56732 4.99595 7.38099C5.19975 7.19465 5.51602 7.20881 5.70235 7.41262L7.5 9.3788V2C7.5 1.72386 7.72386 1.5 8 1.5C8.27614 1.5 8.5 1.72386 8.5 2V9.3788L10.2977 7.41262C10.484 7.20881 10.8003 7.19465 11.0041 7.38099C11.2079 7.56732 11.222 7.88358 11.0357 8.08738L8.36902 11.0041Z" fill="#1C274C" />
-                        <path d="M2.5 10C2.5 9.72386 2.27614 9.5 2 9.5C1.72386 9.5 1.5 9.72386 1.5 10V10.0366C1.49999 10.9483 1.49998 11.6832 1.57768 12.2612C1.65836 12.8612 1.83096 13.3665 2.23223 13.7678C2.63351 14.169 3.13876 14.3416 3.73883 14.4223C4.31681 14.5 5.05169 14.5 5.96342 14.5H10.0366C10.9483 14.5 11.6832 14.5 12.2612 14.4223C12.8612 14.3416 13.3665 14.169 13.7678 13.7678C14.169 13.3665 14.3416 12.8612 14.4223 12.2612C14.5 11.6832 14.5 10.9483 14.5 10.0366V10C14.5 9.72386 14.2761 9.5 14 9.5C13.7239 9.5 13.5 9.72386 13.5 10C13.5 10.9569 13.4989 11.6244 13.4312 12.1279C13.3655 12.6171 13.2452 12.8762 13.0607 13.0607C12.8762 13.2452 12.6171 13.3655 12.1279 13.4312C11.6244 13.4989 10.9569 13.5 10 13.5H6C5.04306 13.5 4.37565 13.4989 3.87208 13.4312C3.3829 13.3655 3.12385 13.2452 2.93934 13.0607C2.75483 12.8762 2.63453 12.6171 2.56877 12.1279C2.50106 11.6244 2.5 10.9569 2.5 10Z" fill="#1C274C" />
-                    </svg>
-                    <span className="text-[#282D3C] text-[14px] not-italic font-normal leading-[20px]">
-                        {t("stats_export_report")}
-                    </span>
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                    <Button
+                        variant="bordered"
+                        size="sm"
+                        isLoading={exportLoadingKind === "clients"}
+                        onPress={() => handleExportReport("clients")}
+                        className="flex h-[40px] min-w-[40px] min-h-[40px] pl-[13px] pr-[13px] py-[11px] justify-center items-center gap-[4px] rounded-[12px] !border-[1.5px] !border-solid !border-[#F3F3F3]"
+                    >
+                        <span className="text-[#282D3C] text-[14px] not-italic font-normal leading-[20px]">
+                            Отчет по клиентам
+                        </span>
+                    </Button>
+                    <Button
+                        variant="bordered"
+                        size="sm"
+                        isLoading={exportLoadingKind === "manager-status-actions"}
+                        onPress={() => handleExportReport("manager-status-actions")}
+                        className="flex h-[40px] min-w-[40px] min-h-[40px] pl-[13px] pr-[13px] py-[11px] justify-center items-center gap-[4px] rounded-[12px] !border-[1.5px] !border-solid !border-[#F3F3F3]"
+                    >
+                        <span className="text-[#282D3C] text-[14px] not-italic font-normal leading-[20px]">
+                            Отчет по статусам менеджеров
+                        </span>
+                    </Button>
+                    <Button
+                        variant="bordered"
+                        size="sm"
+                        isLoading={exportLoadingKind === "manager-sessions"}
+                        onPress={() => handleExportReport("manager-sessions")}
+                        className="flex h-[40px] min-w-[40px] min-h-[40px] pl-[13px] pr-[13px] py-[11px] justify-center items-center gap-[4px] rounded-[12px] !border-[1.5px] !border-solid !border-[#F3F3F3]"
+                    >
+                        <span className="text-[#282D3C] text-[14px] not-italic font-normal leading-[20px]">
+                            Сводка по менеджерам
+                        </span>
+                    </Button>
+                </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[12px] self-stretch">
                 <div className="flex w-full p-[24px] flex-col items-start gap-[32px] rounded-[32px] bg-[#F4F6FB]">
@@ -324,11 +342,11 @@ export default function StatsProfile() {
                             <path fillRule="evenodd" clipRule="evenodd" d="M9.66002 2.66797H22.34C23.8851 2.66797 24.6577 2.66797 25.2808 2.88478C26.4624 3.29591 27.39 4.25089 27.7894 5.46725C28 6.1087 28 6.90404 28 8.49472V27.1669C28 28.3112 26.6867 28.9184 25.8559 28.1581C25.3678 27.7115 24.6322 27.7115 24.1441 28.1581L23.5 28.7475C22.6446 29.5303 21.3554 29.5303 20.5 28.7475C19.6446 27.9647 18.3554 27.9647 17.5 28.7475C16.6446 29.5303 15.3554 29.5303 14.5 28.7475C13.6446 27.9647 12.3554 27.9647 11.5 28.7475C10.6446 29.5303 9.35545 29.5303 8.5 28.7475L7.85587 28.1581C7.36777 27.7115 6.63223 27.7115 6.14413 28.1581C5.31333 28.9184 4 28.3112 4 27.1669V8.49472C4 6.90404 4 6.1087 4.21061 5.46725C4.60997 4.25089 5.53763 3.29591 6.71918 2.88478C7.34228 2.66797 8.11486 2.66797 9.66002 2.66797ZM20.0793 11.334C20.4471 10.922 20.4113 10.2899 19.9993 9.92204C19.5874 9.55421 18.9552 9.58999 18.5874 10.002L14.5714 14.4998L13.4126 13.202C13.0448 12.79 12.4126 12.7542 12.0007 13.122C11.5887 13.4899 11.5529 14.122 11.9207 14.534L13.8255 16.6673C14.0152 16.8798 14.2866 17.0013 14.5714 17.0013C14.8563 17.0013 15.1276 16.8798 15.3174 16.6673L20.0793 11.334ZM10 19.668C9.44772 19.668 9 20.1157 9 20.668C9 21.2203 9.44772 21.668 10 21.668H22C22.5523 21.668 23 21.2203 23 20.668C23 20.1157 22.5523 19.668 22 19.668H10Z" fill="#0E9718" />
                         </svg>
                         <span className="text-[#282D3C] font-[Gotham] text-[16px] not-italic font-normal leading-[normal]">
-                            {t("stats_tickets_klm")}
+                            {t("stats_tickets_adm")}
                         </span>
                     </div>
                     <span className="text-[#282D3C] text-[32px] not-italic font-bold leading-[normal]">
-                        {stats?.ticketsByKlm ?? 0}
+                        {stats?.ticketsByAdm ?? 0}
                     </span>
                 </div>
                 <div className="flex w-full p-[24px] flex-col items-start gap-[32px] rounded-[32px] bg-[#F4F6FB]">

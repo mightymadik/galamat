@@ -453,7 +453,7 @@
   "stats_period": "Период",
   "stats_export_report": "Выгрузить отчет",
   "stats_tickets_qr": "Талонов выдано клиентам через QR-код",
-  "stats_tickets_klm": "Талонов выдано клиентам через КЛМ",
+  "stats_tickets_adm": "Талонов выдано клиентам через АДМ",
   "stats_avg_wait_queue": "Среднее время ожидания клиента в очереди",
   "stats_avg_wait_manager": "Среднее время ожидания клиента менеджером",
   "stats_client_statuses": "Статусы клиентов",

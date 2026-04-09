@@ -27,6 +27,30 @@ export type QueueCallTicketClientPayload = {
   }[];
 };
 
+function normalizeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function resolveManagerDisplayName(
+  managerNameFromStrapi: string,
+  fallbackRawName: unknown,
+  candidateIds: Array<unknown>,
+): string | null {
+  const preferred = normalizeText(managerNameFromStrapi);
+  if (preferred) return preferred;
+
+  const fallback = normalizeText(fallbackRawName);
+  if (!fallback) return null;
+
+  const idSet = new Set(
+    candidateIds
+      .map((id) => normalizeText(id))
+      .filter((id) => id.length > 0),
+  );
+
+  return idSet.has(fallback) ? null : fallback;
+}
+
 export async function buildQueueCallTicketResponse(
   callJson: unknown,
   ticketId: string,
@@ -78,6 +102,11 @@ export async function buildQueueCallTicketResponse(
     .filter(Boolean)
     .join(" ")
     .trim();
+  const resolvedManagerName = resolveManagerDisplayName(
+    managerNameFromStrapi,
+    t.managerName,
+    [t.managerId, managerRaw.id, t.manager?.id],
+  );
 
   const clientId = t.clientId || client.id || null;
 
@@ -158,7 +187,7 @@ export async function buildQueueCallTicketResponse(
     },
     manager: {
       id: String(t.managerId ?? managerRaw.id ?? ""),
-      name: managerNameFromStrapi || t.managerName || null,
+      name: resolvedManagerName,
     },
     counter: {
       id: String(t.counterId ?? counter.id ?? ""),

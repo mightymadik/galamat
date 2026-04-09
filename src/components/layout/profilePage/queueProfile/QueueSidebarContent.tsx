@@ -230,16 +230,17 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
         )}
       </div>
       {!isAdminView ? (
-        <Button
-          isDisabled={actionLoading}
-          isLoading={actionLoading}
-          onPress={onCallClient}
-          className="flex h-[52px] min-w-[52px] min-h-[52px] p-[15px] justify-center items-center gap-[4px] self-stretch rounded-[24px] bg-[#1A3C7E]"
-        >
-          <span className="text-[#FFF] text-[16px] not-italic font-medium leading-[normal]">
-            {t("queue_call_btn")}
-          </span>
-        </Button>
+        // <Button
+        //   isDisabled={actionLoading}
+        //   isLoading={actionLoading}
+        //   onPress={onCallClient}
+        //   className="flex h-[52px] min-w-[52px] min-h-[52px] p-[15px] justify-center items-center gap-[4px] self-stretch rounded-[24px] bg-[#1A3C7E]"
+        // >
+        //   <span className="text-[#FFF] text-[16px] not-italic font-medium leading-[normal]">
+        //     {t("queue_call_btn")}
+        //   </span>
+        // </Button>
+        <></>
       ) : null}
     </div>
   );
