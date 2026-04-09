@@ -60,7 +60,7 @@ export async function POST(
     const currentStatus = String(deal?.dealStatus ?? deal?.attributes?.dealStatus ?? "").trim();
 
     if (action === "request") {
-      if (effectiveRole !== "manager" && effectiveRole !== "admin") {
+      if (effectiveRole !== "manager" && effectiveRole !== "admin" && effectiveRole !== "rop") {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
       }
       const blocked = new Set(["Отменен", "Расторжение", "Договор подписан"]);
