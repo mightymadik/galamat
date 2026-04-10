@@ -36,7 +36,7 @@ export async function getProjectServices(projectSlug?: string): Promise<ProjectS
     });
   } catch (error) {
     console.error("Error fetching project services:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }
 

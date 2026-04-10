@@ -10,7 +10,7 @@ export async function getBuilds(): Promise<WhyUsBuildsItemData[]> {
     const res = await apiGet("/api/whyus-builds/?populate=*");
     const items = res.data;
 
-    if (!items || items.length === 0) throw new Error("Service Unavailable");
+    if (!items || items.length === 0) return [];
 
     return items.map((item: any) => {
       const images = Array.isArray(item.buildsImages) ? item.buildsImages : [];
@@ -33,7 +33,7 @@ export async function getBuilds(): Promise<WhyUsBuildsItemData[]> {
     });
   } catch (error) {
     console.error("Ошибка загрузки строения:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }
 

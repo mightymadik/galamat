@@ -8,7 +8,7 @@ const BACKEND_URL = process.env.STRAPI_URL;
 export async function getInfra(): Promise<WhyUsInfraItemData[]> {
   try {
     const res = await apiGet("/api/whyus-infras/?populate[infraItem][populate]=infraItemImage");
-    if (!res || !res.data || res.data.length === 0) throw new Error("Service Unavailable");
+    if (!res || !res.data || res.data.length === 0) return [];
 
     const rootItem = res.data[0];
 
@@ -39,7 +39,7 @@ export async function getInfra(): Promise<WhyUsInfraItemData[]> {
     });
   } catch (error) {
     console.error("Error fetching infrastructure data:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }
 

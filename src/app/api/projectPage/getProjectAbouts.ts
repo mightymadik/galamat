@@ -18,7 +18,7 @@ export async function getProjectAbouts(projectSlug?: string) {
         params,
     });
 
-    if (!res?.data) throw new Error("Service Unavailable");
+    if (!Array.isArray(res?.data)) return [];
 
     return res.data.map((item: any) => {
         const about = item.complexAbout;

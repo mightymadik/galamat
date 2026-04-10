@@ -6,7 +6,7 @@ export async function HeroServer(): Promise<HeroItemData[]> {
     const data = await getMainPageHero();
     return data;
   } catch (error) {
-    console.error("Failed to fetch advertisement data:", error);
-    throw new Error("Failed to fetch advertisement data.");
+    console.error("Failed to fetch hero data:", error);
+    return [];
   }
 }

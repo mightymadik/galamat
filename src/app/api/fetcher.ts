@@ -52,10 +52,18 @@ export async function apiGet(
   } catch (err: any) {
     const status = err?.response?.status;
     const data = err?.response?.data;
+    const pathForLog = url.toString().replace(baseUrl ?? "", "");
     if (status === 400 && data != null) {
-      console.error("[apiGet] 400 Bad Request — URL:", url.toString().replace(process.env.STRAPI_URL ?? "", ""));
+      console.error("[apiGet] 400 Bad Request — URL:", pathForLog);
       console.error("[apiGet] 400 response body:", typeof data === "object" ? JSON.stringify(data) : data);
+    } else {
+      console.error(
+        "[apiGet] request failed",
+        status != null ? `HTTP ${status}` : err?.message || "network error",
+        pathForLog
+      );
     }
-    throw new Error(err?.message || "Fetch error");
+    // Пустой ответ в формате Strapi: страницы не падают при 503/сетевых ошибках
+    return { data: null };
   }
 }

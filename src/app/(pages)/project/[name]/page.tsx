@@ -140,7 +140,7 @@ async function fetchPlansData(slug: string): Promise<ProjectPlansDataItem[]> {
         return data ?? [];
     } catch (error) {
         console.error(`Error fetching plans data for ${slug}:`, error);
-        throw new Error("Service Unavailable");
+        return [];
     }
 }
 
@@ -150,7 +150,7 @@ async function fetchFeaturesData(slug: string): Promise<ProjectFeaturesDataItem[
         return data ?? [];
     } catch (error) {
         console.error(`Error fetching features data for ${slug}:`, error);
-        throw new Error("Service Unavailable");
+        return [];
     }
 }
 
@@ -160,7 +160,7 @@ async function fetchServicesData(slug: string): Promise<ProjectServicesDataItem[
         return data ?? [];
     } catch (error) {
         console.error(`Error fetching services data for ${slug}:`, error);
-        throw new Error("Service Unavailable");
+        return [];
     }
 }
 

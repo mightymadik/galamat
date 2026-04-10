@@ -11,7 +11,7 @@ export async function getMapData(): Promise<Map[]> {
     );
 
     const rootItems = res.data; // массив локаций
-    if (!rootItems || !Array.isArray(rootItems)) throw new Error("Service Unavailable");
+    if (!rootItems || !Array.isArray(rootItems)) return [];
 
     const result: Map[] = [];
 
@@ -38,6 +38,6 @@ export async function getMapData(): Promise<Map[]> {
     return result;
   } catch (error) {
     console.error("Error fetching map data:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }
