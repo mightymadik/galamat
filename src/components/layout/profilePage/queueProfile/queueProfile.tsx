@@ -1708,7 +1708,7 @@ export default function QueueProfile() {
               countdown={countdown}
               onCallClient={handleCallClient}
               actionLoading={actionLoading}
-              isAdminView={isAdminWithoutAutoCall}
+              isAdminView={shouldShowBranchManagersInWaitingSidebar}
               showCountdownWithManagers={shouldShowCountdownWithManagers}
               branchManagers={branchManagersForSidebar}
               branchManagersLoading={branchManagersLoading}
