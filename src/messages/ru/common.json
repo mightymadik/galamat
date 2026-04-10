@@ -512,6 +512,7 @@
   "queue_waiting_for_next_title": "Клиент ещё не выбран",
   "queue_loading_queue": "Загрузка очереди...",
   "queue_error_loading_queue": "Не удалось загрузить очередь",
+  "queue_operation_failed": "Операция не выполнена. Попробуйте ещё раз.",
   "queue_no_one_in_queue": "Сейчас в очереди никого нет",
   "queue_redirect_choose_manager": "Выберите менеджера",
   "queue_redirect_placeholder_manager": "Имя менеджера",

@@ -2,6 +2,8 @@
  * Смена филиала (admin): прокси Next.js → queue-backend /api/admin/...
  */
 
+import { extractQueueApiErrorMessage } from "./queueApiError";
+
 export type OnlineManagerBlockingClose = {
   id: string;
   name: string | null;
@@ -23,10 +25,11 @@ export async function fetchCurrentBranchShift(branchId: string): Promise<{
     error?: string;
   };
   if (!res.ok) {
+    const msg = extractQueueApiErrorMessage(json);
     return {
       shiftId: null,
       status: res.status,
-      error: json.error ?? "queue_error",
+      error: msg ?? json.error ?? "queue_error",
     };
   }
   const id = json.data?.id;
@@ -53,11 +56,12 @@ export async function openBranchShift(branchId: string): Promise<{
     message?: string;
   };
   const shiftId = json.data?.id ? String(json.data.id) : undefined;
+  const ok = res.ok && json.success !== false;
   return {
-    ok: res.ok && json.success !== false,
+    ok,
     status: res.status,
     shiftId,
-    error: json.error,
+    error: ok ? undefined : extractQueueApiErrorMessage(json) ?? json.error,
     message: json.message,
   };
 }
@@ -76,6 +80,7 @@ export async function closeBranchShift(shiftId: string): Promise<CloseBranchShif
   const json = (await res.json().catch(() => ({}))) as {
     success?: boolean;
     error?: string;
+    message?: string;
     managers?: OnlineManagerBlockingClose[];
   };
 
@@ -88,7 +93,8 @@ export async function closeBranchShift(shiftId: string): Promise<CloseBranchShif
   if (res.status === 409 && json.error === "ONLINE_MANAGERS" && Array.isArray(json.managers)) {
     return { kind: "onlineManagers", managers: json.managers };
   }
-  return { kind: "error", status: res.status, error: json.error };
+  const extracted = extractQueueApiErrorMessage(json);
+  return { kind: "error", status: res.status, error: extracted ?? json.error };
 }
 
 export async function forceManagerOfflineForShiftClose(managerId: string): Promise<{
@@ -101,10 +107,11 @@ export async function forceManagerOfflineForShiftClose(managerId: string): Promi
     { method: "POST", credentials: "include" },
   );
   const json = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+  const extracted = extractQueueApiErrorMessage(json);
   return {
     ok: res.ok && json.success !== false,
     status: res.status,
-    error: json.error,
+    error: extracted ?? json.error,
   };
 }
 
@@ -124,11 +131,12 @@ export async function fetchAvailableManagersForBranch(branchId: string): Promise
     error?: string;
   };
   if (!res.ok) {
+    const extracted = extractQueueApiErrorMessage(json);
     return {
       ok: false,
       managers: [],
       status: res.status,
-      error: json.error ?? "queue_error",
+      error: extracted ?? json.error ?? "queue_error",
     };
   }
   const list = Array.isArray(json.managers) ? json.managers : [];

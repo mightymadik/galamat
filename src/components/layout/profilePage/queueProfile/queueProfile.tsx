@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@heroui/react";
+import { addToast } from "@heroui/toast";
 import { io, type Socket } from "socket.io-client";
 import { getDefaultQueueSocketOptions } from "@/lib/queueSocket";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -58,6 +59,7 @@ import {
   setManagerCurrentCounter,
   toBackendStatus,
 } from "./api/queueManagerApi";
+import { extractQueueApiErrorMessage, userFacingQueueError } from "./api/queueApiError";
 import { subscribeToQueueBranchUpdates } from "./api/queueRealtimeApi";
 import type { OnlineManagerBlockingClose } from "./api/queueAdminShiftApi";
 import {
@@ -70,6 +72,7 @@ import {
 
 /** Временно без паузы между повторными вызовами на табло (раньше 15 с). */
 const REANNOUNCE_COOLDOWN_SEC = 15;
+const DUAL_CALL_USER_ID = "fwo2nkfqmn9sme7efmt9r6aq";
 
 function normalizeServingAt(raw: unknown): string | null {
   if (raw == null) return null;
@@ -169,6 +172,7 @@ export default function QueueProfile() {
   const [newDeskName, setNewDeskName] = useState("");
   const [queueAccessDenied, setQueueAccessDenied] = useState(false);
   const [deskSelectionError, setDeskSelectionError] = useState<string | null>(null);
+  const [statusChangeError, setStatusChangeError] = useState<string | null>(null);
   const [addDeskLoading, setAddDeskLoading] = useState(false);
   const [addDeskError, setAddDeskError] = useState<string | null>(null);
   const [deskConfirmLoading, setDeskConfirmLoading] = useState(false);
@@ -206,6 +210,8 @@ export default function QueueProfile() {
         : "";
   const normalizedRole = String(user?.role ?? "").toLowerCase();
   const isAdminUser = normalizedRole === "admin" || normalizedRole === "rop";
+  const hasDualCallMode = currentManagerId === DUAL_CALL_USER_ID;
+  const isAdminWithoutAutoCall = isAdminUser && !hasDualCallMode;
   const canAddDesks = isAdminUser;
   const [branchShiftId, setBranchShiftId] = useState<string | null>(null);
   const [branchShiftLoading, setBranchShiftLoading] = useState(false);
@@ -235,18 +241,16 @@ export default function QueueProfile() {
   >([]);
   const [branchManagersLoading, setBranchManagersLoading] = useState(false);
   const lastTicketStatusSyncAtRef = useRef(0);
+  const profileLoadRequestIdRef = useRef(0);
   /** Avoid putting `currentClient` in useCallback/useEffect deps — object identity changes every dispatch and caused infinite re-runs (React #185). */
   const currentClientRef = useRef(currentClient);
   currentClientRef.current = currentClient;
+  const selectedDeskRef = useRef(selectedDesk);
+  selectedDeskRef.current = selectedDesk;
   const callServicePhaseRef = useRef(callServicePhase);
   callServicePhaseRef.current = callServicePhase;
 
   const checkHasNextClients = useCallback(async () => {
-    if (!branchId) {
-      setHasNextClient(false);
-      return;
-    }
-
     try {
       const res = await fetch("/api/queue/manager/eligible-next-tickets", {
         credentials: "include",
@@ -279,17 +283,33 @@ export default function QueueProfile() {
     } catch {
       setHasNextClient(false);
     }
-  }, [branchId]);
+  }, []);
 
   const loadProfileIntoStore = useCallback(
-    async (profileData: ManagerProfile) => {
+    async (
+      profileData: ManagerProfile,
+      options?: { requestId?: number; selectedDeskSnapshot?: string },
+    ) => {
       const { status: backendStatus, branch, currentCounterId } = profileData;
+      const requestId = options?.requestId;
+      if (
+        typeof requestId === "number" &&
+        requestId !== profileLoadRequestIdRef.current
+      ) {
+        return;
+      }
       const nextBranchId = branch?.id;
       const normalizedCurrentCounterId =
         currentCounterId != null ? String(currentCounterId) : "";
       let nextDesks: { key: string; label: string }[] = [];
       if (nextBranchId) {
         const countersRes = await getCounters(nextBranchId);
+        if (
+          typeof requestId === "number" &&
+          requestId !== profileLoadRequestIdRef.current
+        ) {
+          return;
+        }
         if (countersRes.data?.length) {
           const availableCounters = countersRes.data.filter((c) => {
             const counterId =
@@ -316,11 +336,16 @@ export default function QueueProfile() {
           }));
         }
       }
+      const safeSelectedDesk = (options?.selectedDeskSnapshot ?? "").trim();
+      const keepSelectedDesk =
+        safeSelectedDesk !== "" && nextDesks.some((d) => d.key === safeSelectedDesk);
       const chosenDesk =
         normalizedCurrentCounterId &&
         nextDesks.some((d) => d.key === normalizedCurrentCounterId)
           ? normalizedCurrentCounterId
-          : nextDesks[0]?.key ?? "";
+          : keepSelectedDesk
+            ? safeSelectedDesk
+            : nextDesks[0]?.key ?? "";
       dispatch(
         setProfileFromApi({
           status: backendStatusToUi(backendStatus),
@@ -479,7 +504,11 @@ export default function QueueProfile() {
   // Загрузка: профиль менеджера (me) → branchId, статус, currentCounterId; список всех окон по branchId (/counters)
   useEffect(() => {
     setQueueAccessDenied(false);
+    const requestId = profileLoadRequestIdRef.current + 1;
+    profileLoadRequestIdRef.current = requestId;
+    const selectedDeskSnapshot = selectedDeskRef.current;
     getManagerProfile().then(async (profileRes) => {
+      if (requestId !== profileLoadRequestIdRef.current) return;
       if (
         (profileRes.status === 403 || profileRes.error === "forbidden") &&
         normalizedRole !== "external_manager"
@@ -496,9 +525,12 @@ export default function QueueProfile() {
       } else {
         setStaleShiftModalOpen(false);
       }
-      await loadProfileIntoStore(profileRes.data);
+      await loadProfileIntoStore(profileRes.data, {
+        requestId,
+        selectedDeskSnapshot,
+      });
     });
-  }, [dispatch, loadProfileIntoStore, user?.role]);
+  }, [dispatch, loadProfileIntoStore, normalizedRole, user?.role]);
 
   useEffect(() => {
     if (!branchShiftBanner) return;
@@ -924,7 +956,7 @@ export default function QueueProfile() {
       autoCallTriggeredRef.current = false;
       return;
     }
-    if (isAdminUser) {
+    if (isAdminWithoutAutoCall) {
       return;
     }
     if (!hasNextClient) {
@@ -941,12 +973,12 @@ export default function QueueProfile() {
     }, 1000);
 
     return () => clearTimeout(tId);
-  }, [isWaitingForNext, hasNextClient, countdown, isAdminUser]);
+  }, [isWaitingForNext, hasNextClient, countdown, isAdminWithoutAutoCall]);
 
   // Когда менеджер ожидает следующего клиента — отслеживаем появление/исчезновение next-tickets
   // и держим флаг hasNextClient синхронно.
   useEffect(() => {
-    if (!isWaitingForNext || !branchId) {
+    if (!isWaitingForNext) {
       setHasNextClient(false);
       autoCallTriggeredRef.current = false;
       return;
@@ -954,6 +986,7 @@ export default function QueueProfile() {
 
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const refresh = () => {
       if (cancelled) return;
@@ -963,20 +996,26 @@ export default function QueueProfile() {
     // Сразу грузим состояние (на случай, если очередь уже не пуста).
     refresh();
 
-    void subscribeToQueueBranchUpdates(branchId, refresh, {
-      listen: ["queue"],
-    }).then((cleanup) => {
-      unsubscribe = cleanup;
-    });
+    if (branchId) {
+      void subscribeToQueueBranchUpdates(branchId, refresh, {
+        listen: ["queue"],
+      }).then((cleanup) => {
+        unsubscribe = cleanup;
+      });
+    }
+
+    // Fallback polling keeps autocall healthy when websocket/branch bootstrap is unavailable.
+    intervalId = setInterval(refresh, 5000);
 
     return () => {
       cancelled = true;
       unsubscribe?.();
+      if (intervalId) clearInterval(intervalId);
     };
   }, [branchId, isWaitingForNext, checkHasNextClients]);
 
   useEffect(() => {
-    if (!isAdminUser || !branchId || !isWaitingForNext) {
+    if (!isAdminWithoutAutoCall || !branchId || !isWaitingForNext) {
       setBranchManagersForSidebar([]);
       setBranchManagersLoading(false);
       return;
@@ -1021,9 +1060,10 @@ export default function QueueProfile() {
       cancelled = true;
       unsubscribeSocket?.();
     };
-  }, [isAdminUser, branchId, isWaitingForNext]);
+  }, [isAdminWithoutAutoCall, branchId, isWaitingForNext]);
 
   const handleStatusChange = (key: QueueProfileStatus) => {
+    setStatusChangeError(null);
     dispatch(requestStatusChange(key));
   };
 
@@ -1041,7 +1081,9 @@ export default function QueueProfile() {
     });
     setAddDeskLoading(false);
     if (res.error || !res.data) {
-      setAddDeskError(res.error ?? t("queue_create_desk_error"));
+      setAddDeskError(
+        userFacingQueueError(res.error, t("queue_create_desk_error")),
+      );
       return;
     }
     const key = (res.data.documentId ?? res.data.id?.toString() ?? `desk_${Date.now()}`) as string;
@@ -1071,7 +1113,13 @@ export default function QueueProfile() {
           }),
         },
       );
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
+        const msg = userFacingQueueError(
+          extractQueueApiErrorMessage(json),
+          t("queue_operation_failed"),
+        );
+        addToast({ description: msg, color: "danger" });
         return;
       }
       setIsCallTicketModalOpen(false);
@@ -1087,7 +1135,7 @@ export default function QueueProfile() {
         window.dispatchEvent(new Event("queue:refresh"));
       }
     } catch {
-      // игнорируем, UI не ломаем
+      addToast({ description: t("queue_operation_failed"), color: "danger" });
     } finally {
       setActionLoading(false);
     }
@@ -1110,11 +1158,18 @@ export default function QueueProfile() {
           credentials: "include",
         },
       );
+      const json = await res.json().catch(() => ({}));
       if (res.ok) {
         setReannounceCooldownSecondsLeft(REANNOUNCE_COOLDOWN_SEC);
+      } else {
+        const msg = userFacingQueueError(
+          extractQueueApiErrorMessage(json),
+          t("queue_operation_failed"),
+        );
+        addToast({ description: msg, color: "danger" });
       }
     } catch {
-      // тихо, UI не ломаем
+      addToast({ description: t("queue_operation_failed"), color: "danger" });
     } finally {
       setReannounceLoading(false);
     }
@@ -1131,12 +1186,17 @@ export default function QueueProfile() {
           credentials: "include",
         },
       );
-      if (!res.ok) {
-        return;
-      }
       const body = (await res.json().catch(() => ({}))) as {
         data?: { servingAt?: unknown };
       };
+      if (!res.ok) {
+        const msg = userFacingQueueError(
+          extractQueueApiErrorMessage(body),
+          t("queue_operation_failed"),
+        );
+        addToast({ description: msg, color: "danger" });
+        return;
+      }
       const servingAtIso =
         normalizeServingAt(body?.data?.servingAt) ?? new Date().toISOString();
       setIsCallTicketModalOpen(false);
@@ -1149,7 +1209,7 @@ export default function QueueProfile() {
         saveCurrentTicketCookie(merged, "servicing", currentManagerId);
       }
     } catch {
-      // игнорируем, UI не ломаем
+      addToast({ description: t("queue_operation_failed"), color: "danger" });
     } finally {
       setActionLoading(false);
     }
@@ -1166,7 +1226,13 @@ export default function QueueProfile() {
           credentials: "include",
         },
       );
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
+        const msg = userFacingQueueError(
+          extractQueueApiErrorMessage(json),
+          t("queue_operation_failed"),
+        );
+        addToast({ description: msg, color: "danger" });
         return;
       }
       setIsCallTicketModalOpen(false);
@@ -1174,7 +1240,7 @@ export default function QueueProfile() {
       dispatch(goToWaitingForNext());
       clearCurrentTicketCookie();
     } catch {
-      // игнорируем, UI не ломаем
+      addToast({ description: t("queue_operation_failed"), color: "danger" });
     } finally {
       setActionLoading(false);
     }
@@ -1191,7 +1257,13 @@ export default function QueueProfile() {
           credentials: "include",
         },
       );
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
+        const msg = userFacingQueueError(
+          extractQueueApiErrorMessage(json),
+          t("queue_operation_failed"),
+        );
+        addToast({ description: msg, color: "danger" });
         return;
       }
       setIsCallTicketModalOpen(false);
@@ -1204,7 +1276,7 @@ export default function QueueProfile() {
         window.dispatchEvent(new Event("queue:refresh"));
       }
     } catch {
-      // игнорируем, UI не ломаем
+      addToast({ description: t("queue_operation_failed"), color: "danger" });
     } finally {
       setActionLoading(false);
     }
@@ -1290,10 +1362,15 @@ export default function QueueProfile() {
         method: "POST",
         credentials: "include",
       });
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
+        const msg = userFacingQueueError(
+          extractQueueApiErrorMessage(json),
+          t("queue_operation_failed"),
+        );
+        addToast({ description: msg, color: "danger" });
         return;
       }
-      const json = await res.json().catch(() => ({}));
       const payload = (json as { data?: CallTicketSuccessPayload }).data;
       const payloadManagerId =
         payload?.manager?.id != null ? String(payload.manager.id) : "";
@@ -1306,11 +1383,18 @@ export default function QueueProfile() {
       }
       applyCallSuccessPayload(payload);
     } catch {
-      // тихо игнорируем, чтобы не ломать UI
+      addToast({ description: t("queue_operation_failed"), color: "danger" });
     } finally {
       setActionLoading(false);
     }
-  }, [actionLoading, applyCallSuccessPayload, currentManagerId, checkHasNextClients, isAdminUser]);
+  }, [
+    actionLoading,
+    applyCallSuccessPayload,
+    currentManagerId,
+    checkHasNextClients,
+    isAdminUser,
+    t,
+  ]);
 
   /** РОП: вызов выбранного талона тихо (без табло); сам РОП в смене и на своём окне — как в call-next. */
   const handleCallSpecificTicket = useCallback(
@@ -1322,31 +1406,36 @@ export default function QueueProfile() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ticketId, silentBoard: true }),
         });
+        const json = await res.json().catch(() => ({}));
         if (!res.ok) {
+          const msg = userFacingQueueError(
+            extractQueueApiErrorMessage(json),
+            t("queue_operation_failed"),
+          );
+          addToast({ description: msg, color: "danger" });
           return;
         }
-        const json = await res.json().catch(() => ({}));
         const payload = (json as { data?: CallTicketSuccessPayload }).data;
         applyCallSuccessPayload(payload);
       } catch {
-        // тихо игнорируем
+        addToast({ description: t("queue_operation_failed"), color: "danger" });
       }
     },
-    [applyCallSuccessPayload],
+    [applyCallSuccessPayload, t],
   );
 
   // Автовызов следующего клиента, когда countdown закончился.
   // Если клиентов нет — не вызываем (и countdown не тикает из-за gating выше).
   useEffect(() => {
     if (!isWaitingForNext) return;
-    if (isAdminUser) return;
+    if (isAdminWithoutAutoCall) return;
     if (!hasNextClient) return;
     if (countdown > 0) return;
     if (autoCallTriggeredRef.current) return;
 
     autoCallTriggeredRef.current = true;
     void handleCallClient();
-  }, [isWaitingForNext, hasNextClient, countdown, handleCallClient, isAdminUser]);
+  }, [isWaitingForNext, hasNextClient, countdown, handleCallClient, isAdminWithoutAutoCall]);
 
   const runCloseBranchShift = useCallback(
     async (shiftId: string) => {
@@ -1384,7 +1473,9 @@ export default function QueueProfile() {
         return;
       }
   
-      setBranchShiftError(t("queue_branch_shift_error_generic"));
+      setBranchShiftError(
+        userFacingQueueError(result.error, t("queue_branch_shift_error_generic")),
+      );
     },
     [t, applyForcedOffline],
   );
@@ -1407,7 +1498,12 @@ export default function QueueProfile() {
       }
       return;
     }
-    setBranchShiftError(t("queue_branch_shift_error_generic"));
+    setBranchShiftError(
+      userFacingQueueError(
+        opened.error ?? opened.message,
+        t("queue_branch_shift_error_generic"),
+      ),
+    );
   }, [
     branchId,
     branchShiftId,
@@ -1425,7 +1521,9 @@ export default function QueueProfile() {
       const fr = await forceManagerOfflineForShiftClose(managerId);
       setShiftCloseForcingId(null);
       if (!fr.ok) {
-        setBranchShiftError(t("queue_branch_shift_error_generic"));
+        setBranchShiftError(
+          userFacingQueueError(fr.error, t("queue_branch_shift_error_generic")),
+        );
         return;
       }
       await runCloseBranchShift(sid);
@@ -1446,7 +1544,9 @@ export default function QueueProfile() {
       const fr = await forceManagerOfflineForShiftClose(managerId);
       setAdminUnavailableForcingId(null);
       if (!fr.ok) {
-        setBranchShiftError(t("queue_branch_shift_error_generic"));
+        setBranchShiftError(
+          userFacingQueueError(fr.error, t("queue_branch_shift_error_generic")),
+        );
         return;
       }
       const r = await fetchAvailableManagersForBranch(branchId);
@@ -1457,11 +1557,17 @@ export default function QueueProfile() {
 
   const handleConfirmStatusChange = useCallback(async () => {
     if (!pendingStatus) return;
+    setStatusChangeError(null);
     const backendStatus = toBackendStatus(pendingStatus);
     const res = await setManagerStatus(backendStatus);
-    if (res.ok) dispatch(confirmStatusChange());
-    // при ошибке можно показать toast; модал остаётся открытым
-  }, [pendingStatus, dispatch]);
+    if (res.ok) {
+      dispatch(confirmStatusChange());
+      return;
+    }
+    setStatusChangeError(
+      userFacingQueueError(res.error, t("queue_operation_failed")),
+    );
+  }, [pendingStatus, dispatch, t]);
 
   const handleConfirmDeskAndGoOnline = useCallback(async () => {
     if (!draftDesk || deskConfirmLoading) return;
@@ -1470,26 +1576,18 @@ export default function QueueProfile() {
     try {
       const counterRes = await setManagerCurrentCounter(draftDesk);
       if (!counterRes.ok) {
-        if (counterRes.status === 409) {
-          // Для известных ошибок показываем только локализованный текст,
-          // не подмешивая русское сообщение с бэка.
-          setDeskSelectionError(t("queue_start_shift_error_busy"));
-        } else {
-          setDeskSelectionError(t("queue_start_shift_error_generic"));
-        }
+        setDeskSelectionError(
+          userFacingQueueError(counterRes.error, t("queue_start_shift_error_generic")),
+        );
         return;
       }
       const statusRes = await setManagerStatus("AVAILABLE");
       if (statusRes.ok) {
         dispatch(confirmDeskAndGoOnline(draftDesk));
       } else {
-        if (statusRes.error === "SHIFT_CLOSED") {
-          setDeskSelectionError("Сначала откройте смену филиала");
-        } else if (statusRes.status === 409) {
-          setDeskSelectionError(t("queue_start_shift_error_busy"));
-        } else {
-          setDeskSelectionError(t("queue_start_shift_error_generic"));
-        }
+        setDeskSelectionError(
+          userFacingQueueError(statusRes.error, t("queue_start_shift_error_generic")),
+        );
       }
     } finally {
       setDeskConfirmLoading(false);
@@ -1608,7 +1706,7 @@ export default function QueueProfile() {
               countdown={countdown}
               onCallClient={handleCallClient}
               actionLoading={actionLoading}
-              isAdminView={isAdminUser}
+              isAdminView={isAdminWithoutAutoCall}
               branchManagers={branchManagersForSidebar}
               branchManagersLoading={branchManagersLoading}
             />
@@ -1632,8 +1730,12 @@ export default function QueueProfile() {
       <StatusChangeModal
         isOpen={isStatusModalOpen}
         pendingStatus={pendingStatus}
+        errorMessage={statusChangeError}
         onConfirm={handleConfirmStatusChange}
-        onCancel={() => dispatch(cancelStatusChange())}
+        onCancel={() => {
+          setStatusChangeError(null);
+          dispatch(cancelStatusChange());
+        }}
       />
 
       <DeskSelectionModal

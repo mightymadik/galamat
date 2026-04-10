@@ -3,6 +3,8 @@
  * All requests go via Next.js API routes and use cookies (credentials: "include").
  */
 
+import { extractQueueApiErrorMessage } from "./queueApiError";
+
 export type ManagerProfile = {
   id: string;
   status: string;
@@ -35,7 +37,8 @@ async function queueFetch<T>(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    return { error: (data as { error?: string })?.error ?? "queue_error", status: res.status };
+    const msg = extractQueueApiErrorMessage(data);
+    return { error: msg ?? "queue_error", status: res.status };
   }
   return { data: data as T, status: res.status };
 }
@@ -106,8 +109,9 @@ export async function getCounters(branchId: string): Promise<{
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const msg = extractQueueApiErrorMessage(json);
     return {
-      error: (json as { error?: string })?.error ?? "queue_error",
+      error: msg ?? "queue_error",
       status: res.status,
     };
   }
@@ -146,8 +150,9 @@ export async function createCounter(params: {
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const msg = extractQueueApiErrorMessage(json);
     return {
-      error: (json as { error?: string })?.error ?? "queue_error",
+      error: msg ?? "queue_error",
       status: res.status,
     };
   }

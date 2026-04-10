@@ -507,6 +507,7 @@
   "queue_waiting_for_next_title": "Клиент әлі таңдалмаған",
   "queue_loading_queue": "Кезек жүктелуде...",
   "queue_error_loading_queue": "Кезекті жүктеу мүмкін болмады",
+  "queue_operation_failed": "Әрекет орындалмады. Қайталап көріңіз.",
   "queue_no_one_in_queue": "Қазір кезекте ешкім жоқ",
   "queue_confirm_desk": "Терезені растау",
   "queue_break_title": "Сіз үзілістесіз",

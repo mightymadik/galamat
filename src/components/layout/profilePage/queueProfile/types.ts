@@ -77,6 +77,8 @@ export type DeskSelectionModalProps = {
 export type StatusChangeModalProps = {
   isOpen: boolean;
   pendingStatus: QueueProfileStatus | null;
+  /** Текст ошибки API при подтверждении смены статуса */
+  errorMessage?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 };

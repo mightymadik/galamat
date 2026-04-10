@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@heroui/react";
 import type { QueueTicket, QueueNextClientsListProps } from "./types";
 import { subscribeToQueueBranchUpdates } from "./api/queueRealtimeApi";
+import { extractQueueApiErrorMessage, userFacingQueueError } from "./api/queueApiError";
 
 /**
  * Список очереди, когда менеджер "Доступен".
@@ -42,7 +43,8 @@ export default function QueueNextClientsList({
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
           if (!cancelled) {
-            setError((json as { error?: string })?.error ?? "queue_error");
+            const raw = extractQueueApiErrorMessage(json) ?? "queue_error";
+            setError(raw);
             setTickets([]);
             setDebugReason(null);
           }
@@ -163,8 +165,8 @@ export default function QueueNextClientsList({
       )}
 
       {!loading && error && (
-        <div className="flex items-center justify-center w-full py-4 text-[14px] text-[#DB1D31]">
-          {t("queue_error_loading_queue")}
+        <div className="flex items-center justify-center w-full py-4 text-[14px] text-[#DB1D31] text-center px-2">
+          {userFacingQueueError(error, t("queue_error_loading_queue"))}
         </div>
       )}
 
