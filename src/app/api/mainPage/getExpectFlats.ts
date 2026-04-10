@@ -11,7 +11,7 @@ export async function getExpectFlats(): Promise<ExpectApartmentsData[]> {
     );
 
     const root = res.data?.[0];
-    if (!root) throw new Error("Service Unavailable");
+    if (!root) return [];
 
     const items = root.expectFlatsItems || [];
 
@@ -34,6 +34,6 @@ export async function getExpectFlats(): Promise<ExpectApartmentsData[]> {
     });
   } catch (e) {
     console.error("Error fetching expect apartments:", e);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }

@@ -41,8 +41,8 @@ export async function getProjectFeatures(projectSlug?: string): Promise<ProjectF
       };
     });
   } catch (error) {
-    console.error("Error fetching project plans:", error);
-    throw new Error("Service Unavailable");
+    console.error("Error fetching project features:", error);
+    return [];
   }
 }
 

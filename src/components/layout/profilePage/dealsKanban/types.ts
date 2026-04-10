@@ -3,6 +3,7 @@ export const DEAL_STATUS_COLUMNS = [
   "Бронь",
   "Ожидания оплаты",
   "Оплачено",
+  "Согласование РОП",
   "Ожидания договора",
   "Договор подписан",
   "Просрочен",
@@ -51,6 +52,7 @@ export interface DealFull {
     reserveSum: number | null;
     expiresAt: string | null;
     paymentMethod: string | null;
+    kazreestrStatus?: string | null;
     realEstateType?: "property" | "commerce" | "parking" | "pantry";
     property: {
       documentId: string;
@@ -79,8 +81,33 @@ export interface DealFull {
       dateIssue?: string;
       address?: string;
     } | null;
+    manager?: {
+      name?: string;
+      surname?: string;
+      phone?: string;
+      displayName?: string;
+    } | null;
   };
   paymentSchedules: { index: number; dueDate: string; amount: number; paymentStatus: string }[];
   payments: { amount: number; paymentStatus: string; createdAt: string }[];
   signedAgreement: { signed: boolean; signedAt: string | null } | null;
+  latestKazreestrRequestLog: {
+    status: string | null;
+    responsePayload: {
+      nameRu?: string | null;
+      [key: string]: unknown;
+    } | null;
+  } | null;
+  kazreestrRequestLogs?: Array<{
+    status: string | null;
+    operationType?: string | null;
+    httpStatus?: number | null;
+    sentAt?: string | null;
+    respondedAt?: string | null;
+    messageId?: string | null;
+    responsePayload: {
+      nameRu?: string | null;
+      [key: string]: unknown;
+    } | null;
+  }>;
 }

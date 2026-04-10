@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Input } from "@heroui/react";
+import { DocumentLink } from "@/components/common/DocumentLink";
 
 const HIDDEN_DEAL_STATUSES = ["Отменен", "Бронь"];
 const PAGE_SIZE = 10;
@@ -307,16 +308,14 @@ export default function AgreementsList() {
                         {agreementsByDeal[row.dealDocumentId]?.length ? "Обновить список" : t("download")}
                       </Button>
                       {(agreementsByDeal[row.dealDocumentId] ?? []).map((a) => (
-                        <a
+                        <DocumentLink
                           key={`${row.dealDocumentId}-${a.url}`}
                           href={a.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           className="text-xs text-[#1A3C7E] underline underline-offset-2"
                           title={agreementLabel(a)}
                         >
                           {agreementLabel(a)}
-                        </a>
+                        </DocumentLink>
                       ))}
                     </div>
                   </td>

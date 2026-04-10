@@ -154,6 +154,7 @@ async function handleNonResidential(request: NextRequest, type: Exclude<RealEsta
   if (!metadataMode) {
     params[`filters[${cfg.statusField}][$eq]`] = "свободно";
     params["filters[saleStatus][$eq]"] = "открыто";
+    params["filters[project][publishedAt][$notNull]"] = "true";
     const page = searchParams.get("page");
     const pageSize = searchParams.get("pageSize");
     if (page && pageSize) {
@@ -164,6 +165,7 @@ async function handleNonResidential(request: NextRequest, type: Exclude<RealEsta
       params["pagination[pageSize]"] = "100";
     }
   } else {
+    params["filters[project][publishedAt][$notNull]"] = "true";
     params["pagination[page]"] = "1";
     params["pagination[pageSize]"] = "500";
   }

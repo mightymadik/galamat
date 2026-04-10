@@ -8,6 +8,7 @@ const COLUMN_HEAD_COLORS: Record<string, string> = {
   Бронь: "bg-amber-100 text-amber-900",
   "Ожидания оплаты": "bg-blue-100 text-blue-900",
   Оплачено: "bg-emerald-100 text-emerald-900",
+  "Согласование РОП": "bg-orange-100 text-orange-900",
   "Ожидания договора": "bg-violet-100 text-violet-900",
   "Договор подписан": "bg-green-100 text-green-900",
   Просрочен: "bg-red-100 text-red-900",

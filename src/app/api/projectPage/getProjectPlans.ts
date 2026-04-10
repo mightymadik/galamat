@@ -40,7 +40,7 @@ export async function getProjectPlans(projectSlug?: string): Promise<ProjectPlan
     });
   } catch (error) {
     console.error("Error fetching project plans:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }
 

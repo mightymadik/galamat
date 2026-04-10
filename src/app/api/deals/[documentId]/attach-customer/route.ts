@@ -3,7 +3,7 @@ import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
 import { normalizePhone } from "@/lib/authOtp";
 
-const ACTIVE_DEAL_STATUSES = ["Бронь", "Ожидания оплаты", "Ожидания договора"];
+const ACTIVE_DEAL_STATUSES = ["Бронь", "Ожидания оплаты", "Согласование РОП", "Ожидания договора"];
 const TYPE_CONFIG = {
   property: { relation: "property", apiPath: "properties", statusField: "propertyStatus", freeValue: "свободно" },
   commerce: { relation: "commerce", apiPath: "commerces", statusField: "saleStatus", freeValue: "открыто" },

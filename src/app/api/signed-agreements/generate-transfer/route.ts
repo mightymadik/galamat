@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import { toClientMediaUrl } from "@/lib/uploadsProxyUrl";
 
 export async function POST(req: Request) {
   try {
@@ -35,10 +36,7 @@ export async function POST(req: Request) {
 
     const data = res.data as any;
 
-    if (data.fileUrl) {
-      const url = new URL(data.fileUrl, base);
-      data.fileUrl = `/api/strapi-file?path=${encodeURIComponent(url.pathname)}`;
-    }
+    if (data.fileUrl) data.fileUrl = toClientMediaUrl(new URL(data.fileUrl, base).href);
 
     return NextResponse.json(data);
   } catch (e: any) {

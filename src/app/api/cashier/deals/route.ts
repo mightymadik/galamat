@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
 import { sumPaidFromPaymentRows } from "@/lib/paidFromPayments";
+import { resolveEffectiveRole } from "@/lib/dealManagerAuth";
 
 /**
  * GET /api/cashier/deals
@@ -17,17 +18,11 @@ export async function GET(request: NextRequest) {
     const payload = verifyAccessToken(access);
     if (!payload?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    let isCashier = payload.role === "cashier" || payload.role === "admin";
-    if (!isCashier) {
-      const base = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
-      const headers = getStrapiHeaders();
-      const customerRes = await strapiAxios
-        .get(`${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role`, { headers })
-        .catch(() => null);
-      const customer: any = (customerRes?.data as any)?.data?.[0];
-      const currentRole = customer?.role ?? customer?.attributes?.role ?? payload.role;
-      isCashier = currentRole === "cashier" || currentRole === "admin";
-    }
+    const origin = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
+    const originHeaders = getStrapiHeaders();
+    const effectiveRole = await resolveEffectiveRole(payload, origin, originHeaders);
+    const roleLower = String(effectiveRole || "").toLowerCase();
+    const isCashier = roleLower === "cashier" || roleLower === "admin";
     if (!isCashier) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     const base = getStrapiBaseUrl().replace(/\/$/, "");

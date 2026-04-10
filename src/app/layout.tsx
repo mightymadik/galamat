@@ -17,6 +17,9 @@ type Props = {
   children: React.ReactNode;
 };
 
+// Locale/city come from cookies (next-intl + apiGet). Static prerender would throw DYNAMIC_SERVER_USAGE.
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Купить квартиру в Астане — Galamat | Отдел продаж недвижимости",
   description:

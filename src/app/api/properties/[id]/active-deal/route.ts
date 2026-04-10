@@ -3,8 +3,15 @@ import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
 
-/** Сделки, при которых квартиру нельзя бронировать повторно (в т.ч. «Договор подписан»). */
-const ACTIVE_DEAL_STATUSES = ["Бронь", "Ожидания оплаты", "Ожидания договора", "Договор подписан"];
+/** Согласовано с /api/deals/start — «активная» сделка по объекту. */
+const ACTIVE_DEAL_STATUSES = [
+  "Бронь",
+  "Ожидания оплаты",
+  "Оплачено",
+  "Согласование РОП",
+  "Ожидания договора",
+  "Договор подписан",
+];
 type RealEstateType = "property" | "commerce" | "parking" | "pantry";
 const TYPE_CONFIG: Record<RealEstateType, { relation: string; apiPath: string }> = {
   property: { relation: "property", apiPath: "/api/properties" },

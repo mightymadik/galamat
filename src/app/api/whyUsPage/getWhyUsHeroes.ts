@@ -11,7 +11,7 @@ export async function getWhyUsHeroes(): Promise<WhyUsHeroItemData[]> {
       "/api/whyus-heroes?populate[whyUsHeroItems][populate]=*"
     );
 
-    if (!res.data || res.data.length === 0) throw new Error("Service Unavailable");
+    if (!res.data || res.data.length === 0) return [];
 
     const root = res.data[0]; // Single Type → один объект
 
@@ -41,6 +41,6 @@ export async function getWhyUsHeroes(): Promise<WhyUsHeroItemData[]> {
     });
   } catch (error) {
     console.error("Ошибка загрузки whyUsHero:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }

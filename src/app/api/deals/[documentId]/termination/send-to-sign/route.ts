@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import { managerForbiddenForDeal, resolveEffectiveRole } from "@/lib/dealManagerAuth";
+import { agreementTypeFromDeal } from "@/lib/agreementSettingStrapi";
 import { getDocumentShareLink } from "@/lib/doodocs";
+import { absoluteAppUrlFromRequest } from "@/lib/uploadsProxyUrl";
 
 const DOODOCS_API_URL = (process.env.DOODOCS_API_URL ?? "https://api.doodocs.kz").replace(/\/$/, "");
 const DOODOCS_CLIENT_ID = process.env.DOODOCS_CLIENT_ID;
@@ -199,7 +202,8 @@ export async function POST(
   const access = cookieStore.get("access_token")?.value;
   if (!access) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  verifyAccessToken(access);
+  const payload = verifyAccessToken(access);
+  if (!payload?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const { documentId: dealDocumentId } = await params;
   if (!dealDocumentId) return NextResponse.json({ error: "documentId required" }, { status: 400 });
@@ -213,11 +217,11 @@ export async function POST(
     contractName?: string;
   };
 
-  if (!fileUrl || typeof fileUrl !== "string" || !fileUrl.startsWith("http"))
-    return NextResponse.json(
-      { error: "fileUrl required and must be a direct document URL" },
-      { status: 400 }
-    );
+  if (!fileUrl || typeof fileUrl !== "string")
+    return NextResponse.json({ error: "fileUrl required" }, { status: 400 });
+  const fileUrlAbsolute = absoluteAppUrlFromRequest(req, fileUrl);
+  if (!fileUrlAbsolute.startsWith("http"))
+    return NextResponse.json({ error: "fileUrl invalid" }, { status: 400 });
   if (!projectDocumentId || typeof projectDocumentId !== "string")
     return NextResponse.json({ error: "projectDocumentId required" }, { status: 400 });
   if (!clientEmail?.trim() || !clientIin)
@@ -231,9 +235,33 @@ export async function POST(
     const base = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
     const headers = getStrapiHeaders();
 
+    const effectiveRole = await resolveEffectiveRole(payload, base, headers);
+    if (effectiveRole !== "manager" && effectiveRole !== "admin") {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    const dealAuthRes = await strapiAxios.get(
+      `${base}/api/deals/${encodeURIComponent(dealDocumentId)}?populate[manager][fields][0]=id`,
+      { headers }
+    );
+    const dealForAuth: any = (dealAuthRes.data as any)?.data ?? dealAuthRes.data;
+    if (!dealForAuth) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
+    if (managerForbiddenForDeal(effectiveRole, payload.sub, dealForAuth)) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    const dealTypeRes = await strapiAxios.get(
+      `${base}/api/deals/${encodeURIComponent(dealDocumentId)}` +
+        `?populate[property]=true&populate[commerce]=true&populate[parking]=true&populate[pantry]=true`,
+      { headers }
+    );
+    const dealForType: any = (dealTypeRes.data as any)?.data ?? dealTypeRes.data;
+    const agreementType = agreementTypeFromDeal(dealForType);
+
     const agreementsRes = await strapiAxios.get(
-      `${base}/api/agreements` +
+      `${base}/api/agreement-settings` +
         `?filters[project][documentId][$eq]=${encodeURIComponent(projectDocumentId)}` +
+        `&filters[agreementType][$eq]=${encodeURIComponent(agreementType)}` +
         `&pagination[pageSize]=1&populate[project][populate][developer]=true`,
       { headers }
     );
@@ -248,12 +276,15 @@ export async function POST(
     if (!companyBin || companyBin.length !== 12)
       return NextResponse.json({ error: "developer_bin_invalid" }, { status: 400 });
 
-    const pdfRes = await fetch(fileUrl);
+    const pdfRes = await fetch(fileUrlAbsolute, {
+      headers: { cookie: req.headers.get("cookie") ?? "" },
+    });
     if (!pdfRes.ok)
       return NextResponse.json({ error: "document_download_failed" }, { status: 502 });
     const fileBuffer = Buffer.from(await pdfRes.arrayBuffer());
     const contentType = pdfRes.headers.get("content-type") || "application/pdf";
-    const isDocx = contentType.includes("wordprocessingml") || /\.docx$/i.test(fileUrl);
+    const isDocx =
+      contentType.includes("wordprocessingml") || /\.docx$/i.test(fileUrlAbsolute);
     const docName = sanitizeDocumentName(contractName, isDocx);
 
     const bearerToken = await getDoodocsToken();

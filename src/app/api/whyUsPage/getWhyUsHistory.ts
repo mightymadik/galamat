@@ -11,7 +11,7 @@ export async function getHistory(): Promise<WhyUsHistoryItemData[]> {
       "/api/whyus-histories/?populate[historyItem][populate]=historyItemImage"
     );
 
-    if (!res || !res.data || res.data.length === 0) throw new Error("Service Unavailable");
+    if (!res || !res.data || res.data.length === 0) return [];
 
     const rootItem = res.data[0];
     const items = rootItem.historyItem || [];
@@ -50,7 +50,7 @@ export async function getHistory(): Promise<WhyUsHistoryItemData[]> {
     });
   } catch (error) {
     console.error("Error fetching history data:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }
 

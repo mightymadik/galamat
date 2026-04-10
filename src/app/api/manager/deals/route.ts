@@ -3,12 +3,14 @@ import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
 import { PAID_PAYMENT_STATUS } from "@/lib/paidFromPayments";
+import { resolveEffectiveRole } from "@/lib/dealManagerAuth";
 
 /** Колонки Kanban в порядке отображения */
 export const DEAL_STATUS_COLUMNS = [
   "Бронь",
   "Ожидания оплаты",
   "Оплачено",
+  "Согласование РОП",
   "Ожидания договора",
   "Договор подписан",
   "Просрочен",
@@ -31,19 +33,13 @@ export async function GET(request: NextRequest) {
     const payload = verifyAccessToken(access);
     if (!payload?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    let isManager = payload.role === "manager" || payload.role === "admin";
-    let isAdmin = payload.role === "admin";
-    if (!isManager) {
-      const base = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
-      const headers = getStrapiHeaders();
-      const customerRes = await strapiAxios
-        .get(`${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role`, { headers })
-        .catch(() => null);
-      const customer: any = (customerRes?.data as any)?.data?.[0];
-      const currentRole = customer?.role ?? customer?.attributes?.role ?? payload.role;
-      isManager = currentRole === "manager" || currentRole === "admin";
-      isAdmin = currentRole === "admin";
-    }
+    const origin = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
+    const originHeaders = getStrapiHeaders();
+    const effectiveRole = await resolveEffectiveRole(payload, origin, originHeaders);
+    const roleLower = String(effectiveRole || "").toLowerCase();
+    const isManager = roleLower === "manager" || roleLower === "admin" || roleLower === "rop";
+    const isAdmin = roleLower === "admin";
+    const isRop = roleLower === "rop";
     if (!isManager) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
@@ -61,7 +57,7 @@ export async function GET(request: NextRequest) {
     const managerId = payload.sub;
 
     let filters: string[] = [];
-    if (!isAdmin) {
+    if (!isAdmin && !isRop) {
       filters.push(`filters[manager][id][$eq]=${encodeURIComponent(managerId)}`);
     }
 
@@ -106,7 +102,7 @@ export async function GET(request: NextRequest) {
     const rawList: any[] = (res.data as any)?.data ?? [];
     let deals = Array.isArray(rawList) ? rawList : [];
 
-    if (deals.length === 0 && !isAdmin) {
+    if (deals.length === 0 && !isAdmin && !isRop) {
       const byDocIdUrl =
         `${base}/api/deals?filters[manager][documentId][$eq]=${encodeURIComponent(String(managerId))}` +
         `&${sort}&${pagination}&${populate}` +

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Button } from "@heroui/button";
 import { useTranslations } from "next-intl";
 import type { MyDealItem } from "@/app/api/profile/my-deals/route";
+import { DocumentLink } from "@/components/common/DocumentLink";
 
 type Step = {
     title: string;
@@ -586,16 +587,14 @@ export default function ObjectProfile() {
                                 {(agreementsByDeal[item.dealDocumentId] ?? []).length > 0 && (
                                     <div className="flex flex-col gap-1">
                                         {(agreementsByDeal[item.dealDocumentId] ?? []).map((a) => (
-                                            <a
+                                            <DocumentLink
                                                 key={`${item.dealDocumentId}-${a.url}`}
                                                 href={a.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
                                                 className="text-xs text-[#1A3C7E] underline underline-offset-2"
                                                 title={agreementLabel(a)}
                                             >
                                                 {agreementLabel(a)}
-                                            </a>
+                                            </DocumentLink>
                                         ))}
                                     </div>
                                 )}

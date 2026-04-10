@@ -5,6 +5,7 @@ import { Provider } from "react-redux";
 import { store } from "@/store";
 import type { Store } from "@reduxjs/toolkit";
 import { ToastProvider } from "@heroui/toast";
+import RopApprovalNotifier from "@/components/common/RopApprovalNotifier";
 
 interface ReduxProviderProps {
   children: React.ReactNode;
@@ -17,6 +18,7 @@ export default function ReduxProvider({ children, store: appStore = store }: Red
       <ToastProvider placement="bottom-right" toastProps={{classNames: {
         base: "bg-[#f4f6fb]",
       }}} />
+      <RopApprovalNotifier />
       {children}
     </Provider>
   );

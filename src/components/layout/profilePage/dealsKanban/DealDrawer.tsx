@@ -3,12 +3,15 @@
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { Drawer, DrawerContent, DrawerHeader, DrawerBody, DrawerFooter, Button } from "@heroui/react";
+import { useSelector } from "react-redux";
 import type { DealFull } from "./types";
+import type { RootState } from "@/store";
 import { RenewalContactsStep } from "./RenewalContactsStep";
 import { RenewalCostStep } from "./RenewalCostStep";
 import { RenewalSignStep } from "./RenewalSignStep";
 import { TerminationSignStep } from "./TerminationSignStep";
 import { useTranslations } from "next-intl";
+import { DocumentLink } from "@/components/common/DocumentLink";
 
 function formatPrice(input: unknown): string {
     if (input == null) return "—";
@@ -45,6 +48,48 @@ function formatDate(iso: string | null | undefined): string {
     return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function extractKazreestrNameRu(payload: unknown): string {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return "—";
+    const p = payload as Record<string, unknown>;
+    const direct = p.nameRu;
+    if (typeof direct === "string" && direct.trim()) return direct.trim();
+    const data = p.data;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+        const nested = (data as Record<string, unknown>).nameRu;
+        if (typeof nested === "string" && nested.trim()) return nested.trim();
+    }
+    const result = p.result;
+    if (result && typeof result === "object" && !Array.isArray(result)) {
+        const nested = (result as Record<string, unknown>).nameRu;
+        if (typeof nested === "string" && nested.trim()) return nested.trim();
+    }
+    return "—";
+}
+
+function mapKazreestrOperationLabel(operationType: string | null | undefined): string {
+    const v = String(operationType ?? "").trim().toLowerCase();
+    if (v === "registration") return "Первичная регистрация";
+    if (v === "assignment" || v === "renewal") return "Переоформление";
+    if (v === "termination" || v === "removal") return "Расторжение";
+    return "Операция не указана";
+}
+
+function mapKazreestrLogStatusLabel(status: string | null | undefined): string {
+    const v = String(status ?? "").trim().toLowerCase();
+    if (v === "sent" || v === "success") return "Отправлено успешно";
+    if (v === "failed" || v === "error") return "Ошибка отправки";
+    if (v === "pending") return "В обработке";
+    return "Статус не указан";
+}
+
+function mapHttpStatusLabel(httpStatus: number | null | undefined): string {
+    if (httpStatus == null) return "Ответ не получен";
+    if (httpStatus >= 200 && httpStatus < 300) return "Успешный ответ";
+    if (httpStatus >= 400 && httpStatus < 500) return "Ошибка в данных запроса";
+    if (httpStatus >= 500) return "Временная ошибка сервиса";
+    return `Код ответа ${httpStatus}`;
+}
+
 type DownloadAgreementItem = {
     url: string;
     name?: string;
@@ -72,6 +117,9 @@ export default function DealDrawer({
     onUpdated?: () => void;
 }) {
     const t = useTranslations();
+    const userRole = useSelector<RootState, string>((state) => state.auth.user?.role ?? "");
+    const isRopOrAdmin = userRole === "rop" || userRole === "admin";
+    const isManagerOrAdmin = userRole === "manager" || userRole === "admin";
     const [data, setData] = useState<DealFull | null>(null);
     const [planImage, setPlanImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -184,6 +232,8 @@ export default function DealDrawer({
     const isReserve = data?.deal?.dealStatus === "Бронь";
     const canRenewOrTerminate =
         data?.deal?.dealStatus === "Оплачено" || data?.deal?.dealStatus === "Договор подписан" || data?.deal?.dealStatus === "Просрочен" || data?.deal?.dealStatus === "Ожидания оплаты";
+    const isRopApprovalStage = data?.deal?.dealStatus === "Согласование РОП";
+    const canRequestRopApproval = data?.deal?.dealStatus === "Оплачено";
     const propertyType = data?.deal?.property?.type ?? data?.deal?.realEstateType ?? "property";
     const propertyTypeLabel = data?.deal?.property?.typeLabel ?? "Объект недвижимости";
     const isResidential = propertyType === "property";
@@ -201,6 +251,10 @@ export default function DealDrawer({
     };
 
     const canGoBackInRenewal = renewalStep != null && renewalStep !== "sign";
+    const latestKazreestrLog = data?.latestKazreestrRequestLog ?? null;
+    const latestKazreestrStatus = data?.deal?.kazreestrStatus ?? "—";
+    const latestKazreestrNameRu = extractKazreestrNameRu(latestKazreestrLog?.responsePayload);
+    const kazreestrLogs = data?.kazreestrRequestLogs ?? [];
     const handleRenewalBack = () => {
         if (!renewalStep) return;
         if (renewalStep === "cost") {
@@ -208,6 +262,54 @@ export default function DealDrawer({
             return;
         }
         exitRenewal();
+    };
+
+    const handleRopApproval = async (action: "approve" | "reject") => {
+        if (actionLoading) return;
+        setActionLoading(action);
+        try {
+            const res = await fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/approval`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(json?.error ?? "Не удалось обработать согласование");
+                return;
+            }
+            onUpdated?.();
+            onClose();
+        } catch {
+            alert("Ошибка сети");
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleRequestRopApproval = async () => {
+        if (actionLoading) return;
+        setActionLoading("request-approval");
+        try {
+            const res = await fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/approval`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "request" }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(json?.error ?? "Не удалось отправить на согласование");
+                return;
+            }
+            onUpdated?.();
+            onClose();
+        } catch {
+            alert("Ошибка сети");
+        } finally {
+            setActionLoading(null);
+        }
     };
 
     return (
@@ -450,6 +552,12 @@ export default function DealDrawer({
                                         <h4 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Клиент</h4>
                                         <div className="flex flex-col gap-[8px] text-[14px] not-italic font-normal text-[#122C5E] w-full">
                                             <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Менеджер:</span>
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">
+                                                    {data.deal.manager?.displayName ?? "—"}
+                                                </span>
+                                            </div>
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
                                                 <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Имя:</span> <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{data.deal.customer?.name ?? "—"}</span>
                                             </div>
                                             <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
@@ -476,23 +584,21 @@ export default function DealDrawer({
                                                         {agreementFiles.length ? "Обновить договоры" : "Показать договоры"}
                                                     </Button>
                                                     {agreementFiles.map((a) => (
-                                                        <a
+                                                        <DocumentLink
                                                             key={a.url}
                                                             href={a.url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
                                                             className="max-w-full truncate text-right text-xs text-[#1A3C7E] underline underline-offset-2"
                                                             title={agreementLabel(a)}
                                                         >
                                                             {agreementLabel(a)}
-                                                        </a>
+                                                        </DocumentLink>
                                                     ))}
                                                 </div>
                                             </div>
                                         </div>
                                     </section>
 
-                                    {/* Секция 4: График платежей */}
+                                    {/* Секция 6: График платежей */}
                                     <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
                                         <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">График платежей</h3>
                                         {data.paymentSchedules.length === 0 ? (
@@ -522,6 +628,37 @@ export default function DealDrawer({
                                             </div>
                                         )}
                                     </section>
+
+                                    {/* Секция 5: Казреестр */}
+                                    <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
+                                        <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Казреестр</h3>
+                                        <div className="flex flex-col gap-[8px] text-[14px] not-italic font-normal text-[#122C5E] w-full">
+                                            {kazreestrLogs.length > 0 && (
+                                                <div className="flex flex-col gap-[8px] pt-[8px]">
+                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">История запросов:</span>
+                                                    <div className="flex flex-col gap-[8px]">
+                                                        {kazreestrLogs.map((row, idx) => (
+                                                            <div
+                                                                key={`${row.messageId ?? "msg"}-${idx}`}
+                                                                className="rounded-[12px] bg-white p-[12px] border border-[rgba(38,85,175,0.16)]"
+                                                            >
+                                                                <div className="text-[14px] text-[#000]">Этап: {mapKazreestrOperationLabel(row.operationType)}</div>
+                                                                <div className="text-[14px] text-[#000]">Состояние: {mapKazreestrLogStatusLabel(row.status)}</div>
+                                                                <div className="text-[14px] text-[#000]">
+                                                                    Результат: {mapHttpStatusLabel(row.httpStatus)}
+                                                                </div>
+                                                                <div className="text-[14px] text-[#000]">Ответ: {extractKazreestrNameRu(row.responsePayload)}</div>
+                                                                <div className="text-[12px] text-[#122C5E] opacity-70">
+                                                                    Дата: {formatDate(row.respondedAt ?? row.sentAt ?? null)}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+
                                 </div>
                             )}
                         </DrawerBody>
@@ -537,6 +674,40 @@ export default function DealDrawer({
                                             isDisabled={!!actionLoading}
                                         >
                                             Отменить бронь
+                                        </Button>
+                                    )}
+                                    {isRopOrAdmin && isRopApprovalStage && (
+                                        <>
+                                            <Button
+                                                variant="flat"
+                                                className="w-full justify-center text-white bg-[#1A3C7E]"
+                                                onPress={() => handleRopApproval("approve")}
+                                                isLoading={actionLoading === "approve"}
+                                                isDisabled={!!actionLoading}
+                                            >
+                                                Согласовать сделку
+                                            </Button>
+                                            <Button
+                                                color="danger"
+                                                variant="bordered"
+                                                className="w-full justify-center text-white bg-[#DB1D31]"
+                                                onPress={() => handleRopApproval("reject")}
+                                                isLoading={actionLoading === "reject"}
+                                                isDisabled={!!actionLoading}
+                                            >
+                                                Отклонить сделку
+                                            </Button>
+                                        </>
+                                    )}
+                                    {isManagerOrAdmin && canRequestRopApproval && (
+                                        <Button
+                                            variant="flat"
+                                            className="w-full justify-center text-white bg-[#1A3C7E]"
+                                            onPress={handleRequestRopApproval}
+                                            isLoading={actionLoading === "request-approval"}
+                                            isDisabled={!!actionLoading}
+                                        >
+                                            Отправить на согласование РОП
                                         </Button>
                                     )}
                                     {canRenewOrTerminate && (

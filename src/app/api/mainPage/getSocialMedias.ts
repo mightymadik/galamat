@@ -26,6 +26,6 @@ export async function getSocialMedias(): Promise<SocialMediaData[]> {
     });
   } catch (error) {
     console.error("Error fetching social media data:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }

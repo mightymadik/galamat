@@ -88,7 +88,7 @@ async function apiGetForRoute(
   } catch (err: any) {
     console.error("Strapi API Error:", err.response?.data || err.message);
     console.error("Request URL:", url.toString());
-    throw new Error(err?.message || "Fetch error");
+    return { data: null };
   }
 }
 
@@ -242,7 +242,7 @@ export async function getProjectsDetails(
       params,
     });
 
-  if (!Array.isArray(res?.data)) throw new Error("Service Unavailable");
+  if (!Array.isArray(res?.data)) return [];
 
   return res.data.map((item: any) => {
     const hero = item.complexHero ?? {};

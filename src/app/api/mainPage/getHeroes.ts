@@ -8,7 +8,7 @@ export async function getHeroes(): Promise<HeroItemData[]> {
   try {
     const res = await apiGet("/api/heroes?populate=*");
 
-    if (!res.data || !Array.isArray(res.data)) throw new Error("Service Unavailable");
+    if (!res.data || !Array.isArray(res.data)) return [];
 
     const locale = await (await import("@/lib/getLocale")).getLocale();
 
@@ -35,6 +35,6 @@ export async function getHeroes(): Promise<HeroItemData[]> {
     return mapped.sort((a: HeroItemData, b: HeroItemData) => a.sort - b.sort);
   } catch (error) {
     console.error("Не удалось загрузить данные:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }

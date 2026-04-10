@@ -11,7 +11,7 @@ export async function getOurServices(): Promise<ServiceItemData[]> {
     );
 
     const root = res.data?.[0];
-    if (!root) throw new Error("Service Unavailable");
+    if (!root) return [];
 
     const items = root.ourServicesItems || [];
 
@@ -27,6 +27,6 @@ export async function getOurServices(): Promise<ServiceItemData[]> {
     });
   } catch (error) {
     console.error("Error fetching service data:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }

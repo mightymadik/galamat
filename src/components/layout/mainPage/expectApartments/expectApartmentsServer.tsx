@@ -6,6 +6,6 @@ export async function fetchExpectApartments() {
     return data;
   } catch (err) {
     console.error("Failed to fetch expect apartments:", err);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }

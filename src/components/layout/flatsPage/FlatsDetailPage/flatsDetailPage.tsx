@@ -264,7 +264,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
             : pdfCompanyPhone;
     /** Есть ли активная сделка по квартире (Бронь/Ожидания оплаты/договора) — решаем по сделкам, не по propertyStatus */
     const [hasActiveDeal, setHasActiveDeal] = useState<boolean | null>(null);
-    const canOpenPayModal = (user?.role === "manager" || user?.role === "admin") && hasActiveDeal === false;
+    const canOpenPayModal = (user?.role === "manager" || user?.role === "admin" || user?.role === "rop") && hasActiveDeal === false;
 
     /** Сделка в «Ожидания договора»/«Договор подписан» по этой квартире — показать «Продолжить подписание» после перезагрузки */
     const [resumeDealId, setResumeDealId] = useState<string | null>(null);
@@ -1339,7 +1339,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                     </div>
                     <div className="flex w-full lg:max-w-[463px] p-[32px] flex-col items-start flex-shrink-0 self-start rounded-[32px] bg-[#F4F6FB]">
                         <div className="flex w-full h-full flex-col items-start gap-[16px]">
-                            <div className="flex w-full lg:lg:max-w-[463px] h-[66px] flex-col items-start gap-[8px] flex-shrink-0">
+                            <div className="flex w-full lg:lg:max-w-[463px] flex-col items-start gap-[8px] flex-shrink-0">
                                 <h1 className="text-[#282D3C] text-[32px] not-italic font-medium leading-[41.76px]">
                                     {flat.title}
                                 </h1>

@@ -9,8 +9,18 @@ const PAYMENT_METHOD_MAP: Record<string, string> = {
   hypothec: "Ипотека",
 };
 
-/** Сделки, при которых квартиру нельзя бронировать повторно */
-const ACTIVE_DEAL_STATUSES = ["Бронь", "Ожидания оплаты", "Ожидания договора", "Договор подписан"];
+/**
+ * Сделки, при которых квартиру нельзя бронировать повторно (и нельзя перезаписывать при reuse).
+ * Должно покрывать все состояния «объект занят», кроме Расторжение/Отменен/Просрочен.
+ */
+const ACTIVE_DEAL_STATUSES = [
+  "Бронь",
+  "Ожидания оплаты",
+  "Оплачено",
+  "Согласование РОП",
+  "Ожидания договора",
+  "Договор подписан",
+];
 type RealEstateType = "property" | "commerce" | "parking" | "pantry";
 const TYPE_CONFIG: Record<RealEstateType, { relation: string; apiPath: string }> = {
   property: { relation: "property", apiPath: "properties" },
@@ -52,7 +62,7 @@ export async function POST(request: Request) {
     const managerDocumentId = (c?.documentId ?? (c?.attributes as any)?.documentId ?? String(payload.sub)) as string;
     const role = (c?.role ?? (c?.attributes as any)?.role ?? payload?.role ?? "") as string;
 
-    if (role !== "manager" && role !== "admin")
+    if (role !== "manager" && role !== "admin" && role !== "rop")
       return Response.json({ error: "Только менеджер или администратор могут бронировать квартиры" }, { status: 403 });
     if (!customerPhone)
       return Response.json({ error: "Телефон клиента не найден" }, { status: 400 });
@@ -62,6 +72,8 @@ export async function POST(request: Request) {
     const realEstateType = parseType(body?.realEstateType);
     const cfg = TYPE_CONFIG[realEstateType];
     const paymentMethodKey = body?.paymentMethod;
+    const baseContractTypeRaw = String(body?.baseContractType ?? "").trim().toUpperCase();
+    const baseContractType = baseContractTypeRaw === "ПДБ" || baseContractTypeRaw === "PDB" ? "ПДБ" : "ДДУ";
 
     if (!propertyId || typeof propertyId !== "string")
       return Response.json(
@@ -128,6 +140,7 @@ export async function POST(request: Request) {
       customer: { connect: [managerDocumentId] },
       manager: { connect: [managerDocumentId] },
       paymentMethod,
+      baseContractType,
       paidAmount: 0,
       expiresAt,
       ...(body?.dealPrice != null && { dealPrice: Number(body.dealPrice) }),

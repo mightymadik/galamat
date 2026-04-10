@@ -185,7 +185,7 @@ export function TerminationSignStep({
         <div className="flex justify-between items-center gap-4">
           {planImage ? (
             <div className="relative w-[130px] h-[116px] rounded-2xl bg-white overflow-hidden shrink-0">
-              <Image src={planImage} alt="Планировка" fill className="object-cover" unoptimized />
+              <Image src={planImage} alt="Планировка" fill unoptimized />
             </div>
           ) :
             <div className="w-[130px] h-[116px] bg-gray-200 rounded-[12px] flex items-center justify-center p-1">

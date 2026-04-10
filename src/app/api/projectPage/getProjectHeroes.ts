@@ -23,7 +23,7 @@ export async function getProjectHeroes(projectSlug?: string): Promise<ProjectHer
     params,
   });
 
-  if (!res?.data) throw new Error("Service Unavailable");
+  if (!Array.isArray(res?.data)) return [];
 
   return res.data.map((item: any) => {
     const hero = item.complexHero ?? {};

@@ -2,11 +2,47 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import { resolveEffectiveRole, managerForbiddenForDeal } from "@/lib/dealManagerAuth";
+import { toClientMediaUrl } from "@/lib/uploadsProxyUrl";
+
+function dealCustomerIds(deal: any): { id: number | null; documentId: string | null } {
+  const raw = deal?.customer ?? deal?.attributes?.customer;
+  const node = raw?.data ?? raw;
+  if (!node || typeof node !== "object") return { id: null, documentId: null };
+  const idRaw = (node as { id?: unknown }).id ?? (node as { attributes?: { id?: unknown } }).attributes?.id;
+  const docRaw =
+    (node as { documentId?: unknown }).documentId ??
+    (node as { attributes?: { documentId?: unknown } }).attributes?.documentId;
+  const id = idRaw != null ? Number(idRaw) : null;
+  return {
+    id: id != null && Number.isFinite(id) ? id : null,
+    documentId: docRaw != null && docRaw !== "" ? String(docRaw) : null,
+  };
+}
 
 function toDownloadUrl(rawUrl: string, _name: string, baseUrl: string): string {
   return rawUrl.startsWith("http")
     ? rawUrl
     : `${baseUrl}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+}
+
+function extFromUrl(url: string): string | null {
+  try {
+    const u = url.startsWith("http") ? new URL(url) : new URL(url, "http://local");
+    const p = u.pathname || "";
+    const m = p.toLowerCase().match(/\.([a-z0-9]+)$/i);
+    return m?.[1] ? m[1] : null;
+  } catch {
+    const m = url.toLowerCase().match(/\.([a-z0-9]+)$/i);
+    return m?.[1] ? m[1] : null;
+  }
+}
+
+function ensureExtension(name: string, ext: string): string {
+  const n = String(name || "").trim();
+  if (!n) return `document.${ext}`;
+  if (/\.[a-z0-9]+$/i.test(n)) return n;
+  return `${n}.${ext}`;
 }
 
 /**
@@ -31,25 +67,18 @@ export async function GET(
     const base = getStrapiBaseUrl().replace(/\/$/, "");
     const baseUrl = base.replace(/\/api\/?$/, "");
     const headers = getStrapiHeaders();
+    const strapiOrigin = baseUrl;
 
     const dealRes = await strapiAxios.get(
-      `${base}/api/deals/${documentId}?fields[0]=documentId&populate[customer][fields][0]=id&populate[customer][fields][1]=documentId`,
+      `${base}/api/deals/${encodeURIComponent(documentId)}?populate[customer]=true&populate[manager][fields][0]=id`,
       { headers }
     );
     const deal: any = (dealRes.data as any)?.data ?? dealRes.data;
     if (!deal) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
 
-    const customerId =
-      deal?.customer?.id ??
-      deal?.attributes?.customer?.id ??
-      (deal?.customer?.data as any)?.id ??
-      null;
-    const customerDocumentId =
-      deal?.customer?.documentId ??
-      deal?.attributes?.customer?.documentId ??
-      (deal?.customer?.data as any)?.documentId ??
-      null;
-    const isCustomerById = customerId != null && Number(customerId) === Number(payload.sub);
+    const { id: customerNumericId, documentId: customerDocumentId } = dealCustomerIds(deal);
+    const isCustomerById =
+      customerNumericId != null && Number(customerNumericId) === Number(payload.sub);
     let isCustomerByDocumentId = false;
     if (!isCustomerById && customerDocumentId != null) {
       try {
@@ -65,25 +94,16 @@ export async function GET(
       }
     }
     const isCustomer = isCustomerById || isCustomerByDocumentId;
-    let effectiveRole = payload.role ?? "";
-    try {
-      const meRoleRes = await strapiAxios.get(
-        `${base}/api/customers?filters[id][$eq]=${encodeURIComponent(String(payload.sub))}&pagination[pageSize]=1&fields[0]=role`,
-        { headers }
-      );
-      const me = (meRoleRes.data as any)?.data?.[0];
-      const roleFromCustomer = me?.role ?? me?.attributes?.role;
-      if (typeof roleFromCustomer === "string" && roleFromCustomer.trim()) {
-        effectiveRole = roleFromCustomer.trim();
-      }
-    } catch {
-      // keep role from token
-    }
+
+    const effectiveRole = await resolveEffectiveRole(payload, strapiOrigin, headers);
     const roleLower = String(effectiveRole || "").toLowerCase();
-    const isAdmin = roleLower === "admin";
-    const isManager = roleLower === "manager";
-    const isCashier = roleLower === "cashier";
-    if (!isCustomer && !isAdmin && !isManager && !isCashier) {
+    const isStaff = ["admin", "manager", "cashier", "rop"].includes(roleLower);
+
+    if (isStaff && roleLower === "manager" && managerForbiddenForDeal(effectiveRole, payload.sub, deal)) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    if (!isCustomer && !isStaff) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
@@ -119,14 +139,16 @@ export async function GET(
         const file = sa?.signedAgreement ?? sa?.attributes?.signedAgreement;
         const fileData = (file as any)?.data ?? file;
         const rawUrl = fileData?.url ?? fileData?.attributes?.url;
-        const name = String(fileData?.name ?? fileData?.attributes?.name ?? "").trim();
+        const upstreamName = String(fileData?.name ?? fileData?.attributes?.name ?? "").trim();
         const templateType = String(sa?.templateType ?? sa?.attributes?.templateType ?? "Договор").trim() || "Договор";
         const agreementTypeRaw = sa?.agreementType ?? sa?.attributes?.agreementType ?? null;
         const agreementNumberRaw = sa?.agreementNumber ?? sa?.attributes?.agreementNumber ?? null;
         if (!rawUrl || typeof rawUrl !== "string") continue;
+        const ext = extFromUrl(rawUrl) ?? (upstreamName.toLowerCase().endsWith(".docx") ? "docx" : upstreamName.toLowerCase().endsWith(".pdf") ? "pdf" : "pdf");
+        const displayName = upstreamName ? upstreamName : ensureExtension(templateType, ext);
         agreements.push({
-          url: toDownloadUrl(rawUrl, name || `${templateType}.pdf`, baseUrl),
-          name: name || `${templateType}.pdf`,
+          url: toClientMediaUrl(toDownloadUrl(rawUrl, displayName, baseUrl), displayName),
+          name: displayName,
           templateType,
           agreementType: agreementTypeRaw ? String(agreementTypeRaw) : null,
           agreementNumber: agreementNumberRaw ? String(agreementNumberRaw) : null,

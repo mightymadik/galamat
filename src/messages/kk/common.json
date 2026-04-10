@@ -273,7 +273,7 @@
   "contract_number_step_description": "Құжатты жасамас бұрын ДДУ шарт нөмірін көрсетіңіз.",
   "contract_number_required": "Шарт нөмірін енгізіңіз",
   "generate_contract": "Шартты жасау",
-  "finish": "Аяқтау",
+  "finish": "Шарт аяқтау",
   "my_documents": "Менің құжаттарым",
   "identity_document": "Ақпараттық құжат",
   "document_data_not_filled": "Құжат деректері толық емес. Қолтаңбаны растау үшін «Өзгерту» түймесін басыңыз.",
@@ -302,6 +302,7 @@
   "failed_to_get_agreement": "Шартты алу мүмкін болмады.",
   "status_reservation": "Бронь",
   "status_awaiting_payment": "Төлем күтуде",
+  "status_rop_approval": "СББ келісуі",
   "status_awaiting_contract": "Шарт күтуде",
   "status_contract_signed": "Шартқа қол қойылды",
   "status_canceled": "Жойылды",
@@ -580,5 +581,6 @@
   "otp_send_limit_reached": "Кодтар саны шектен шықты.",
   "required_field": "Міндетті өріс",
   "fill_required_fields": "Міндетті өрістерді толтырыңыз",
+  "agreement_ready_without_signing": "Құжат жасалды. Электронды қолтаңба қажет емес — рәсімдеуді аяқтауға болады.",
   "quarter": "тоқсан"
 }

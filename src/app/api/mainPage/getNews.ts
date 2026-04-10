@@ -18,7 +18,7 @@ export async function getMainNews(): Promise<NewsData[]> {
   try {
     const res = await apiGet("/api/main-news/?populate=*");
 
-    if (!res || !Array.isArray(res.data)) throw new Error("Service Unavailable");
+    if (!res || !Array.isArray(res.data)) return [];
 
     const sortedData = [...res.data].sort(
       (a: any, b: any) => getSortValue(a) - getSortValue(b)
@@ -59,7 +59,7 @@ export async function getMainNews(): Promise<NewsData[]> {
     });
   } catch (error) {
     console.error("Error fetching news:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }
 
@@ -68,7 +68,7 @@ export async function getMinorNews(): Promise<CtaNewsData[]> {
     const res = await apiGet("/api/minor-news/?populate=*");
 
     const item = Array.isArray(res.data) ? res.data[0] : null;
-    if (!item) throw new Error("Service Unavailable");
+    if (!item) return [];
 
     const image = item.minorNewsImage;
     const relativeUrl =
@@ -85,7 +85,7 @@ export async function getMinorNews(): Promise<CtaNewsData[]> {
     }];
   } catch (error) {
     console.error("Error fetching minor news data:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }
 
@@ -94,7 +94,7 @@ export async function getPositionNews(): Promise<PositionNewsData[]> {
     const res = await apiGet("/api/positions/?populate=*");
 
     const items = Array.isArray(res.data) ? res.data : [];
-    if (!items.length) throw new Error("Service Unavailable");
+    if (!items.length) return [];
 
     return items.map((item: any): PositionNewsData => {
       const image = item.positionImage;
@@ -111,6 +111,6 @@ export async function getPositionNews(): Promise<PositionNewsData[]> {
     });
   } catch (error) {
     console.error("Error fetching position news data:", error);
-    throw new Error("Service Unavailable");
+    return [];
   }
 }

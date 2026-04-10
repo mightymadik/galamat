@@ -80,7 +80,7 @@ export default function Installment({ flatData, realEstateType = "property", act
     const isResidential = realEstateType === "property";
     const unitLabel = realEstateType === "commerce" ? "Коммерция" : realEstateType === "parking" ? "Паркинг" : realEstateType === "pantry" ? "Кладовка" : "Квартира";
     const user = useSelector((state: RootState) => state.auth.user);
-    const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin";
+    const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin" || user?.role === "rop";
     const [galaBonus, setGalaBonus] = useState<string>("0 ₸");
     const [galaBonusAmount, setGalaBonusAmount] = useState<number>(0);
     const [galaBonusWhen, setGalaBonusWhen] = useState<string | null>(null);
