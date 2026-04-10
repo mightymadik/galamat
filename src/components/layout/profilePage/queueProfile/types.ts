@@ -136,6 +136,8 @@ export type QueueSidebarContentProps =
       actionLoading?: boolean;
       /** РОП: вместо таймера — список менеджеров филиала */
       isAdminView?: boolean;
+      /** Показать таймер вместе со списком менеджеров (спец-режим). */
+      showCountdownWithManagers?: boolean;
       branchManagers?: Array<{ id: string; name: string; status?: string }>;
       branchManagersLoading?: boolean;
     };

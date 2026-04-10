@@ -175,6 +175,7 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
     onCallClient,
     actionLoading = false,
     isAdminView,
+    showCountdownWithManagers = false,
     branchManagers = [],
     branchManagersLoading = false,
   } = props;
@@ -198,28 +199,37 @@ export default function QueueSidebarContent(props: QueueSidebarContentProps) {
           {isAdminView ? t("queue_rop_branch_managers_title") : t("queue_time_to_next")}
         </h1>
         {isAdminView ? (
-          <div className="flex flex-col gap-2 w-full min-h-[120px] max-h-[320px] overflow-y-auto">
-            {branchManagersLoading ? (
-              <p className="text-[14px] text-[rgba(7,7,31,0.48)] py-2">{t("queue_loading_queue")}</p>
-            ) : filteredBranchManagers?.length === 0 ? (
-              <p className="text-[14px] text-[rgba(7,7,31,0.48)] py-2">{t("queue_rop_managers_empty")}</p>
-            ) : (
-              <ul className="flex flex-col gap-2 w-full pr-1">
-                {filteredBranchManagers?.map((m) => (
-                  <li
-                    key={m.id}
-                    className="flex justify-between items-center gap-3 rounded-[12px] bg-white/90 px-3 py-2.5 border border-[rgba(19,44,94,0.08)]"
-                  >
-                    <span className="text-[#132C5E] text-[14px] font-medium leading-snug truncate min-w-0">
-                      {m.name}
-                    </span>
-                    <span className="text-[12px] text-[rgba(7,7,31,0.55)] shrink-0">
-                      {managerStatusLabel(m.status)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="flex flex-col gap-3 w-full">
+            {showCountdownWithManagers ? (
+              <div className="flex items-center justify-center self-stretch py-1">
+                <span className="text-[#1A3C7E] text-[32px] not-italic font-bold tabular-nums">
+                  {countdown}с
+                </span>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-2 w-full min-h-[120px] max-h-[320px] overflow-y-auto">
+              {branchManagersLoading ? (
+                <p className="text-[14px] text-[rgba(7,7,31,0.48)] py-2">{t("queue_loading_queue")}</p>
+              ) : filteredBranchManagers?.length === 0 ? (
+                <p className="text-[14px] text-[rgba(7,7,31,0.48)] py-2">{t("queue_rop_managers_empty")}</p>
+              ) : (
+                <ul className="flex flex-col gap-2 w-full pr-1">
+                  {filteredBranchManagers?.map((m) => (
+                    <li
+                      key={m.id}
+                      className="flex justify-between items-center gap-3 rounded-[12px] bg-white/90 px-3 py-2.5 border border-[rgba(19,44,94,0.08)]"
+                    >
+                      <span className="text-[#132C5E] text-[14px] font-medium leading-snug truncate min-w-0">
+                        {m.name}
+                      </span>
+                      <span className="text-[12px] text-[rgba(7,7,31,0.55)] shrink-0">
+                        {managerStatusLabel(m.status)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-center self-stretch py-4">

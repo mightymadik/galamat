@@ -212,6 +212,8 @@ export default function QueueProfile() {
   const isAdminUser = normalizedRole === "admin" || normalizedRole === "rop";
   const hasDualCallMode = currentManagerId === DUAL_CALL_USER_ID;
   const isAdminWithoutAutoCall = isAdminUser && !hasDualCallMode;
+  const shouldShowBranchManagersInWaitingSidebar = isAdminUser;
+  const shouldShowCountdownWithManagers = isAdminUser && hasDualCallMode;
   const canAddDesks = isAdminUser;
   const [branchShiftId, setBranchShiftId] = useState<string | null>(null);
   const [branchShiftLoading, setBranchShiftLoading] = useState(false);
@@ -1015,7 +1017,7 @@ export default function QueueProfile() {
   }, [branchId, isWaitingForNext, checkHasNextClients]);
 
   useEffect(() => {
-    if (!isAdminWithoutAutoCall || !branchId || !isWaitingForNext) {
+    if (!shouldShowBranchManagersInWaitingSidebar || !branchId || !isWaitingForNext) {
       setBranchManagersForSidebar([]);
       setBranchManagersLoading(false);
       return;
@@ -1060,7 +1062,7 @@ export default function QueueProfile() {
       cancelled = true;
       unsubscribeSocket?.();
     };
-  }, [isAdminWithoutAutoCall, branchId, isWaitingForNext]);
+  }, [shouldShowBranchManagersInWaitingSidebar, branchId, isWaitingForNext]);
 
   const handleStatusChange = (key: QueueProfileStatus) => {
     setStatusChangeError(null);
@@ -1707,6 +1709,7 @@ export default function QueueProfile() {
               onCallClient={handleCallClient}
               actionLoading={actionLoading}
               isAdminView={isAdminWithoutAutoCall}
+              showCountdownWithManagers={shouldShowCountdownWithManagers}
               branchManagers={branchManagersForSidebar}
               branchManagersLoading={branchManagersLoading}
             />
