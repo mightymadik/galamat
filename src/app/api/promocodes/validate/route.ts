@@ -120,10 +120,6 @@ function getFiltersFromRule(rule: unknown): FilterRow[] {
   return [];
 }
 
-function normDocId(v: unknown): string {
-  return String(v ?? "").trim();
-}
-
 /** Strapi 5: поля и связи могут быть в `attributes`, на корне записи, или смешанно */
 function mergeStrapiEntry(record: unknown): Record<string, unknown> {
   if (!record || typeof record !== "object") return {};
@@ -181,77 +177,10 @@ function augmentFlatForPromocodeFilters(
   return out;
 }
 
-/** documentId из relation Strapi (v4/v5: data[] или плоский массив) */
-function extractRelationDocumentIds(rel: unknown): string[] {
-  if (!rel) return [];
-  const anyRel = rel as Record<string, unknown>;
-  const data = anyRel.data;
-  if (Array.isArray(data)) {
-    return data
-      .map((item: unknown) => {
-        const x = item as Record<string, unknown>;
-        return normDocId(x?.documentId ?? x?.id ?? (x?.attributes as Record<string, unknown>)?.documentId);
-      })
-      .filter(Boolean);
-  }
-  if (data && typeof data === "object" && !Array.isArray(data)) {
-    const x = data as Record<string, unknown>;
-    const id = normDocId(x.documentId ?? x.id ?? (x.attributes as Record<string, unknown>)?.documentId);
-    return id ? [id] : [];
-  }
-  if (Array.isArray(rel)) {
-    return (rel as unknown[])
-      .map((item) => {
-        const x = item as Record<string, unknown>;
-        return normDocId(x?.documentId ?? x?.id);
-      })
-      .filter(Boolean);
-  }
-  return [];
-}
-
 /**
- * Если заданы связи properties / parkings / …, код только для этого типа и (при списке) для documentId объекта.
+ * Связи properties / parkings / … в Strapi используются как учёт (после применения к лоту), не как белый список.
+ * Ограничение по объекту задаётся только через promocodeRule.filters и realEstateType.
  */
-function matchesObjectScope(
-  attrs: Record<string, unknown>,
-  realEstateType: string | undefined,
-  objectDocumentId: string | undefined
-): boolean {
-  const properties = extractRelationDocumentIds(attrs.properties);
-  const parkings = extractRelationDocumentIds(attrs.parkings);
-  const commerces = extractRelationDocumentIds(attrs.commerces);
-  const pantrys = extractRelationDocumentIds(attrs.pantrys);
-
-  const hasScope =
-    properties.length > 0 || parkings.length > 0 || commerces.length > 0 || pantrys.length > 0;
-
-  if (!hasScope) return true;
-
-  const oid = normDocId(objectDocumentId);
-  if (!oid) return false;
-
-  const t = (realEstateType || "property").trim().toLowerCase();
-  const typeKey =
-    t === "commerce" ? "commerce" : t === "parking" ? "parking" : t === "pantry" ? "pantry" : "property";
-
-  const forType: Record<string, string[]> = {
-    property: properties,
-    parking: parkings,
-    commerce: commerces,
-    pantry: pantrys,
-  };
-
-  const idsForCurrent = forType[typeKey] ?? [];
-  if (idsForCurrent.length > 0) {
-    return idsForCurrent.some((id) => normDocId(id) === oid);
-  }
-
-  const otherScoped = Object.entries(forType).some(([k, arr]) => k !== typeKey && arr.length > 0);
-  if (otherScoped) return false;
-
-  return true;
-}
 
 export async function POST(req: Request) {
   try {
@@ -287,11 +216,7 @@ export async function POST(req: Request) {
     const query =
       `${baseParams.toString()}` +
       "&populate[project][fields][0]=documentId" +
-      "&populate[promocodes]=true" +
-      "&populate[properties][fields][0]=documentId" +
-      "&populate[parkings][fields][0]=documentId" +
-      "&populate[commerces][fields][0]=documentId" +
-      "&populate[pantrys][fields][0]=documentId";
+      "&populate[promocodes]=true";
 
     const res = await axios.get(`${base}/api/promocodes?${query}`, {
       headers: h,
@@ -361,10 +286,6 @@ export async function POST(req: Request) {
 
       const rule = attrs.promocodeRule;
       if (!ruleRealEstateTypeMatches(rule, realEstateType)) {
-        continue;
-      }
-
-      if (!matchesObjectScope(attrs, realEstateType, objectDocumentId)) {
         continue;
       }
 
