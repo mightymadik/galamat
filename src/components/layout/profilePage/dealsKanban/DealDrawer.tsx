@@ -118,8 +118,12 @@ export default function DealDrawer({
 }) {
     const t = useTranslations();
     const userRole = useSelector<RootState, string>((state) => state.auth.user?.role ?? "");
-    const isRopOrAdmin = userRole === "rop" || userRole === "admin";
-    const isManagerOrAdmin = userRole === "manager" || userRole === "admin";
+    const normalizedRole = String(userRole ?? "").toLowerCase();
+    const isRopOrAdmin = normalizedRole === "rop" || normalizedRole === "admin";
+    const isManagerOrAdmin = normalizedRole === "manager" || normalizedRole === "admin";
+    const isCashierReadOnly = normalizedRole === "cashier" || normalizedRole === "cshier";
+    const isLawyerReadOnly = normalizedRole === "lawyer";
+    const isReadOnlyRole = isCashierReadOnly || isLawyerReadOnly;
     const [data, setData] = useState<DealFull | null>(null);
     const [planImage, setPlanImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -665,7 +669,7 @@ export default function DealDrawer({
                         <DrawerFooter className="flex flex-col p-2 bg-transparent">
                             <section className="flex flex-col gap-[16px] self-stretch">
                                 <div className="flex flex-col gap-[10px] self-stretch">
-                                    {isReserve && (
+                                    {!isReadOnlyRole && isReserve && (
                                         <Button
                                             variant="flat"
                                             className="w-full justify-center text-white bg-[#F04800]"
@@ -699,18 +703,7 @@ export default function DealDrawer({
                                             </Button>
                                         </>
                                     )}
-                                    {isManagerOrAdmin && canRequestRopApproval && (
-                                        <Button
-                                            variant="flat"
-                                            className="w-full justify-center text-white bg-[#1A3C7E]"
-                                            onPress={handleRequestRopApproval}
-                                            isLoading={actionLoading === "request-approval"}
-                                            isDisabled={!!actionLoading}
-                                        >
-                                            Отправить на согласование РОП
-                                        </Button>
-                                    )}
-                                    {canRenewOrTerminate && (
+                                    {!isReadOnlyRole && canRenewOrTerminate && (
                                         <Button
                                             variant="flat"
                                             className="w-full justify-center text-white bg-[#1A3C7E]"
@@ -720,7 +713,7 @@ export default function DealDrawer({
                                             Переоформление
                                         </Button>
                                     )}
-                                    {!isReserve && canRenewOrTerminate && (
+                                    {!isReadOnlyRole && !isReserve && canRenewOrTerminate && (
                                         <Button
                                             color="danger"
                                             variant="bordered"

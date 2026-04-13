@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken } from "@/lib/tokens";
 import { getStrapiBaseUrl, getStrapiHeaders, strapiAxios } from "@/lib/strapiServer";
+import { resolveEffectiveRole } from "@/lib/dealManagerAuth";
 
 type RealEstateType = "property" | "commerce" | "parking" | "pantry";
 const TYPE_LABEL: Record<RealEstateType, string> = {
@@ -26,18 +27,14 @@ export async function GET(
     const payload = verifyAccessToken(access);
     if (!payload?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    let effectiveRole: string = payload.role ?? "customer";
-    if (effectiveRole !== "manager" && effectiveRole !== "admin" && effectiveRole !== "rop") {
-      const base = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
-      const headers = getStrapiHeaders();
-      const customerRes = await strapiAxios
-        .get(`${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role`, { headers })
-        .catch(() => null);
-      const customer: any = (customerRes?.data as any)?.data?.[0];
-      effectiveRole = customer?.role ?? customer?.attributes?.role ?? effectiveRole;
-    }
-    const isManager = effectiveRole === "manager" || effectiveRole === "admin" || effectiveRole === "rop";
-    if (!isManager) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    const origin = getStrapiBaseUrl().replace(/\/$/, "").replace(/\/api\/?$/, "");
+    const originHeaders = getStrapiHeaders();
+    const effectiveRole = await resolveEffectiveRole(payload, origin, originHeaders);
+    const roleLower = String(effectiveRole ?? "").toLowerCase();
+    const isManager = roleLower === "manager" || roleLower === "admin" || roleLower === "rop";
+    const isCashier = roleLower === "cashier" || roleLower === "cshier";
+    const isLawyer = roleLower === "lawyer";
+    if (!isManager && !isCashier && !isLawyer) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     const { documentId } = await params;
     if (!documentId) return NextResponse.json({ error: "documentId required" }, { status: 400 });
@@ -61,7 +58,7 @@ export async function GET(
 
     const managerId = deal?.manager?.id ?? deal?.attributes?.manager?.id ?? (deal?.manager as any)?.data?.id;
     const isDealManager = managerId != null && Number(managerId) === Number(payload.sub);
-    if (effectiveRole === "manager" && !isDealManager) {
+    if (roleLower === "manager" && !isDealManager) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
