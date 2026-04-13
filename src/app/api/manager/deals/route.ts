@@ -21,7 +21,7 @@ export type DealStatusColumn = (typeof DEAL_STATUS_COLUMNS)[number];
 
 /**
  * GET /api/manager/deals
- * Сделки текущего менеджера для Kanban.
+ * Сделки для Kanban (manager/admin/rop/cashier/lawyer).
  * Query: search (ФИО/квартира), project, paymentMethod, overdue (1), onlyMine (1), excludeCancelled (1), createdAtFrom (YYYY-MM-DD), createdAtTo (YYYY-MM-DD)
  */
 export async function GET(request: NextRequest) {
@@ -38,9 +38,11 @@ export async function GET(request: NextRequest) {
     const effectiveRole = await resolveEffectiveRole(payload, origin, originHeaders);
     const roleLower = String(effectiveRole || "").toLowerCase();
     const isManager = roleLower === "manager" || roleLower === "admin" || roleLower === "rop";
+    const isCashier = roleLower === "cashier" || roleLower === "cshier";
+    const isLawyer = roleLower === "lawyer";
     const isAdmin = roleLower === "admin";
     const isRop = roleLower === "rop";
-    if (!isManager) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    if (!isManager && !isCashier && !isLawyer) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search")?.trim() || "";
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
     const managerId = payload.sub;
 
     let filters: string[] = [];
-    if (!isAdmin && !isRop) {
+    if (!isAdmin && !isRop && !isCashier && !isLawyer) {
       filters.push(`filters[manager][id][$eq]=${encodeURIComponent(managerId)}`);
     }
 
@@ -102,7 +104,7 @@ export async function GET(request: NextRequest) {
     const rawList: any[] = (res.data as any)?.data ?? [];
     let deals = Array.isArray(rawList) ? rawList : [];
 
-    if (deals.length === 0 && !isAdmin && !isRop) {
+    if (deals.length === 0 && !isAdmin && !isRop && !isCashier && !isLawyer) {
       const byDocIdUrl =
         `${base}/api/deals?filters[manager][documentId][$eq]=${encodeURIComponent(String(managerId))}` +
         `&${sort}&${pagination}&${populate}` +

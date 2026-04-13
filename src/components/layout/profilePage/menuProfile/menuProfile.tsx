@@ -71,10 +71,13 @@ export default function MenuProfile() {
     const isAdmin = normalizedRole === "admin" || isRop;
     const isManager =
         (normalizedRole === "manager" || isAdmin) && !isExternalManager;
-        const isCashier =
+    const isCashier =
         normalizedRole === "cashier" ||
         normalizedRole === "cshier" ||
         isAdmin;
+    const isLawyer = normalizedRole === "lawyer";
+    const canAccessDeals = isManager || isCashier || isLawyer;
+    const canAccessAgreements = isManager || isLawyer;
     const canAccessQueue = isManager || isExternalManager || isCashier;
 
     const setActiveAndSync = (id: string) => {
@@ -179,8 +182,8 @@ export default function MenuProfile() {
                     {canAccessQueue && (
                         <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
                     )}
-                    {!isDevelopmentMode && isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
-                    {!isDevelopmentMode && isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
+                    {!isDevelopmentMode && canAccessDeals && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
+                    {!isDevelopmentMode && canAccessAgreements && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
                     {!isDevelopmentMode && isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActiveAndSync} />}
                     {!isDevelopmentMode && !isExternalManager && (
                         <>
@@ -210,8 +213,8 @@ export default function MenuProfile() {
                 {canAccessQueue && (
                     <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
                 )}
-                {!isDevelopmentMode && isManager && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
-                {!isDevelopmentMode && isManager && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
+                {!isDevelopmentMode && canAccessDeals && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
+                {!isDevelopmentMode && canAccessAgreements && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
                 {!isDevelopmentMode && isCashier && <MenuButton id="cashier" iconActive="/img/cash-white.svg" iconInactive="/img/cash-black.svg" text={t("cashier")} active={active} setActive={setActiveAndSync} />}
                 {!isDevelopmentMode && !isExternalManager && (
                     <>

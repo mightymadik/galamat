@@ -151,7 +151,6 @@ function paidTotalForDeal(deal: CashierDeal): number {
 }
 
 const CASHIER_ONLY_KEY = "cashier_only_access";
-const CASHIER_DEAL_STATUSES = ["Ожидания оплаты", "Договор подписан", "Просрочено", "Просрочен", "Оплачено", "Оплачен"] as const;
 const SCHEDULE_CONFIRMABLE_STATUSES = ["Ожидание", "Просрочено"];
 const PAGE_SIZE = 10;
 
@@ -180,6 +179,7 @@ export default function CashierPayments() {
   const [filterProject, setFilterProject] = useState("");
   const [filterApartment, setFilterApartment] = useState("");
   const [filterManager, setFilterManager] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
   const [createdAtFrom, setCreatedAtFrom] = useState<string>(getTodayIsoDate());
   const [createdAtTo, setCreatedAtTo] = useState<string>(getTodayIsoDate());
   const [page, setPage] = useState(1);
@@ -201,11 +201,6 @@ export default function CashierPayments() {
     load();
   }, [load]);
 
-  const activeDeals = useMemo(
-    () => deals.filter((d) => CASHIER_DEAL_STATUSES.includes((d.dealStatus || "").trim() as (typeof CASHIER_DEAL_STATUSES)[number])),
-    [deals]
-  );
-
   const displayDealStatus = (status: string): string => {
     const normalized = (status || "").trim();
     if (normalized === "Просрочен") return "Просрочено";
@@ -217,15 +212,18 @@ export default function CashierPayments() {
     const proj = filterProject.trim().toLowerCase();
     const apt = filterApartment.trim().toLowerCase();
     const mgr = filterManager.trim().toLowerCase();
+    const status = filterStatus.trim().toLowerCase();
     const from = createdAtFrom ? new Date(`${createdAtFrom}T00:00:00`) : null;
     const to = createdAtTo ? new Date(`${createdAtTo}T23:59:59.999`) : null;
-    if (!proj && !apt && !mgr && !from && !to) return activeDeals;
-    return activeDeals.filter((d) => {
+    if (!proj && !apt && !mgr && !status && !from && !to) return deals;
+    return deals.filter((d) => {
       if (proj && !(d.property?.projectName ?? "").toLowerCase().includes(proj)) return false;
       const aptStr = d.property?.apartmentNumber != null ? String(d.property.apartmentNumber) : "";
       if (apt && !aptStr.toLowerCase().includes(apt)) return false;
       const managerName = (d.manager?.displayName ?? "").toLowerCase();
       if (mgr && !managerName.includes(mgr)) return false;
+      const dealStatus = displayDealStatus(d.dealStatus).toLowerCase();
+      if (status && dealStatus !== status) return false;
       if (from || to) {
         const created = d.createdAt ? new Date(d.createdAt) : null;
         if (!created || Number.isNaN(created.getTime())) return false;
@@ -234,16 +232,25 @@ export default function CashierPayments() {
       }
       return true;
     });
-  }, [activeDeals, filterProject, filterApartment, filterManager, createdAtFrom, createdAtTo]);
+  }, [deals, filterProject, filterApartment, filterManager, filterStatus, createdAtFrom, createdAtTo]);
 
   const projectOptions = useMemo(() => {
     const names = new Set<string>();
-    for (const d of activeDeals) {
+    for (const d of deals) {
       const p = (d.property?.projectName ?? "").trim();
       if (p) names.add(p);
     }
     return Array.from(names).sort();
-  }, [activeDeals]);
+  }, [deals]);
+
+  const statusOptions = useMemo(() => {
+    const statuses = new Set<string>();
+    for (const d of deals) {
+      const normalized = displayDealStatus(d.dealStatus).trim();
+      if (normalized) statuses.add(normalized);
+    }
+    return Array.from(statuses).sort();
+  }, [deals]);
 
   const totalPages = Math.max(1, Math.ceil(filteredDeals.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -376,9 +383,9 @@ export default function CashierPayments() {
         </Button>
       </div>
 
-      {activeDeals.length > 0 && (
+      {deals.length > 0 && (
         <div className="rounded-[20px] border border-[#122C5E]/10 bg-white/80 p-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] lg:items-end">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] lg:items-end">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("filter_by_project")}</label>
               <Select
@@ -448,6 +455,23 @@ export default function CashierPayments() {
                 classNames={{ input: "rounded-[10px]", inputWrapper: "min-h-9" }}
               />
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-[#122C5E] opacity-80">{t("status_label")}</label>
+              <Select
+                size="sm"
+                selectedKeys={filterStatus ? [filterStatus] : [""]}
+                onSelectionChange={(keys) => {
+                  const k = Array.from(keys)[0] as string;
+                  setFilterStatus(k ?? "");
+                  setPage(1);
+                }}
+                placeholder={t("status_label")}
+                classNames={{ trigger: "min-h-9 rounded-[10px]" }}
+                items={[{ key: "", label: t("all") }, ...statusOptions.map((s) => ({ key: s, label: s }))]}
+              >
+                {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
+              </Select>
+            </div>
             <Button
               size="sm"
               variant="flat"
@@ -456,6 +480,7 @@ export default function CashierPayments() {
                 setFilterProject("");
                 setFilterApartment("");
                 setFilterManager("");
+                setFilterStatus("");
                 const today = getTodayIsoDate();
                 setCreatedAtFrom(today);
                 setCreatedAtTo(today);
@@ -468,14 +493,14 @@ export default function CashierPayments() {
         </div>
       )}
 
-      {activeDeals.length === 0 ? (
+      {deals.length === 0 ? (
         <div className="rounded-[32px] bg-[#F4F6FB] p-8 text-center">
           <p className="text-[#122C5E] opacity-70">{t("no_deals")}</p>
         </div>
       ) : filteredDeals.length === 0 ? (
         <div className="rounded-[32px] bg-[#F4F6FB] p-8 text-center">
           <p className="text-[#122C5E] opacity-70">{t("no_deals_match_filters")}</p>
-          <Button size="sm" variant="flat" color="primary" className="mt-2" onPress={() => { setFilterProject(""); setFilterApartment(""); setFilterManager(""); setPage(1); }}>
+          <Button size="sm" variant="flat" color="primary" className="mt-2" onPress={() => { setFilterProject(""); setFilterApartment(""); setFilterManager(""); setFilterStatus(""); setPage(1); }}>
             {t("reset")}
           </Button>
         </div>

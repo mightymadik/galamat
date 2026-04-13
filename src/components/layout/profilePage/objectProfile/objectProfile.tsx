@@ -21,7 +21,7 @@ type DataItem = {
     room: string;
     deadline: string;
     status: string;
-    statusKey: string;
+    statusLabel: string;
     statusColor: string;
     statusTextColor: string;
     buyType: string;
@@ -75,10 +75,14 @@ const STEP_ORDER_KEYS = [
 const STATUS_TO_KEY: Record<string, string> = {
     "Бронь": "status_reservation",
     "Ожидания оплаты": "status_awaiting_payment",
+    "Оплачено": "status_paid",
+    "Оплачен": "status_paid",
     "Ожидания договора": "status_awaiting_contract",
     "Договор подписан": "status_contract_signed",
     "Отменен": "status_canceled",
     "Просрочен": "status_overdue",
+    "Расторжение": "status_canceled",
+    "Расторгнут": "status_canceled",
 };
 
 const BUYTYPE_TO_KEY: Record<string, string> = {
@@ -234,7 +238,8 @@ export default function ObjectProfile() {
             const priceStr = price > 0 ? formatPrice(price) : "—";
 
             const statusStyle = DEAL_STATUS_STYLE[deal.dealStatus] ?? { bg: "#E5E7EB", text: "#374151" };
-            const statusKey = STATUS_TO_KEY[deal.dealStatus] ?? deal.dealStatus;
+            const statusTranslationKey = STATUS_TO_KEY[deal.dealStatus];
+            const statusLabel = statusTranslationKey ? t(statusTranslationKey) : deal.dealStatus;
             const reached: Record<string, boolean> = {
                 "Бронь": ["Бронь", "Ожидания оплаты", "Ожидания договора", "Договор подписан"].includes(deal.dealStatus),
                 "Ожидания договора": ["Ожидания договора", "Договор подписан"].includes(deal.dealStatus),
@@ -304,7 +309,7 @@ export default function ObjectProfile() {
                 room: roomStr,
                 deadline,
                 status: deal.dealStatus,
-                statusKey,
+                statusLabel,
                 statusColor: statusStyle.bg,
                 statusTextColor: statusStyle.text,
                 buyType,
@@ -422,7 +427,7 @@ export default function ObjectProfile() {
                                             style={{ background: item.statusColor }}
                                         >
                                             <span style={{ color: item.statusTextColor }} className="text-[14px]">
-                                                {t(item.statusKey)}
+                                                {item.statusLabel}
                                             </span>
                                         </div>
                                     </div>

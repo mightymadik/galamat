@@ -6,7 +6,7 @@ import { resolveEffectiveRole } from "@/lib/dealManagerAuth";
 
 /**
  * GET /api/manager/agreements
- * Список сделок текущего менеджера с информацией о договоре (подписан/дата) для раздела «Договора».
+ * Список сделок с информацией о договоре (подписан/дата) для раздела «Договора».
  */
 export async function GET(request: NextRequest) {
   try {
@@ -22,8 +22,9 @@ export async function GET(request: NextRequest) {
     const effectiveRole = await resolveEffectiveRole(payload, origin, originHeaders);
     const roleLower = String(effectiveRole || "").toLowerCase();
     const isManager = roleLower === "manager" || roleLower === "admin" || roleLower === "rop";
+    const isLawyer = roleLower === "lawyer";
     const isAdmin = roleLower === "admin";
-    if (!isManager) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    if (!isManager && !isLawyer) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     const base = getStrapiBaseUrl().replace(/\/$/, "");
     const headers = getStrapiHeaders();
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
       `&populate[manager][fields][0]=name&populate[manager][fields][1]=surname` +
       `&fields[0]=documentId&fields[1]=dealStatus&fields[2]=createdAt`;
 
-    const dealsUrl = isAdmin
+    const dealsUrl = isAdmin || isLawyer
       ? `${base}/api/deals?${baseDealsQuery}`
       : `${base}/api/deals?filters[manager][id][$eq]=${encodeURIComponent(managerId)}&${baseDealsQuery}`;
 
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
     let rawDeals: any[] = (dealsRes.data as any)?.data ?? [];
     if (!Array.isArray(rawDeals)) rawDeals = [];
 
-    if (rawDeals.length === 0 && !isAdmin) {
+    if (rawDeals.length === 0 && !isAdmin && !isLawyer) {
       const byDocIdUrl =
         `${base}/api/deals?filters[manager][documentId][$eq]=${encodeURIComponent(String(managerId))}&${baseDealsQuery}`;
       const res2 = await strapiAxios.get(byDocIdUrl, { headers }).catch(() => ({ data: {} }));
