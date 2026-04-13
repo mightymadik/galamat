@@ -6,6 +6,33 @@ import { sumPaidFromPaymentRows } from "@/lib/paidFromPayments";
 import { resolveEffectiveRole } from "@/lib/dealManagerAuth";
 
 /**
+ * Strapi `rest.maxLimit` (по умолчанию 100) — запросы с pageSize=1000 всё равно отдают до 100 строк.
+ * На проде с большим числом графиков без постранички виден только «первый транш» по сделкам.
+ */
+const STRAPI_PAGE = 100;
+
+async function fetchAllStrapiList(
+  pathAndQuery: string,
+  headers: Record<string, string>
+): Promise<any[]> {
+  const base = getStrapiBaseUrl().replace(/\/$/, "");
+  const all: any[] = [];
+  const maxPages = 200;
+  for (let page = 1; page <= maxPages; page += 1) {
+    const sep = pathAndQuery.includes("?") ? "&" : "?";
+    const url = `${base}${pathAndQuery}${sep}pagination[pageSize]=${STRAPI_PAGE}&pagination[page]=${page}`;
+    const res = await strapiAxios.get(url, { headers });
+    const chunk: any[] = (res.data as any)?.data ?? [];
+    if (!Array.isArray(chunk) || chunk.length === 0) break;
+    all.push(...chunk);
+    const pagination = (res.data as any)?.meta?.pagination;
+    if (typeof pagination?.pageCount === "number" && page >= pagination.pageCount) break;
+    if (chunk.length < STRAPI_PAGE) break;
+  }
+  return all;
+}
+
+/**
  * GET /api/cashier/deals
  * Список сделок с графиком платежей и оплатами для кассира (все сделки, не только своего менеджера).
  */
@@ -25,42 +52,42 @@ export async function GET(request: NextRequest) {
     const isCashier = roleLower === "cashier" || roleLower === "admin";
     if (!isCashier) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-    const base = getStrapiBaseUrl().replace(/\/$/, "");
     const headers = getStrapiHeaders();
 
-    const dealsRes = await strapiAxios.get(
-      `${base}/api/deals` +
-        "?sort[0]=createdAt:desc" +
-        "&pagination[pageSize]=300" +
-        "&populate[property][fields][0]=documentId&populate[property][fields][1]=apartmentNumber" +
-        "&populate[property][populate][project][fields][0]=projectName" +
-        "&populate[commerce][fields][0]=documentId&populate[commerce][fields][1]=commerceNumber" +
-        "&populate[commerce][populate][project][fields][0]=projectName" +
-        "&populate[parking][fields][0]=documentId&populate[parking][fields][1]=parkingNumber" +
-        "&populate[parking][populate][project][fields][0]=projectName" +
-        "&populate[pantry][fields][0]=documentId&populate[pantry][fields][1]=numberPantry" +
-        "&populate[pantry][populate][project][fields][0]=projectName" +
-        "&populate[customer][fields][0]=name&populate[customer][fields][1]=surname&populate[customer][fields][2]=phone" +
-        "&populate[manager][fields][0]=name&populate[manager][fields][1]=surname" +
-        "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=paymentMethod&fields[4]=createdAt",
-      { headers }
-    );
-    let rawDeals: any[] = (dealsRes.data as any)?.data ?? [];
+    const dealsQuery =
+      "/api/deals" +
+      "?sort[0]=createdAt:desc" +
+      "&populate[property][fields][0]=documentId&populate[property][fields][1]=apartmentNumber" +
+      "&populate[property][populate][project][fields][0]=projectName" +
+      "&populate[commerce][fields][0]=documentId&populate[commerce][fields][1]=commerceNumber" +
+      "&populate[commerce][populate][project][fields][0]=projectName" +
+      "&populate[parking][fields][0]=documentId&populate[parking][fields][1]=parkingNumber" +
+      "&populate[parking][populate][project][fields][0]=projectName" +
+      "&populate[pantry][fields][0]=documentId&populate[pantry][fields][1]=numberPantry" +
+      "&populate[pantry][populate][project][fields][0]=projectName" +
+      "&populate[customer][fields][0]=name&populate[customer][fields][1]=surname&populate[customer][fields][2]=phone" +
+      "&populate[manager][fields][0]=name&populate[manager][fields][1]=surname" +
+      "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=paymentMethod&fields[4]=createdAt";
+
+    let rawDeals: any[] = await fetchAllStrapiList(dealsQuery, headers);
     if (!Array.isArray(rawDeals)) rawDeals = [];
 
     const dealIdSet = new Set(rawDeals.map((d: any) => String(d?.documentId ?? d?.id ?? "")).filter(Boolean));
     const schedulesByDeal: Record<string, any[]> = {};
     const paymentsByDeal: Record<string, any[]> = {};
 
-    const scheduleRes = await strapiAxios.get(
-      `${base}/api/payment-schedules` +
-        "?sort[0]=index:asc" +
-        "&pagination[pageSize]=1000" +
-        "&fields[0]=documentId&fields[1]=index&fields[2]=dueDate&fields[3]=amount&fields[4]=paymentStatus" +
-        "&populate[deal][fields][0]=documentId",
-      { headers }
-    ).catch(() => ({ data: { data: [] } }));
-    const scheduleList: any[] = (scheduleRes.data as any)?.data ?? [];
+    let scheduleList: any[] = [];
+    try {
+      scheduleList = await fetchAllStrapiList(
+        "/api/payment-schedules" +
+          "?sort[0]=index:asc" +
+          "&fields[0]=documentId&fields[1]=index&fields[2]=dueDate&fields[3]=amount&fields[4]=paymentStatus" +
+          "&populate[deal][fields][0]=documentId",
+        headers
+      );
+    } catch {
+      scheduleList = [];
+    }
     for (const s of scheduleList) {
       const dealRel = s?.deal ?? s?.attributes?.deal;
       const dealData = (dealRel as any)?.data ?? dealRel;
@@ -77,17 +104,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const paymentsRes = await strapiAxios.get(
-      `${base}/api/payments` +
-        "?sort[0]=createdAt:desc" +
-        "&pagination[pageSize]=1000" +
-        "&fields[0]=documentId&fields[1]=amount&fields[2]=paymentStatus&fields[3]=createdAt&fields[4]=confirmedAt" +
-        "&populate[deal][fields][0]=documentId" +
-        "&populate[confirmedBy][fields][0]=name&populate[confirmedBy][fields][1]=surname" +
-        "&populate[receipt][fields][0]=url&populate[receipt][fields][1]=name&populate[receipt][fields][2]=mime",
-      { headers }
-    ).catch(() => ({ data: { data: [] } }));
-    const paymentsList: any[] = (paymentsRes.data as any)?.data ?? [];
+    let paymentsList: any[] = [];
+    try {
+      paymentsList = await fetchAllStrapiList(
+        "/api/payments" +
+          "?sort[0]=createdAt:desc" +
+          "&fields[0]=documentId&fields[1]=amount&fields[2]=paymentStatus&fields[3]=createdAt&fields[4]=confirmedAt" +
+          "&populate[deal][fields][0]=documentId" +
+          "&populate[confirmedBy][fields][0]=name&populate[confirmedBy][fields][1]=surname" +
+          "&populate[receipt][fields][0]=url&populate[receipt][fields][1]=name&populate[receipt][fields][2]=mime",
+        headers
+      );
+    } catch {
+      paymentsList = [];
+    }
     for (const p of paymentsList) {
       const dealRel = p?.deal ?? p?.attributes?.deal;
       const dealData = (dealRel as any)?.data ?? dealRel;
