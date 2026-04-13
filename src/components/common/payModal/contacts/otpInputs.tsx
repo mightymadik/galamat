@@ -109,7 +109,7 @@ function OtpInputs({
           onValueChange={(v) => handleChange(i, v)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={(e) => handlePaste(i, e)}
-          ref={(el) => {
+          ref={(el: HTMLInputElement | null) => {
             refs.current[i] = el as unknown as HTMLInputElement | null;
           }}
           classNames={{

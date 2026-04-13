@@ -3,12 +3,16 @@
  * All requests go via Next.js API routes and use cookies (credentials: "include").
  */
 
+import { extractQueueApiErrorMessage } from "./queueApiError";
+
 export type ManagerProfile = {
   id: string;
   status: string;
   branch: { id: string } | null;
   counters: Array<{ id: string; code: string }>;
   currentCounterId: string | null;
+  /** Бэкенд: не OFFLINE, но нет branchId в Redis (истёк кеш смены) */
+  needsPreviousShiftClosure?: boolean;
 };
 
 export type BackendStatus = "AVAILABLE" | "OFFLINE" | "BREAK" | "LUNCH";
@@ -33,7 +37,8 @@ async function queueFetch<T>(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    return { error: (data as { error?: string })?.error ?? "queue_error", status: res.status };
+    const msg = extractQueueApiErrorMessage(data);
+    return { error: msg ?? "queue_error", status: res.status };
   }
   return { data: data as T, status: res.status };
 }
@@ -104,8 +109,9 @@ export async function getCounters(branchId: string): Promise<{
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const msg = extractQueueApiErrorMessage(json);
     return {
-      error: (json as { error?: string })?.error ?? "queue_error",
+      error: msg ?? "queue_error",
       status: res.status,
     };
   }
@@ -144,8 +150,9 @@ export async function createCounter(params: {
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const msg = extractQueueApiErrorMessage(json);
     return {
-      error: (json as { error?: string })?.error ?? "queue_error",
+      error: msg ?? "queue_error",
       status: res.status,
     };
   }

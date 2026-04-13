@@ -285,7 +285,7 @@ export default function Form({ isOpen, onClose }: FormProps) {
                             isInvalid={!!errors.code}
                             onChange={(e) => handleCodeChange(index, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(index, e)}
-                            ref={(el) => { inputsRef.current[index] = el; }}
+                            ref={(el: HTMLInputElement | null) => { inputsRef.current[index] = el; }}
                             classNames={{
                                 input:
                                     "flex justify-center items-center text-center text-[18px] font-medium text-[#282D3C] bg-[#F4F6FB] rounded-[20px] h-[62px]",

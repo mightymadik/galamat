@@ -603,7 +603,7 @@ export default function FullPayment({ flatData, realEstateType = "property", act
                                         maxLength={1}
                                         onChange={(e) => handleBonusCodeChange(i, e.target.value)}
                                         onKeyDown={(e) => handleBonusCodeKeyDown(i, e)}
-                                        ref={(el) => { bonusCodeInputsRef.current[i] = el; }}
+                                        ref={(el: HTMLInputElement | null) => { bonusCodeInputsRef.current[i] = el; }}
                                         classNames={{
                                             input: "text-center text-[16px] font-medium text-[#1A3C7E] bg-[#F4F6FB] rounded-[12px] h-[48px]",
                                             inputWrapper: "p-0 w-full h-[48px]",

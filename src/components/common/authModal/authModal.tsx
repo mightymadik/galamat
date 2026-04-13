@@ -242,7 +242,7 @@ export default function AuthModal() {
                                                         if (verifyError) dispatch(clearVerifyError());
                                                     }}
                                                     onKeyDown={(e) => handleKeyDown(index, e)}
-                                                    ref={(el) => { inputsRef.current[index] = el; }}
+                                                    ref={(el: HTMLInputElement | null) => { inputsRef.current[index] = el; }}
                                                     classNames={{
                                                         input:
                                                             `flex justify-center items-center text-center text-[18px] font-medium text-[#282D3C] bg-[#F4F6FB] rounded-[20px] h-[62px]`,
@@ -465,7 +465,16 @@ export default function AuthModal() {
                                         <Button
                                             onPress={() => {
                                                 dispatch(closeAuth());
-                                                router.push(user?.documentId ? `/profile/${user.documentId}` : "/profile");
+                                                router.push(
+                                                    user?.documentId
+                                                        ? `/profile/${user.documentId}${
+                                                              String(user.role ?? "").toLowerCase() ===
+                                                              "external_manager"
+                                                                  ? "?section=queue"
+                                                                  : ""
+                                                          }`
+                                                        : "/profile",
+                                                );
                                             }}
                                             className={`flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] font-medium ${pathname === "/gala-bonus" ? "bg-[#F4F6FB] text-[#1A3C7E]" : "bg-[#DB1D31] text-white"}`}
                                         >

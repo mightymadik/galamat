@@ -6,8 +6,8 @@
     "compile": "./node_modules/.bin/tsc",
     "start": "next start",
     "start:open": "next start & sleep 3 && npx open-cli http://localhost:3000",
-    "dev": "next dev & npx next-video sync -w",
-    "dev:open": "next dev & sleep 3 && npx open-cli http://localhost:3000",
+    "dev": "next dev -p 3000 & npx next-video sync -w",
+    "dev:open": "next dev -p 3000 & sleep 3 && npx open-cli http://localhost:3000",
     "build": "next build",
     "lint": "eslint"
   },
@@ -47,9 +47,11 @@
     "react-redux": "^9.2.0",
     "sass": "^1.93.2",
     "sharp": "^0.34.5",
+    "socket.io-client": "^4.8.1",
     "strapi-plugin-populate-deep": "^3.0.1",
     "tailwindcss": "^4.0.0",
-    "use-mask-input": "^3.5.2"
+    "use-mask-input": "^3.5.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

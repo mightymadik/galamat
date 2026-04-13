@@ -22,7 +22,7 @@ export function createAccessToken(payload: {
   return jwt.sign(payload, secret, { expiresIn: "7d" });
 }
 
-export function verifyAccessToken(token: string): { sub: number; role?: string } | null {
+export function verifyAccessToken(token: string): { sub: number; role?: string; documentId?: string } | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const jwt = require("jsonwebtoken");

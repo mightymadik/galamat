@@ -21,7 +21,7 @@ export type SendCodeReject = {
 export type VerifyCodeResponse = {
   status: "ok";
   sessionId?: number;
-  user?: { id: number; documentId: string; phone: string; role: string; name?: string; surname?: string };
+  user: { id: number; documentId: string; phone: string; role: string; name?: string; surname?: string };
 };
 
 export type VerifyCodeReject = {
