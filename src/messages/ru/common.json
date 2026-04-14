@@ -198,6 +198,7 @@
   "monthly_payment_until": "Ежемесячный платёж до ",
   "remainder_of_payment_until": "Остаток платежа до",
   "remainder_of_payment": "Остаток платежа",
+  "hypothec_conditions": "Остаточный платеж в течение двух недель после оформления",
   "installment_conditions": "Условия рассрочки",
   "installment_until": "Рассрочка до",
   "payment_day": "День платежа",

@@ -47,7 +47,7 @@ function ensureExtension(name: string, ext: string): string {
 
 /**
  * GET: возвращает URL подписанного договора по сделке (для скачивания).
- * Доступно клиенту этой сделки, менеджеру, кассиру или админу.
+ * Доступно клиенту этой сделки, менеджеру, кассиру, юристу или админу.
  */
 export async function GET(
   _request: Request,
@@ -97,7 +97,7 @@ export async function GET(
 
     const effectiveRole = await resolveEffectiveRole(payload, strapiOrigin, headers);
     const roleLower = String(effectiveRole || "").toLowerCase();
-    const isStaff = ["admin", "manager", "cashier", "rop"].includes(roleLower);
+    const isStaff = ["admin", "manager", "cashier", "rop", "lawyer"].includes(roleLower);
 
     if (isStaff && roleLower === "manager" && managerForbiddenForDeal(effectiveRole, payload.sub, deal)) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });

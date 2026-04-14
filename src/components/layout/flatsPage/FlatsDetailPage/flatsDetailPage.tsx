@@ -1730,9 +1730,9 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                                 <div className="w-full h-[8px] rounded-[32px] bg-[#FFF] opacity-70"></div>
                                                                 <div className="flex h-[80px] flex-col justify-between items-start self-stretch">
                                                                     <p className="self-stretch text-[#FFF] text-[14px] leading-[16px] opacity-70 min-w-[0]">
-                                                                        {t("remainder_of_payment")} {hypothecPreview.validToFormatted || "даты"}
+                                                                        {t("hypothec_conditions")}
                                                                     </p>
-                                                                    <span className="text-[#FFF] text-[14px] font-medium leading-[16px]">{formatPriceDisplay(hypothecPreview.monthlyPayment)}</span>
+                                                                    {/* <span className="text-[#FFF] text-[14px] font-medium leading-[16px]">{formatPriceDisplay(hypothecPreview.monthlyPayment)}</span> */}
                                                                 </div>
                                                             </div>
                                                         </div>
