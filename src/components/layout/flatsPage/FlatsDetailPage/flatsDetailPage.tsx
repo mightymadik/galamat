@@ -50,6 +50,7 @@ interface FlatDetail {
     priceM2: string;
     tags: string[];
     images: string[];
+    windPlanImages?: string[];
     room: string;
     area: string;
     floor: string;
@@ -94,6 +95,7 @@ type PropertyDetailApi = Partial<{
     house: number;
     images: string[];
     platformPlanImages: string[];
+    windPlanImages: string[];
     tags: string[];
     complexDueDate: string;
     complexClass: string;
@@ -134,7 +136,7 @@ function adaptPropertyDetail(
     const priceM2Str = supportsPricePerM2
         ? `${formatPriceDisplay(api.priceM2Checkmate || 0)}/м²`
         : "—";
-    const images = [...(api.images || []), ...(api.platformPlanImages || [])];
+    const images = [...(api.images || []), ...(api.platformPlanImages || []), ...(api.windPlanImages || [])];
 
     const flatDetail: FlatDetail = {
         id: api.id ?? 0,
@@ -216,6 +218,9 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
     const [payStartLoading, setPayStartLoading] = useState(false);
     const [payStartError, setPayStartError] = useState<string | null>(null);
     const [zoomScale, setZoomScale] = useState(1);
+    const [isMagnifierEnabled, setIsMagnifierEnabled] = useState(false);
+    const [isMagnifierVisible, setIsMagnifierVisible] = useState(false);
+    const [magnifierPoint, setMagnifierPoint] = useState({ x: 0, y: 0 });
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const pdfRef = useRef<HTMLDivElement | null>(null);
 
@@ -506,6 +511,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
     useEffect(() => {
         setZoomScale(1);
         setPan({ x: 0, y: 0 });
+        setIsMagnifierVisible(false);
     }, [activePlan]);
 
     useEffect(() => {
@@ -547,6 +553,41 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
         setPan(clampPan(next, zoomScale));
     };
 
+    const updateMagnifierPoint = (e: React.PointerEvent) => {
+        if (!isMagnifierEnabled) return;
+        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+        setMagnifierPoint({ x, y });
+        setIsMagnifierVisible(true);
+    };
+
+    const handleViewportPointerDown = (e: React.PointerEvent) => {
+        onPointerDown(e);
+    };
+
+    const handleViewportPointerMove = (e: React.PointerEvent) => {
+        onPointerMove(e);
+        updateMagnifierPoint(e);
+    };
+
+    const handleViewportPointerLeave = (e: React.PointerEvent) => {
+        endDrag(e);
+        setIsMagnifierVisible(false);
+    };
+
+    const handleViewportClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+        setMagnifierPoint({ x, y });
+        setIsMagnifierEnabled((prev) => {
+            const next = !prev;
+            setIsMagnifierVisible(next);
+            return next;
+        });
+    };
+
     const endDrag = (e: React.PointerEvent) => {
         if (!dragRef.current.active) return;
         dragRef.current.active = false;
@@ -560,9 +601,12 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
         if (!flat?.images) return null;
         if (activePlan === "Планировка") return flat.images[0] ?? null;
         if (activePlan === "Этаж") return flat.images[1] ?? null;
+        if (activePlan === "Схема") return flat.images[2] ?? null;
         return null;
     };
     const planSrc = getActivePlanSrc();
+    const magnifierWindowSize = 280;
+    const magnifierZoom = 2.5;
 
     const handleZoomOut = () => setZoomScale((s) => Math.max(1, Number((s - 0.25).toFixed(2))));
     const handleZoomIn = () => setZoomScale((s) => Math.min(4, Number((s + 0.25).toFixed(2))));
@@ -1103,7 +1147,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                 <div className="wrapper flex items-center gap-[32px] flex-shrink-0 flex-wrap">
                     <div className="flex w-full max-h-[761px] p-[32px] flex-col justify-start items-center gap-[32px] flex-[1_0_0] self-stretch rounded-[32px] bg-[#F4F6FB]">
                         <div className="flex items-center gap-[32px] self-stretch">
-                            <div className="flex items-center gap-[8px] flex-[1_0_0]">
+                            <div className="flex items-center gap-[8px] flex-[1_0_0] flex-wrap">
                                 {flat?.images?.[0] && (
                                     <Button
                                         className={`flex h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center rounded-[12px] text-[15px] not-italic font-medium leading-[20px] ${activePlan === "Планировка" ? "bg-[#1A3C7E] text-white" : "bg-white text-[#1A3C7E]"
@@ -1121,6 +1165,15 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                         onClick={() => handlePlanClick("Этаж")}
                                     >
                                         {t("on_the_floor")}
+                                    </Button>
+                                )}
+                                {flat?.images?.[2] && (
+                                    <Button
+                                        className={`flex h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center rounded-[12px] text-[15px] not-italic font-medium leading-[20px] ${activePlan === "Схема" ? "bg-[#1A3C7E] text-white" : "bg-white text-[#1A3C7E]"
+                                            }`}
+                                        onClick={() => handlePlanClick("Схема")}
+                                    >
+                                        {t("schematic_plan")}
                                     </Button>
                                 )}
 
@@ -1175,12 +1228,16 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                     <div
                                         ref={viewportRef}
                                         className="relative w-full h-[300px] lg:h-[500px] overflow-hidden flex items-center justify-center touch-none"
-                                        onPointerDown={onPointerDown}
-                                        onPointerMove={onPointerMove}
+                                        onPointerDown={handleViewportPointerDown}
+                                        onPointerMove={handleViewportPointerMove}
                                         onPointerUp={endDrag}
                                         onPointerCancel={endDrag}
+                                        onPointerLeave={handleViewportPointerLeave}
+                                        onClick={handleViewportClick}
                                         style={{
-                                            cursor: zoomScale > 1 ? (dragRef.current.active ? "grabbing" : "grab") : "default",
+                                            cursor: zoomScale > 1
+                                                ? (dragRef.current.active ? "grabbing" : "grab")
+                                                : (isMagnifierEnabled ? "zoom-out" : "zoom-in"),
                                         }}
                                     >
                                         <div
@@ -1202,6 +1259,27 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                 draggable={false}
                                             />
                                         </div>
+                                        {isMagnifierEnabled && isMagnifierVisible && planSrc && (
+                                            <div
+                                                className="pointer-events-none absolute z-20 rounded-2xl border border-white/60 shadow-xl backdrop-blur-[1px]"
+                                                style={{
+                                                    width: `${magnifierWindowSize}px`,
+                                                    height: `${magnifierWindowSize}px`,
+                                                    left: `${Math.min(
+                                                        Math.max(12, magnifierPoint.x + 56),
+                                                        Math.max(12, (viewportRef.current?.clientWidth ?? magnifierWindowSize) - magnifierWindowSize - 12)
+                                                    )}px`,
+                                                    top: `${Math.min(
+                                                        Math.max(12, magnifierPoint.y + 44),
+                                                        Math.max(12, (viewportRef.current?.clientHeight ?? magnifierWindowSize) - magnifierWindowSize - 12)
+                                                    )}px`,
+                                                    backgroundImage: `url("${planSrc}")`,
+                                                    backgroundRepeat: "no-repeat",
+                                                    backgroundSize: `${magnifierZoom * 100}% ${magnifierZoom * 100}%`,
+                                                    backgroundPosition: `${(magnifierPoint.x / Math.max(1, viewportRef.current?.clientWidth ?? 1)) * 100}% ${(magnifierPoint.y / Math.max(1, viewportRef.current?.clientHeight ?? 1)) * 100}%`,
+                                                }}
+                                            />
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="w-[598px] h-[534px] bg-gray-200 rounded-[12px] flex items-center justify-center">
@@ -1227,12 +1305,16 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                     <div
                                         ref={viewportRef}
                                         className="relative w-full h-[300px] lg:h-[500px] overflow-hidden flex items-center justify-center touch-none"
-                                        onPointerDown={onPointerDown}
-                                        onPointerMove={onPointerMove}
+                                        onPointerDown={handleViewportPointerDown}
+                                        onPointerMove={handleViewportPointerMove}
                                         onPointerUp={endDrag}
                                         onPointerCancel={endDrag}
+                                        onPointerLeave={handleViewportPointerLeave}
+                                        onClick={handleViewportClick}
                                         style={{
-                                            cursor: zoomScale > 1 ? (dragRef.current.active ? "grabbing" : "grab") : "default",
+                                            cursor: zoomScale > 1
+                                                ? (dragRef.current.active ? "grabbing" : "grab")
+                                                : (isMagnifierEnabled ? "zoom-out" : "zoom-in"),
                                         }}
                                     >
                                         <div
@@ -1254,6 +1336,90 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                 draggable={false}
                                             />
                                         </div>
+                                        {isMagnifierEnabled && isMagnifierVisible && planSrc && (
+                                            <div
+                                                className="pointer-events-none absolute z-20 rounded-2xl border border-white/60 shadow-xl backdrop-blur-[1px]"
+                                                style={{
+                                                    width: `${magnifierWindowSize}px`,
+                                                    height: `${magnifierWindowSize}px`,
+                                                    left: `${Math.min(
+                                                        Math.max(12, magnifierPoint.x + 56),
+                                                        Math.max(12, (viewportRef.current?.clientWidth ?? magnifierWindowSize) - magnifierWindowSize - 12)
+                                                    )}px`,
+                                                    top: `${Math.min(
+                                                        Math.max(12, magnifierPoint.y + 44),
+                                                        Math.max(12, (viewportRef.current?.clientHeight ?? magnifierWindowSize) - magnifierWindowSize - 12)
+                                                    )}px`,
+                                                    backgroundImage: `url("${planSrc}")`,
+                                                    backgroundRepeat: "no-repeat",
+                                                    backgroundSize: `${magnifierZoom * 100}% ${magnifierZoom * 100}%`,
+                                                    backgroundPosition: `${(magnifierPoint.x / Math.max(1, viewportRef.current?.clientWidth ?? 1)) * 100}% ${(magnifierPoint.y / Math.max(1, viewportRef.current?.clientHeight ?? 1)) * 100}%`,
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="w-[598px] h-[534px] bg-gray-200 rounded-[12px] flex items-center justify-center">
+                                        <span className="text-gray-500">{t("no_image")}</span>
+                                    </div>
+                                )
+                            ) : activePlan === "Схема" ? (
+                                flat.images && flat.images.length > 2 ? (
+                                    <div
+                                        ref={viewportRef}
+                                        className="relative w-full h-[300px] lg:h-[500px] overflow-hidden flex items-center justify-center touch-none"
+                                        onPointerDown={handleViewportPointerDown}
+                                        onPointerMove={handleViewportPointerMove}
+                                        onPointerUp={endDrag}
+                                        onPointerCancel={endDrag}
+                                        onPointerLeave={handleViewportPointerLeave}
+                                        onClick={handleViewportClick}
+                                        style={{
+                                            cursor: zoomScale > 1
+                                                ? (dragRef.current.active ? "grabbing" : "grab")
+                                                : (isMagnifierEnabled ? "zoom-out" : "zoom-in"),
+                                        }}
+                                    >
+                                        <div
+                                            className="relative w-full h-full"
+                                            style={{
+                                                transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoomScale})`,
+                                                transformOrigin: "center center",
+                                                willChange: "transform",
+                                            }}
+                                        >
+                                            <Image
+                                                rel="preload"
+                                                src={flat.images[2]}
+                                                alt="Схема"
+                                                fill
+                                                priority
+                                                sizes="(max-width: 1024px) 100vw, 600px"
+                                                className="object-contain"
+                                                draggable={false}
+                                            />
+                                        </div>
+                                        {isMagnifierEnabled && isMagnifierVisible && planSrc && (
+                                            <div
+                                                className="pointer-events-none absolute z-20 rounded-2xl border border-white/60 shadow-xl backdrop-blur-[1px]"
+                                                style={{
+                                                    width: `${magnifierWindowSize}px`,
+                                                    height: `${magnifierWindowSize}px`,
+                                                    left: `${Math.min(
+                                                        Math.max(12, magnifierPoint.x + 56),
+                                                        Math.max(12, (viewportRef.current?.clientWidth ?? magnifierWindowSize) - magnifierWindowSize - 12)
+                                                    )}px`,
+                                                    top: `${Math.min(
+                                                        Math.max(12, magnifierPoint.y + 44),
+                                                        Math.max(12, (viewportRef.current?.clientHeight ?? magnifierWindowSize) - magnifierWindowSize - 12)
+                                                    )}px`,
+                                                    backgroundImage: `url("${planSrc}")`,
+                                                    backgroundRepeat: "no-repeat",
+                                                    backgroundSize: `${magnifierZoom * 100}% ${magnifierZoom * 100}%`,
+                                                    backgroundPosition: `${(magnifierPoint.x / Math.max(1, viewportRef.current?.clientWidth ?? 1)) * 100}% ${(magnifierPoint.y / Math.max(1, viewportRef.current?.clientHeight ?? 1)) * 100}%`,
+                                                }}
+                                            />
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="w-[598px] h-[534px] bg-gray-200 rounded-[12px] flex items-center justify-center">
@@ -1261,80 +1427,6 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                     </div>
                                 )
                             ) : null}
-                            <div className="hidden lg:flex flex-col w-[40px] items-center justify-center gap-[6px] h-[90px] rounded-[22px] bg-[#FFF] py-2">
-                                <Button
-                                    onClick={handleZoomOut}
-                                    className="w-full min-w-0 h-[40px] rounded-[12px] bg-transparent text-[#1A3C7E]"
-                                >
-                                    −
-                                </Button>
-                                <div className="w-full lg:max-w-[463px] h-[1px] flex-shrink-0 bg-black opacity-10"></div>
-                                <Button
-                                    onClick={handleZoomIn}
-                                    className="w-full min-w-0 h-[40px] rounded-[12px] bg-transparent text-[#1A3C7E]"
-                                >
-                                    +
-                                </Button>
-                            </div>
-                        </div>
-                        <div className="flex lg:hidden w-full items-center justify-evenly gap-[8px]">
-                            <div className="flex lg:hidden flex-row w-[90px] items-center justify-center gap-[6px] h-[40px] rounded-[22px] bg-[#FFF] py-2">
-                                <Button
-                                    onClick={handleZoomOut}
-                                    className="w-full min-w-0 h-[40px] rounded-[12px] bg-transparent text-[#1A3C7E]"
-                                >
-                                    −
-                                </Button>
-                                <div className="w-[1px] h-full flex-shrink-0 bg-black opacity-10"></div>
-                                <Button
-                                    onClick={handleZoomIn}
-                                    className="w-full min-w-0 h-[40px] rounded-[12px] bg-transparent text-[#1A3C7E]"
-                                >
-                                    +
-                                </Button>
-                            </div>
-                            <div className="flex">
-                                <Button
-                                    onClick={handleFavoriteClick}
-                                    className={`flex h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center rounded-[22px] text-[15px] not-italic font-medium leading-[20px] ${isFavorite ? "bg-[#1A3C7E] text-white" : "bg-[#FFF] text-[#1C274C]"}`}
-                                    title={isFavorite ? "Убрать из избранного" : "Добавить в избранное"}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                        <path d="M5.97416 12.6073L6.43848 12.0183L5.97416 12.6073ZM7.99967 3.66709L7.45931 4.18719C7.6007 4.33408 7.79579 4.41709 7.99967 4.41709C8.20356 4.41709 8.39865 4.33408 8.54004 4.18719L7.99967 3.66709ZM10.0252 12.6073L10.4895 13.1962L10.0252 12.6073ZM5.97416 12.6073L6.43848 12.0183C5.4132 11.21 4.33603 10.4524 3.47879 9.48717C2.64727 8.55085 2.08301 7.47831 2.08301 6.0914H1.33301H0.583008C0.583008 7.94644 1.35855 9.35867 2.35722 10.4832C3.33018 11.5788 4.57358 12.4582 5.50985 13.1962L5.97416 12.6073ZM1.33301 6.0914H2.08301C2.08301 4.75102 2.84003 3.63995 3.85318 3.17683C4.81905 2.73533 6.15131 2.82823 7.45931 4.18719L7.99967 3.66709L8.54004 3.14699C6.84815 1.38917 4.84707 1.07324 3.22958 1.8126C1.65937 2.53035 0.583008 4.18982 0.583008 6.0914H1.33301ZM5.97416 12.6073L5.50985 13.1962C5.84904 13.4636 6.22908 13.7618 6.61809 13.9891C7.00687 14.2163 7.47594 14.4167 7.99967 14.4167V13.6667V12.9167C7.85674 12.9167 7.65915 12.8601 7.37488 12.694C7.09085 12.5281 6.79146 12.2965 6.43848 12.0183L5.97416 12.6073ZM10.0252 12.6073L10.4895 13.1962C11.4258 12.4582 12.6692 11.5788 13.6421 10.4832C14.6408 9.35867 15.4163 7.94644 15.4163 6.0914H14.6663H13.9163C13.9163 7.47831 13.3521 8.55085 12.5206 9.48717C11.6633 10.4524 10.5861 11.21 9.56087 12.0183L10.0252 12.6073ZM14.6663 6.0914H15.4163C15.4163 4.18982 14.34 2.53035 12.7698 1.8126C11.1523 1.07324 9.1512 1.38917 7.45931 3.14699L7.99967 3.66709L8.54004 4.18719C9.84804 2.82823 11.1803 2.73533 12.1462 3.17683C13.1593 3.63995 13.9163 4.75102 13.9163 6.0914H14.6663ZM10.0252 12.6073L9.56087 12.0183C9.20789 12.2965 8.9085 12.5281 8.62447 12.694C8.3402 12.8601 8.14261 12.9167 7.99967 12.9167V13.6667V14.4167C8.52341 14.4167 8.99248 14.2163 9.38126 13.9891C9.77027 13.7618 10.1503 13.4636 10.4895 13.1962L10.0252 12.6073Z" fill="currentColor" />
-                                    </svg>
-                                </Button>
-                                <Button
-                                    onClick={generatePDF}
-                                    disabled={isGeneratingPDF}
-                                    className="flex h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center rounded-[22px] bg-[#FFF] text-[#FFF] text-[15px] not-italic font-medium leading-[20px] disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Открыть PDF"
-                                >
-                                    {isGeneratingPDF ? (
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1C274C]"></div>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                            <path fillRule="evenodd" clipRule="evenodd" d="M10.6663 4.00004H5.33301C3.44739 4.00004 2.50458 4.00004 1.91879 4.58583C1.33301 5.17161 1.33301 6.11442 1.33301 8.00004C1.33301 9.88566 1.33301 10.8285 1.91879 11.4143C2.2485 11.744 2.6913 11.8881 3.35164 11.9511C3.33299 11.4692 3.333 10.2349 3.33301 9.66673C3.14891 9.66673 2.99967 9.51747 2.99967 9.33337C2.99967 9.14928 3.14891 9.00004 3.33301 9.00004H12.6663C12.8504 9.00004 12.9997 9.14928 12.9997 9.33337C12.9997 9.51747 12.8504 9.66694 12.6663 9.66694C12.6663 10.235 12.6664 11.4693 12.6477 11.9511C13.3081 11.8881 13.7509 11.744 14.0806 11.4143C14.6663 10.8285 14.6663 9.88566 14.6663 8.00004C14.6663 6.11442 14.6663 5.17161 14.0806 4.58583C13.4948 4.00004 12.552 4.00004 10.6663 4.00004ZM5.99967 7.16671C6.27582 7.16671 6.49967 6.94285 6.49967 6.66671C6.49967 6.39057 6.27582 6.16671 5.99967 6.16671H3.99967C3.72353 6.16671 3.49967 6.39057 3.49967 6.66671C3.49967 6.94285 3.72353 7.16671 3.99967 7.16671H5.99967ZM11.333 7.33337C11.7012 7.33337 11.9997 7.0349 11.9997 6.66671C11.9997 6.29852 11.7012 6.00004 11.333 6.00004C10.9648 6.00004 10.6663 6.29852 10.6663 6.66671C10.6663 7.0349 10.9648 7.33337 11.333 7.33337Z" fill="#1C274C" />
-                                            <path d="M11.4137 1.91916C10.8279 1.33337 9.88514 1.33337 7.99952 1.33337C6.1139 1.33337 5.17109 1.33337 4.5853 1.91916C4.25706 2.24741 4.11275 2.68775 4.0493 3.34327C4.42213 3.33335 4.83422 3.33336 5.28596 3.33337H10.7134C11.165 3.33336 11.577 3.33335 11.9497 3.34326C11.8863 2.68775 11.742 2.2474 11.4137 1.91916Z" fill="#1C274C" />
-                                            <path fillRule="evenodd" clipRule="evenodd" d="M11.9997 9.66671C11.9997 11.5523 11.9997 13.4951 11.4139 14.0809C10.8281 14.6667 9.88529 14.6667 7.99967 14.6667C6.11406 14.6667 5.17125 14.6667 4.58546 14.0809C3.99968 13.4951 3.99968 11.5523 3.99967 9.66671H11.9997ZM10.4997 11.1667C10.4997 11.4429 10.2758 11.6667 9.99967 11.6667H5.99967C5.72353 11.6667 5.49967 11.4429 5.49967 11.1667C5.49967 10.8906 5.72353 10.6667 5.99967 10.6667H9.99967C10.2758 10.6667 10.4997 10.8906 10.4997 11.1667ZM9.16634 13.1667C9.16634 13.4429 8.94248 13.6667 8.66634 13.6667H5.99967C5.72353 13.6667 5.49967 13.4429 5.49967 13.1667C5.49967 12.8906 5.72353 12.6667 5.99967 12.6667H8.66634C8.94248 12.6667 9.16634 12.8906 9.16634 13.1667Z" fill="#1C274C" />
-                                        </svg>
-                                    )}
-                                </Button>
-                                <Button
-                                    onClick={handleCopyLink}
-                                    className="flex h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center rounded-[22px] bg-[#FFF] text-[#FFF] text-[15px] not-italic font-medium leading-[20px]"
-                                >
-                                    {!shareMessage && (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                            <path d="M9.30305 3.45565L12.6216 6.40547C13.242 6.95693 13.5522 7.23265 13.6665 7.55824C13.7669 7.84416 13.7669 8.15574 13.6665 8.44166C13.5522 8.76724 13.242 9.04297 12.6216 9.59442L9.30305 12.5442C9.02152 12.7945 8.88076 12.9196 8.76119 12.9241C8.65732 12.928 8.55758 12.8832 8.49148 12.803C8.41539 12.7106 8.41539 12.5223 8.41539 12.1456V10.2857C6.79667 10.2857 5.08696 10.8056 3.83855 11.7285C3.18862 12.2089 2.86364 12.4492 2.73987 12.4397C2.61922 12.4305 2.54265 12.3833 2.48005 12.2798C2.41583 12.1736 2.47255 11.8416 2.586 11.1778C3.32265 6.86699 6.28929 5.71423 8.41539 5.71423V3.85426C8.41539 3.47759 8.41539 3.28925 8.49148 3.19691C8.55758 3.1167 8.65732 3.07191 8.76119 3.0758C8.88076 3.08027 9.02152 3.2054 9.30305 3.45565Z" fill="#1C274C" />
-                                        </svg>
-                                    )}
-                                    {shareMessage && (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                            <path fillRule="evenodd" clipRule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z" fill="#1C274C" />
-                                        </svg>
-                                    )}
-                                </Button>
-                            </div>
                         </div>
                     </div>
                     <div className="flex w-full lg:max-w-[463px] p-[32px] flex-col items-start flex-shrink-0 self-start rounded-[32px] bg-[#F4F6FB]">

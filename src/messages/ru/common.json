@@ -583,5 +583,6 @@
   "required_field": "Обязательное поле",
   "fill_required_fields": "Заполните обязательные поля",
   "agreement_ready_without_signing": "Документ сформирован. Электронная подпись не требуется — можете завершить оформление.",
-  "quarter": "квартал"
+  "quarter": "квартал",
+  "schematic_plan": "Схема"
 }
