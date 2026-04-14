@@ -632,37 +632,6 @@ export default function DealDrawer({
                                             </div>
                                         )}
                                     </section>
-
-                                    {/* Секция 5: Казреестр */}
-                                    <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
-                                        <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Казреестр</h3>
-                                        <div className="flex flex-col gap-[8px] text-[14px] not-italic font-normal text-[#122C5E] w-full">
-                                            {kazreestrLogs.length > 0 && (
-                                                <div className="flex flex-col gap-[8px] pt-[8px]">
-                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">История запросов:</span>
-                                                    <div className="flex flex-col gap-[8px]">
-                                                        {kazreestrLogs.map((row, idx) => (
-                                                            <div
-                                                                key={`${row.messageId ?? "msg"}-${idx}`}
-                                                                className="rounded-[12px] bg-white p-[12px] border border-[rgba(38,85,175,0.16)]"
-                                                            >
-                                                                <div className="text-[14px] text-[#000]">Этап: {mapKazreestrOperationLabel(row.operationType)}</div>
-                                                                <div className="text-[14px] text-[#000]">Состояние: {mapKazreestrLogStatusLabel(row.status)}</div>
-                                                                <div className="text-[14px] text-[#000]">
-                                                                    Результат: {mapHttpStatusLabel(row.httpStatus)}
-                                                                </div>
-                                                                <div className="text-[14px] text-[#000]">Ответ: {extractKazreestrNameRu(row.responsePayload)}</div>
-                                                                <div className="text-[12px] text-[#122C5E] opacity-70">
-                                                                    Дата: {formatDate(row.respondedAt ?? row.sentAt ?? null)}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </section>
-
                                 </div>
                             )}
                         </DrawerBody>
