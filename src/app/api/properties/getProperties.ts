@@ -189,6 +189,19 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
               .filter(Boolean)
             : [];
 
+      const windPlanImages = light
+        ? []
+        : Array.isArray(item.windPlan)
+          ? item.windPlan.map((img: any) => {
+            const url = img.formats?.large?.url || img.formats?.medium?.url || img.formats?.small?.url || img.url;
+            return url ? `${BACKEND_URL}${url}` : null;
+          }).filter(Boolean)
+          : item.windPlan
+            ? [item.windPlan.formats?.large?.url || item.windPlan.formats?.medium?.url || item.windPlan.formats?.small?.url || item.windPlan.url]
+              .map((url: string) => url ? `${BACKEND_URL}${url}` : null)
+              .filter(Boolean)
+            : [];
+
       const tags: string[] = [];
       const pcList = Array.isArray(item.paymentConditions)
         ? item.paymentConditions
@@ -244,6 +257,7 @@ export async function getProperties(filters?: PropertyFilters, options?: GetProp
         complexAddress,
         images: planImages,
         platformPlanImages,
+        windPlanImages,
         tags,
         propertyStatus: item.propertyStatus || "свободно",
         apartmentNumber: item.apartmentNumber != null ? item.apartmentNumber : item.id,
@@ -365,6 +379,7 @@ export interface PropertyDetailItem {
   complexDueDate: string;
   images: string[];
   platformPlanImages: string[];
+  windPlanImages: string[];
   tags: string[];
   propertyStatus: string;
   apartmentNumber: number | string;
@@ -420,6 +435,12 @@ function mapRawPropertyToDetail(item: any, locale: string): PropertyDetailItem {
     ? item.platformPlan.map((img: any) => getMediaUrl(img)).filter(Boolean)
     : item.platformPlan
       ? [getMediaUrl(item.platformPlan)].filter(Boolean)
+      : [];
+
+  const windPlanImages = Array.isArray(item.windPlan)
+    ? item.windPlan.map((img: any) => getMediaUrl(img)).filter(Boolean)
+    : item.windPlan
+      ? [getMediaUrl(item.windPlan)].filter(Boolean)
       : [];
 
   const tags: string[] = [];
@@ -500,6 +521,7 @@ function mapRawPropertyToDetail(item: any, locale: string): PropertyDetailItem {
     complexDueDate,
     images: planImages,
     platformPlanImages,
+    windPlanImages,
     tags,
     propertyStatus: item.propertyStatus || "свободно",
     apartmentNumber: item.apartmentNumber != null ? item.apartmentNumber : item.id,
@@ -552,6 +574,7 @@ function mapPaymentConditions(raw: any): PaymentConditionForFlat[] {
 const DETAIL_POPULATE_PARAMS: Record<string, string> = {
   "populate[plan][populate]": "*",
   "populate[platformPlan][populate]": "*",
+  "populate[windPlan][populate]": "*",
   "populate[project][fields][0]": "documentId",
   "populate[project][fields][1]": "projectName",
   "populate[project][fields][2]": "publishedAt",

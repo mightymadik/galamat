@@ -583,5 +583,6 @@
   "required_field": "Міндетті өріс",
   "fill_required_fields": "Міндетті өрістерді толтырыңыз",
   "agreement_ready_without_signing": "Құжат жасалды. Электронды қолтаңба қажет емес — рәсімдеуді аяқтауға болады.",
-  "quarter": "тоқсан"
+  "quarter": "тоқсан",
+  "schematic_plan": "Жоба"
 }

@@ -42,6 +42,7 @@ export async function GET(
           ...(cfg.supportsMedia ? {
             "populate[plan][fields][0]": "url",
             "populate[platformPlan][fields][0]": "url",
+            "populate[windPlan][fields][0]": "url",
           } : {}),
         },
       }, true);
@@ -49,6 +50,7 @@ export async function GET(
       if (!item) return NextResponse.json({ error: "Property not found" }, { status: 404 });
       const plan = Array.isArray(item?.plan) ? item.plan : item?.plan ? [item.plan] : [];
       const platform = Array.isArray(item?.platformPlan) ? item.platformPlan : item?.platformPlan ? [item.platformPlan] : [];
+      const wind = Array.isArray(item?.windPlan) ? item.windPlan : item?.windPlan ? [item.windPlan] : [];
       const complexes = item?.project?.complexes;
       const complexAddress = Array.isArray(complexes)
         ? (complexes[0]?.complexAddress ?? "")
@@ -81,6 +83,7 @@ export async function GET(
         complexDueDate,
         images: plan.map((p: any) => p?.url).filter(Boolean),
         platformPlanImages: platform.map((p: any) => p?.url).filter(Boolean),
+        windPlanImages: wind.map((p: any) => p?.url).filter(Boolean),
         propertyStatus: item?.[cfg.statusField] ?? "свободно",
         apartmentNumber: item?.[cfg.numberField] ?? item?.id,
         saleStatus: item?.saleStatus,
