@@ -199,6 +199,7 @@
   "monthly_payment_until": "Ай сайынғы төлем ",
   "remainder_of_payment_until": "Төлем қалдығы қолжетімді",
   "remainder_of_payment": "Төлем қалдығы",
+  "hypothec_conditions": "Қалған төлем ресімделгеннен кейін екі апта ішінде төленеді",
   "installment_conditions": "Рассрочка шарттары",
   "payment_day": "Төлем күні",
   "select_payment_day": "Төлем күнін таңдаңыз",

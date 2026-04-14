@@ -97,7 +97,12 @@ export async function GET(req: Request) {
 
     const effectiveRole = await resolveEffectiveRole(payload, strapiOrigin, headers);
     const roleLower = String(effectiveRole || "").toLowerCase();
-    const isStaff = roleLower === "admin" || roleLower === "manager" || roleLower === "cashier" || roleLower === "rop";
+    const isStaff =
+      roleLower === "admin" ||
+      roleLower === "manager" ||
+      roleLower === "cashier" ||
+      roleLower === "rop" ||
+      roleLower === "lawyer";
     if (isStaff && roleLower === "manager" && managerForbiddenForDeal(effectiveRole, payload.sub, deal)) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
