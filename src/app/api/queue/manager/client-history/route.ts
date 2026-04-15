@@ -25,6 +25,7 @@ type HistoryItemRaw = {
   waitTimeMinutes?: number | null;
   serviceTimeSeconds?: number | null;
   serviceTimeMinutes?: number | null;
+  managerName?: string | null;
   service?: { name?: string | null; code?: string | null } | null;
   client?: {
     fullName?: string;
@@ -37,6 +38,7 @@ type HistoryItemRaw = {
   } | null;
   manager?: {
     fullName?: string;
+    displayName?: string;
     name?: string;
     surname?: string;
     middlename?: string;
@@ -144,13 +146,22 @@ export async function GET(req: NextRequest) {
         hClient.fio ||
         "Клиент";
 
+      const managerName =
+        h.managerName ||
+        hManager.fullName ||
+        hManager.displayName ||
+        [hManager.surname, hManager.name, hManager.middlename].filter(Boolean).join(" ").trim() ||
+        hManager.fio ||
+        hManager.name ||
+        null;
+
       return {
         id: String(h.id ?? ""),
         name,
         phone: hClient.phone || hClient.phoneNumber || null,
         date,
         service: hService.name || hService.code || null,
-        manager: hManager.fullName || hManager.name || null,
+        manager: managerName,
         waitTimeSeconds: waitSeconds,
         serviceTimeSeconds: serviceSeconds,
       };

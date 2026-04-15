@@ -105,14 +105,14 @@ export async function GET(_req: NextRequest) {
         ? null
         : serviceIds.length === 0
           ? "manager_no_services"
-          : tickets.length > 0 && !nextTicketId
-            ? "not_next_turn"
-            : managerStatus !== "AVAILABLE"
-              ? "manager_not_available"
-              : !meJson.data.currentCounterId
-                ? "manager_counter_not_selected"
-                : meJson.data.needsPreviousShiftClosure
-                  ? "shift_not_started_or_expired"
+          : managerStatus !== "AVAILABLE"
+            ? "manager_not_available"
+            : !meJson.data.currentCounterId
+              ? "manager_counter_not_selected"
+              : meJson.data.needsPreviousShiftClosure
+                ? "shift_not_started_or_expired"
+                : tickets.length > 0 && !nextTicketId
+                  ? "not_next_turn"
                   : "no_matching_tickets";
 
     return NextResponse.json({
