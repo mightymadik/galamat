@@ -5,6 +5,24 @@ import { useAppSelector } from "@/store/hooks";
 import ElapsedTimer, { elapsedSecondsSinceIso, formatElapsed } from "./ElapsedTimer";
 import { useTranslations } from "next-intl";
 
+function formatHistoryDateTime(rawDate?: string | null): string {
+  if (!rawDate) return "—";
+  const parsed = new Date(rawDate);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatManagerName(rawManager?: string | null): string {
+  const normalized = typeof rawManager === "string" ? rawManager.trim() : "";
+  return normalized || "—";
+}
+
 export default function QueueCalledPanel({
   isHistoryOpen,
   onToggleHistory,
@@ -154,34 +172,37 @@ export default function QueueCalledPanel({
           <div className={`w-full grid transition-[grid-template-rows] duration-300 ease-out ${isHistoryOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
             <div className="overflow-hidden w-full min-w-0">
               <div
-                className={`overflow-x-auto p-[8px] rounded-[16px] border border-solid border-[rgba(19,44,94,0.12)] bg-[#FFF] transition-opacity duration-300 ease-out ${isHistoryOpen ? "opacity-100" : "opacity-0"}`}
+                className={`max-h-[320px] overflow-auto p-[8px] rounded-[16px] border border-solid border-[rgba(19,44,94,0.12)] bg-[#FFF] transition-opacity duration-300 ease-out ${isHistoryOpen ? "opacity-100" : "opacity-0"}`}
                 style={{ minHeight: 0 }}
               >
-                <div className="min-w-[520px] flex flex-col gap-[8px]">
+                <div className="min-w-[860px] flex flex-col gap-[8px]">
                   {/* Заголовок таблицы — сетка 6 колонок с minmax для адаптива */}
                   <div
                     className="grid gap-x-2 p-2 py-0 shrink-0"
-                    style={{ gridTemplateColumns: "minmax(100px,1fr) minmax(90px,1fr) minmax(72px,0.8fr) minmax(64px,0.7fr) minmax(100px,1fr) minmax(72px,0.8fr)" }}
+                    style={{
+                      gridTemplateColumns:
+                        "minmax(140px,1fr) minmax(130px,1fr) minmax(150px,1fr) minmax(150px,1fr) minmax(160px,1fr) minmax(120px,0.9fr) minmax(120px,0.9fr)",
+                    }}
                   >
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 whitespace-nowrap">
                       {t("name")}
                     </span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 whitespace-nowrap">
                      {t("queue_phone")}
                     </span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 whitespace-nowrap">
                       {t("queue_date")}
                     </span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 whitespace-nowrap">
                       {t("queue_service")}
                     </span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 whitespace-nowrap">
                       {t("manager")}
                     </span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 whitespace-nowrap">
                       {t("queue_service_time_shortened")}
                     </span>
-                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 truncate">
+                    <span className="text-[rgba(44,45,49,0.50)] text-[12px] font-normal min-w-0 whitespace-nowrap">
                       {t("queue_waiting_time_shortened")}
                     </span>
                   </div>
@@ -189,9 +210,7 @@ export default function QueueCalledPanel({
                   <div className="flex flex-col gap-[4px] rounded-2">
                     {hasHistory ? (
                       currentClientHistory.map((item) => {
-                        const dateText = item.date
-                          ? new Date(item.date).toLocaleDateString("ru-RU")
-                          : "—";
+                        const dateText = formatHistoryDateTime(item.date);
                       
                         const waitText =
                           typeof item.waitTimeSeconds === "number"
@@ -209,16 +228,18 @@ export default function QueueCalledPanel({
                             className="grid gap-x-2 p-2 py-[8px] items-center [border-bottom:1px_solid_rgba(19,44,94,0.07)] text-[12px] text-[rgba(44,45,49,0.80)]"
                             style={{
                               gridTemplateColumns:
-                                "minmax(100px,1fr) minmax(90px,1fr) minmax(90px,1fr) minmax(90px,1fr) minmax(90px,1fr) minmax(80px,0.8fr) minmax(80px,0.8fr)",
+                                "minmax(140px,1fr) minmax(130px,1fr) minmax(150px,1fr) minmax(150px,1fr) minmax(160px,1fr) minmax(120px,0.9fr) minmax(120px,0.9fr)",
                             }}
                           >
-                            <span className="min-w-0 truncate">{item.name}</span>
-                            <span className="min-w-0 truncate">{item.phone ?? "—"}</span>
-                            <span className="min-w-0 truncate">{dateText}</span>
-                            <span className="min-w-0 truncate">{item.service ?? "—"}</span>
-                            <span className="min-w-0 truncate">{item.manager ?? "—"}</span>
-                            <span className="min-w-0 truncate">{serviceText}</span>
-                            <span className="min-w-0 truncate">{waitText}</span>
+                            <span className="min-w-0 truncate whitespace-nowrap">{item.name}</span>
+                            <span className="min-w-0 truncate whitespace-nowrap">{item.phone ?? "—"}</span>
+                            <span className="min-w-0 truncate whitespace-nowrap">{dateText}</span>
+                            <span className="min-w-0 truncate whitespace-nowrap">{item.service ?? "—"}</span>
+                            <span className="min-w-0 truncate whitespace-nowrap">
+                              {formatManagerName(item.manager)}
+                            </span>
+                            <span className="min-w-0 truncate whitespace-nowrap">{serviceText}</span>
+                            <span className="min-w-0 truncate whitespace-nowrap">{waitText}</span>
                           </div>
                         );
                       })
@@ -227,7 +248,7 @@ export default function QueueCalledPanel({
                         className="flex items-center justify-center px-2 py-[12px] rounded-[4px] bg-[#F4F6FB] [border-bottom:1px_solid_rgba(19,44,94,0.07)] text-[rgba(44,45,49,0.60)] text-[12px]"
                         style={{
                           gridTemplateColumns:
-                            "minmax(100px,1fr) minmax(90px,1fr) minmax(72px,0.8fr) minmax(64px,0.7fr) minmax(100px,1fr) minmax(72px,0.8fr)",
+                            "minmax(140px,1fr) minmax(130px,1fr) minmax(150px,1fr) minmax(150px,1fr) minmax(160px,1fr) minmax(120px,0.9fr) minmax(120px,0.9fr)",
                         }}
                       >
                         {t("queue_history_of_calls_placeholder")}

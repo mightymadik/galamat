@@ -79,6 +79,7 @@ export type StatusChangeModalProps = {
   pendingStatus: QueueProfileStatus | null;
   /** Текст ошибки API при подтверждении смены статуса */
   errorMessage?: string | null;
+  confirmLoading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };

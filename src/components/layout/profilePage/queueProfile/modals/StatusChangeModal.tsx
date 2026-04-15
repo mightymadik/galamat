@@ -10,6 +10,7 @@ export default function StatusChangeModal({
   isOpen,
   pendingStatus,
   errorMessage = null,
+  confirmLoading = false,
   onConfirm,
   onCancel,
 }: StatusChangeModalProps) {
@@ -49,12 +50,15 @@ export default function StatusChangeModal({
           <Button
             variant="flat"
             onPress={onCancel}
+            isDisabled={confirmLoading}
             className="rounded-[12px] border border-[rgba(19,44,94,0.24)] bg-white text-[#1A3C7E]"
           >
             {t("queue_cancel")}
           </Button>
           <Button
             onPress={onConfirm}
+            isDisabled={confirmLoading}
+            isLoading={confirmLoading}
             className="rounded-[12px] bg-[#1A3C7E] text-white"
           >
             {t("queue_confirm")}
