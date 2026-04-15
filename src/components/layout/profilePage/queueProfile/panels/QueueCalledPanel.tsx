@@ -172,7 +172,7 @@ export default function QueueCalledPanel({
           <div className={`w-full grid transition-[grid-template-rows] duration-300 ease-out ${isHistoryOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
             <div className="overflow-hidden w-full min-w-0">
               <div
-                className={`overflow-x-auto p-[8px] rounded-[16px] border border-solid border-[rgba(19,44,94,0.12)] bg-[#FFF] transition-opacity duration-300 ease-out ${isHistoryOpen ? "opacity-100" : "opacity-0"}`}
+                className={`max-h-[320px] overflow-auto p-[8px] rounded-[16px] border border-solid border-[rgba(19,44,94,0.12)] bg-[#FFF] transition-opacity duration-300 ease-out ${isHistoryOpen ? "opacity-100" : "opacity-0"}`}
                 style={{ minHeight: 0 }}
               >
                 <div className="min-w-[860px] flex flex-col gap-[8px]">
