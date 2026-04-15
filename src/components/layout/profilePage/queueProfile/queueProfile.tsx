@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Button } from "@heroui/react";
+import { Button, Spinner } from "@heroui/react";
 import { addToast } from "@heroui/toast";
 import { io, type Socket } from "socket.io-client";
 import { getDefaultQueueSocketOptions } from "@/lib/queueSocket";
@@ -173,6 +173,7 @@ export default function QueueProfile() {
   const [queueAccessDenied, setQueueAccessDenied] = useState(false);
   const [deskSelectionError, setDeskSelectionError] = useState<string | null>(null);
   const [statusChangeError, setStatusChangeError] = useState<string | null>(null);
+  const [statusConfirmLoading, setStatusConfirmLoading] = useState(false);
   const [addDeskLoading, setAddDeskLoading] = useState(false);
   const [addDeskError, setAddDeskError] = useState<string | null>(null);
   const [deskConfirmLoading, setDeskConfirmLoading] = useState(false);
@@ -181,6 +182,7 @@ export default function QueueProfile() {
   const [reannounceLoading, setReannounceLoading] = useState(false);
   const [reannounceCooldownSecondsLeft, setReannounceCooldownSecondsLeft] =
     useState(0);
+  const [initialQueueLoading, setInitialQueueLoading] = useState(true);
 
   const dispatch = useAppDispatch();
   const {
@@ -506,32 +508,39 @@ export default function QueueProfile() {
   // Загрузка: профиль менеджера (me) → branchId, статус, currentCounterId; список всех окон по branchId (/counters)
   useEffect(() => {
     setQueueAccessDenied(false);
+    setInitialQueueLoading(true);
     const requestId = profileLoadRequestIdRef.current + 1;
     profileLoadRequestIdRef.current = requestId;
     const selectedDeskSnapshot = selectedDeskRef.current;
-    getManagerProfile().then(async (profileRes) => {
-      if (requestId !== profileLoadRequestIdRef.current) return;
-      if (
-        (profileRes.status === 403 || profileRes.error === "forbidden") &&
-        normalizedRole !== "external_manager"
-      ) {
-        setQueueAccessDenied(true);
-        return;
-      }
-      if (!profileRes.data) return;
-      if (
-        profileRes.data.needsPreviousShiftClosure &&
-        user?.role === "manager"
-      ) {
-        setStaleShiftModalOpen(true);
-      } else {
-        setStaleShiftModalOpen(false);
-      }
-      await loadProfileIntoStore(profileRes.data, {
-        requestId,
-        selectedDeskSnapshot,
+    getManagerProfile()
+      .then(async (profileRes) => {
+        if (requestId !== profileLoadRequestIdRef.current) return;
+        if (
+          (profileRes.status === 403 || profileRes.error === "forbidden") &&
+          normalizedRole !== "external_manager"
+        ) {
+          setQueueAccessDenied(true);
+          return;
+        }
+        if (!profileRes.data) return;
+        if (
+          profileRes.data.needsPreviousShiftClosure &&
+          user?.role === "manager"
+        ) {
+          setStaleShiftModalOpen(true);
+        } else {
+          setStaleShiftModalOpen(false);
+        }
+        await loadProfileIntoStore(profileRes.data, {
+          requestId,
+          selectedDeskSnapshot,
+        });
+      })
+      .finally(() => {
+        if (requestId === profileLoadRequestIdRef.current) {
+          setInitialQueueLoading(false);
+        }
       });
-    });
   }, [dispatch, loadProfileIntoStore, normalizedRole, user?.role]);
 
   useEffect(() => {
@@ -1558,10 +1567,12 @@ export default function QueueProfile() {
   );
 
   const handleConfirmStatusChange = useCallback(async () => {
-    if (!pendingStatus) return;
+    if (!pendingStatus || statusConfirmLoading) return;
     setStatusChangeError(null);
+    setStatusConfirmLoading(true);
     const backendStatus = toBackendStatus(pendingStatus);
     const res = await setManagerStatus(backendStatus);
+    setStatusConfirmLoading(false);
     if (res.ok) {
       dispatch(confirmStatusChange());
       return;
@@ -1569,7 +1580,7 @@ export default function QueueProfile() {
     setStatusChangeError(
       userFacingQueueError(res.error, t("queue_operation_failed")),
     );
-  }, [pendingStatus, dispatch, t]);
+  }, [pendingStatus, statusConfirmLoading, dispatch, t]);
 
   const handleConfirmDeskAndGoOnline = useCallback(async () => {
     if (!draftDesk || deskConfirmLoading) return;
@@ -1605,6 +1616,19 @@ export default function QueueProfile() {
           </p>
           <p className="mt-2 text-[rgba(7,7,31,0.48)] text-[14px]">
             {t("queue_access_denied_description")}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (initialQueueLoading) {
+    return (
+      <div className="wrapper h-full flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Spinner size="lg" color="primary" />
+          <p className="text-[14px] text-[rgba(7,7,31,0.56)]">
+            {t("queue_loading_queue")}
           </p>
         </div>
       </div>
@@ -1734,9 +1758,11 @@ export default function QueueProfile() {
         isOpen={isStatusModalOpen}
         pendingStatus={pendingStatus}
         errorMessage={statusChangeError}
+        confirmLoading={statusConfirmLoading}
         onConfirm={handleConfirmStatusChange}
         onCancel={() => {
           setStatusChangeError(null);
+          setStatusConfirmLoading(false);
           dispatch(cancelStatusChange());
         }}
       />
