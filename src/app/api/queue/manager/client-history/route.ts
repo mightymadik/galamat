@@ -37,6 +37,25 @@ type HistoryItemRaw = {
     phoneNumber?: string | null;
   } | null;
   manager?: {
+    id?: string;
+    fullName?: string;
+    displayName?: string;
+    name?: string;
+    surname?: string;
+    middlename?: string;
+    fio?: string;
+  } | null;
+  assignedManager?: {
+    id?: string;
+    fullName?: string;
+    displayName?: string;
+    name?: string;
+    surname?: string;
+    middlename?: string;
+    fio?: string;
+  } | null;
+  operator?: {
+    id?: string;
     fullName?: string;
     displayName?: string;
     name?: string;
@@ -125,6 +144,8 @@ export async function GET(req: NextRequest) {
       const hClient = h.client || {};
       const hService = h.service || {};
       const hManager = h.manager || {};
+      const hAssignedManager = h.assignedManager || {};
+      const hOperator = h.operator || {};
       const waitSeconds =
         typeof h.waitTimeSeconds === "number"
           ? h.waitTimeSeconds
@@ -153,6 +174,19 @@ export async function GET(req: NextRequest) {
         [hManager.surname, hManager.name, hManager.middlename].filter(Boolean).join(" ").trim() ||
         hManager.fio ||
         hManager.name ||
+        hAssignedManager.fullName ||
+        hAssignedManager.displayName ||
+        [hAssignedManager.surname, hAssignedManager.name, hAssignedManager.middlename]
+          .filter(Boolean)
+          .join(" ")
+          .trim() ||
+        hAssignedManager.fio ||
+        hAssignedManager.name ||
+        hOperator.fullName ||
+        hOperator.displayName ||
+        [hOperator.surname, hOperator.name, hOperator.middlename].filter(Boolean).join(" ").trim() ||
+        hOperator.fio ||
+        hOperator.name ||
         null;
 
       return {
