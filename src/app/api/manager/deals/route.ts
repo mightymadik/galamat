@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     }
 
     const sort = "sort[0]=createdAt:desc";
-    const pagination = "pagination[pageSize]=200";
+    const pagination = "pagination[pageSize]=100";
     const populate =
       "populate[property][fields][0]=documentId&populate[property][fields][1]=apartmentNumber&populate[property][populate][project][fields][0]=projectName" +
       "&populate[commerce][fields][0]=documentId&populate[commerce][fields][1]=commerceNumber&populate[commerce][populate][project][fields][0]=projectName" +
@@ -119,11 +119,15 @@ export async function GET(request: NextRequest) {
     );
     const paidSumByDeal: Record<string, number> = {};
     if (dealDocIdsForPayments.size > 0) {
+      const dealIdFilters = Array.from(dealDocIdsForPayments)
+        .map((dealId, index) => `filters[deal][documentId][$in][${index}]=${encodeURIComponent(dealId)}`)
+        .join("&");
       const paymentsRes = await strapiAxios
         .get(
-          `${base}/api/payments?sort[0]=createdAt:desc&pagination[pageSize]=3000` +
+          `${base}/api/payments?sort[0]=createdAt:desc&pagination[pageSize]=1000` +
             "&fields[0]=amount&fields[1]=paymentStatus" +
-            "&populate[deal][fields][0]=documentId",
+            "&populate[deal][fields][0]=documentId" +
+            `&${dealIdFilters}`,
           { headers }
         )
         .catch(() => ({ data: { data: [] } }));

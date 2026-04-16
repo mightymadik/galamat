@@ -33,14 +33,14 @@ export async function POST(
 
     // Resolve manager
     let effectiveRole: string = payload.role ?? "customer";
-    if (effectiveRole !== "manager" && effectiveRole !== "admin") {
+    if (effectiveRole !== "manager" && effectiveRole !== "admin" && effectiveRole !== "rop") {
       const customerRes = await strapiAxios
         .get(`${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role`, { headers })
         .catch(() => null);
       const customer: any = (customerRes?.data as any)?.data?.[0];
       effectiveRole = customer?.role ?? customer?.attributes?.role ?? effectiveRole;
     }
-    if (effectiveRole !== "manager" && effectiveRole !== "admin")
+    if (effectiveRole !== "manager" && effectiveRole !== "admin" && effectiveRole !== "rop")
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     // Enforce manager ownership (same logic as before).

@@ -31,7 +31,7 @@ export async function POST(
     const headers = getStrapiHeaders();
 
     const effectiveRole = await resolveEffectiveRole(payload, base, headers);
-    if (effectiveRole !== "manager" && effectiveRole !== "admin")
+    if (effectiveRole !== "manager" && effectiveRole !== "admin" && effectiveRole !== "rop")
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
     const dealRes = await strapiAxios.get(
