@@ -9,14 +9,14 @@ function ensureManager(
   base: string,
   headers: Record<string, string>
 ) {
-  let isManager = payload.role === "manager" || payload.role === "admin";
+  let isManager = payload.role === "manager" || payload.role === "admin" || payload.role === "rop";
   if (!isManager && payload.sub != null) {
     return strapiAxios
       .get(`${base}/api/customers?filters[id][$eq]=${payload.sub}&pagination[pageSize]=1&fields[0]=role`, { headers })
       .then((customerRes: any) => {
         const customer = (customerRes?.data as any)?.data?.[0];
         const currentRole = customer?.role ?? customer?.attributes?.role ?? payload.role;
-        return currentRole === "manager" || currentRole === "admin";
+        return currentRole === "manager" || currentRole === "admin" || currentRole === "rop";
       })
       .catch(() => false);
   }

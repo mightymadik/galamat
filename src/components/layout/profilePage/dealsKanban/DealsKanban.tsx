@@ -30,12 +30,46 @@ const STATUS_TO_KEY: Record<string, string> = {
   "Отменен": "status_canceled",
 };
 
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  "Бронь": "bg-blue-100 text-blue-700",
+  "Ожидания оплаты": "bg-amber-100 text-amber-700",
+  "Оплачено": "bg-emerald-100 text-emerald-700",
+  "Согласование РОП": "bg-violet-100 text-violet-700",
+  "Ожидания договора": "bg-cyan-100 text-cyan-700",
+  "Договор подписан": "bg-green-100 text-green-700",
+  "Просрочен": "bg-red-100 text-red-700",
+  "Отменен": "bg-zinc-200 text-zinc-700",
+};
+
 function getTodayIsoDate(): string {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("ru-RU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function formatCurrency(value: number | null | undefined): string {
+  if (value == null) return "-";
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "KZT",
+    maximumFractionDigits: 0,
+  })
+    .format(value)
+    .replace(/\u00A0/g, " ")
+    .replace(/\u202F/g, " ");
 }
 
 export default function DealsKanban() {
@@ -54,8 +88,9 @@ export default function DealsKanban() {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("");
   const [createdAtFrom, setCreatedAtFrom] = useState<string>(getTodayIsoDate());
   const [createdAtTo, setCreatedAtTo] = useState<string>(getTodayIsoDate());
-  const [overdueOnly, setOverdueOnly] = useState(false);
-  const [excludeCancelled, setExcludeCancelled] = useState(true);
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [listPage, setListPage] = useState(1);
+  const [listPageSize, setListPageSize] = useState(10);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const selectedFromQueryRef = useRef(false);
 
@@ -66,8 +101,6 @@ export default function DealsKanban() {
     if (paymentMethodFilter) params.set("paymentMethod", paymentMethodFilter.trim());
     if (createdAtFrom) params.set("createdAtFrom", createdAtFrom);
     if (createdAtTo) params.set("createdAtTo", createdAtTo);
-    if (overdueOnly) params.set("overdue", "1");
-    if (!excludeCancelled) params.set("excludeCancelled", "0");
 
     try {
       const res = await fetch(`/api/manager/deals?${params}`, { credentials: "include" });
@@ -95,7 +128,7 @@ export default function DealsKanban() {
     } finally {
       setLoading(false);
     }
-  }, [search, projectFilter, paymentMethodFilter, createdAtFrom, createdAtTo, overdueOnly, excludeCancelled, t]);
+  }, [search, projectFilter, paymentMethodFilter, createdAtFrom, createdAtTo, t]);
 
   useEffect(() => {
     if (selectedFromQueryRef.current) return;
@@ -116,8 +149,31 @@ export default function DealsKanban() {
 
   const columns = DEAL_STATUS_COLUMNS;
   const visibleColumns = statusFilter ? [statusFilter] : columns;
+  const listDeals: Array<DealCardItem & { __status: string }> = visibleColumns.flatMap((status) =>
+    (byStatus[status] ?? []).map((deal) => ({ ...deal, __status: status })),
+  );
+  const totalListPages = Math.max(1, Math.ceil(listDeals.length / listPageSize));
+  const safePage = Math.min(listPage, totalListPages);
+  const paginatedDeals = listDeals.slice((safePage - 1) * listPageSize, safePage * listPageSize);
+  const listStartItem = listDeals.length === 0 ? 0 : (safePage - 1) * listPageSize + 1;
+  const listEndItem = Math.min(safePage * listPageSize, listDeals.length);
   const statusItems = [{ key: "__all__", label: t("all_columns") }, ...columns.map((s) => ({ key: s, label: t(STATUS_TO_KEY[s] ?? s) }))];
   const paymentItems = PAYMENT_METHOD_KEYS.map(({ value, labelKey }) => ({ key: value || "__any__", label: t(labelKey) }));
+  const pageSizeItems = [10, 20, 50].map((size) => ({ key: String(size), label: `${size}` }));
+
+  useEffect(() => {
+    setListPage(1);
+  }, [search, statusFilter, projectFilter, paymentMethodFilter, createdAtFrom, createdAtTo]);
+
+  useEffect(() => {
+    if (viewMode === "list") setListPage(1);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (listPage > totalListPages) {
+      setListPage(totalListPages);
+    }
+  }, [listPage, totalListPages]);
 
   if (loading && deals.length === 0) {
     return (
@@ -211,26 +267,23 @@ export default function DealsKanban() {
           size="sm"
           classNames={{ base: "max-w-[180px]" }}
         />
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm text-default-500">{t("checkboxes_label")}</span>
-          <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={overdueOnly}
-                onChange={(e) => setOverdueOnly(e.target.checked)}
-              />
-              {t("overdue_only")}
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={excludeCancelled}
-                onChange={(e) => setExcludeCancelled(e.target.checked)}
-              />
-              {t("exclude_cancelled")}
-            </label>
-          </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={viewMode === "kanban" ? "solid" : "flat"}
+            color={viewMode === "kanban" ? "primary" : "default"}
+            onPress={() => setViewMode("kanban")}
+          >
+            Канбан
+          </Button>
+          <Button
+            size="sm"
+            variant={viewMode === "list" ? "solid" : "flat"}
+            color={viewMode === "list" ? "primary" : "default"}
+            onPress={() => setViewMode("list")}
+          >
+            Список
+          </Button>
         </div>
         <div className="flex gap-2 ml-auto">
           <Button size="sm" variant="flat" color="default" onPress={() => {
@@ -241,8 +294,6 @@ export default function DealsKanban() {
             const today = getTodayIsoDate();
             setCreatedAtFrom(today);
             setCreatedAtTo(today);
-            setOverdueOnly(false);
-            setExcludeCancelled(true);
           }}>
             {t("reset")}
           </Button>
@@ -252,26 +303,136 @@ export default function DealsKanban() {
         </div>
       </div>
 
-      <div className="max-w-[1095px] flex gap-4 overflow-x-auto pb-4 min-h-[400px]">
-        {visibleColumns.map((status) => {
-          const list = byStatus[status] ?? [];
-          return (
-            <KanbanColumn
-              key={status}
-              status={status}
-              statusLabel={t(STATUS_TO_KEY[status] ?? status)}
-              deals={list}
-              onCardClick={(deal) => {
-                setSelectedDealId(deal.documentId);
-                const next = new URLSearchParams(searchParams.toString());
-                next.set("deal", deal.documentId);
-                const qs = next.toString();
-                router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-              }}
-            />
-          );
-        })}
-      </div>
+      {viewMode === "kanban" ? (
+        <div className="max-w-[1095px] flex gap-4 overflow-x-auto pb-4 min-h-[400px]">
+          {visibleColumns.map((status) => {
+            const list = byStatus[status] ?? [];
+            return (
+              <KanbanColumn
+                key={status}
+                status={status}
+                statusLabel={t(STATUS_TO_KEY[status] ?? status)}
+                deals={list}
+                onCardClick={(deal) => {
+                  setSelectedDealId(deal.documentId);
+                  const next = new URLSearchParams(searchParams.toString());
+                  next.set("deal", deal.documentId);
+                  const qs = next.toString();
+                  router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+                }}
+              />
+            );
+          })}
+        </div>
+      ) : (
+        <div className="max-w-[1095px] min-h-[400px] rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-gray-50">
+            <div className="text-sm text-gray-700">
+              Найдено: <span className="font-semibold">{listDeals.length}</span>
+              {listDeals.length > 0 && (
+                <span className="text-gray-500 ml-2">
+                  ({listStartItem}-{listEndItem})
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">На странице</span>
+              <Select
+                items={pageSizeItems}
+                selectedKeys={[String(listPageSize)]}
+                onSelectionChange={(keys) => {
+                  const k = Array.from(keys)[0] as string;
+                  const nextSize = Number(k);
+                  if (!Number.isNaN(nextSize) && nextSize > 0) {
+                    setListPageSize(nextSize);
+                    setListPage(1);
+                  }
+                }}
+                size="sm"
+                classNames={{ base: "w-[86px]" }}
+              >
+                {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-[2fr_1.2fr_0.9fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 bg-gray-50 text-xs uppercase tracking-wide font-semibold text-gray-500 border-b border-gray-200">
+            <span>Клиент / Проект</span>
+            <span>Статус</span>
+            <span>Кв.</span>
+            <span>Менеджер</span>
+            <span>Стоимость</span>
+            <span>Оплата</span>
+            <span>Создано</span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {paginatedDeals.map((deal) => (
+              <button
+                key={deal.documentId}
+                type="button"
+                className="w-full grid grid-cols-[2fr_1.2fr_0.9fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 text-left hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 transition"
+                onClick={() => {
+                  setSelectedDealId(deal.documentId);
+                  const next = new URLSearchParams(searchParams.toString());
+                  next.set("deal", deal.documentId);
+                  const qs = next.toString();
+                  router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+                }}
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-gray-800 truncate">{deal.customer?.displayName || "-"}</span>
+                  <span className="block text-xs text-gray-500 truncate">
+                    {deal.property?.projectName || "-"} | ID: {deal.documentId}
+                  </span>
+                </span>
+                <span className="min-w-0">
+                  <span
+                    className={`inline-flex max-w-full items-center rounded-full px-2 py-1 text-xs font-medium truncate ${STATUS_BADGE_STYLES[deal.__status] ?? "bg-gray-100 text-gray-700"}`}
+                  >
+                    {t(STATUS_TO_KEY[deal.__status] ?? deal.__status)}
+                  </span>
+                </span>
+                <span className="text-sm text-gray-700 truncate">{deal.property?.apartmentNumber || "-"}</span>
+                <span className="text-sm text-gray-700 truncate">{deal.manager?.displayName || "-"}</span>
+                <span className="text-sm text-gray-700 truncate">{formatCurrency(deal.dealPrice)}</span>
+                <span className="text-sm text-gray-600 truncate">{deal.paymentMethod || "-"}</span>
+                <span className="text-sm text-gray-500 truncate">{formatDate(deal.createdAt)}</span>
+              </button>
+            ))}
+            {listDeals.length === 0 && (
+              <div className="px-4 py-12 text-center">
+                <p className="text-sm font-medium text-gray-700">{t("no_data")}</p>
+                <p className="text-xs text-gray-500 mt-1">Измените фильтры или обновите список</p>
+              </div>
+            )}
+          </div>
+          {listDeals.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50">
+              <span className="text-sm text-gray-600">
+                Страница {safePage} из {totalListPages}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="flat"
+                  isDisabled={safePage <= 1}
+                  onPress={() => setListPage((prev) => Math.max(1, prev - 1))}
+                >
+                  Назад
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="primary"
+                  isDisabled={safePage >= totalListPages}
+                  onPress={() => setListPage((prev) => Math.min(totalListPages, prev + 1))}
+                >
+                  Вперед
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {selectedDealId && (
         <DealDrawer
