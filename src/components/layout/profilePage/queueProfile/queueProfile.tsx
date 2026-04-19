@@ -167,7 +167,9 @@ export default function QueueProfile() {
   const [redirectReason, setRedirectReason] = useState("");
   const [countdown, setCountdown] = useState(WAITING_TIMER_SEC);
   const [hasNextClient, setHasNextClient] = useState(false);
-  const autoCallTriggeredRef = useRef(false);
+  const [isQueueSocketHealthy, setIsQueueSocketHealthy] = useState(false);
+  /** Абсолютный дедлайн автовызова на часах клиента (синхронизация с бэком: autoCallAt − serverNow). */
+  const autoCallDeadlineAtClientMsRef = useRef<number | null>(null);
   const [draftDesk, setDraftDesk] = useState("");
   const [newDeskName, setNewDeskName] = useState("");
   const [queueAccessDenied, setQueueAccessDenied] = useState(false);
@@ -263,12 +265,17 @@ export default function QueueProfile() {
 
       if (!res.ok) {
         setHasNextClient(false);
+        autoCallDeadlineAtClientMsRef.current = null;
         return;
       }
 
       const payload = json as {
         data?: QueueTicket[];
-        debug?: { reason?: string | null };
+        debug?: {
+          reason?: string | null;
+          autoCallAt?: string | null;
+          serverNow?: string | null;
+        };
       };
       const list = (payload.data ?? []).filter((t) => t && t.id);
       const reason = payload.debug?.reason ?? null;
@@ -280,12 +287,32 @@ export default function QueueProfile() {
         reason === "not_next_turn"
       ) {
         setHasNextClient(false);
+        autoCallDeadlineAtClientMsRef.current = null;
         return;
       }
 
       setHasNextClient(list.length > 0);
+
+      if (list.length > 0 && reason === null) {
+        const autoCallAt = payload.debug?.autoCallAt;
+        const serverNow = payload.debug?.serverNow;
+        if (
+          typeof autoCallAt === "string" &&
+          typeof serverNow === "string" &&
+          Number.isFinite(Date.parse(autoCallAt)) &&
+          Number.isFinite(Date.parse(serverNow))
+        ) {
+          autoCallDeadlineAtClientMsRef.current =
+            Date.now() + (Date.parse(autoCallAt) - Date.parse(serverNow));
+        } else {
+          autoCallDeadlineAtClientMsRef.current = null;
+        }
+      } else {
+        autoCallDeadlineAtClientMsRef.current = null;
+      }
     } catch {
       setHasNextClient(false);
+      autoCallDeadlineAtClientMsRef.current = null;
     }
   }, []);
 
@@ -964,34 +991,42 @@ export default function QueueProfile() {
   useEffect(() => {
     if (!isWaitingForNext) {
       setCountdown(WAITING_TIMER_SEC);
-      autoCallTriggeredRef.current = false;
       return;
     }
     if (isAdminWithoutAutoCall) {
       return;
     }
     if (!hasNextClient) {
-      // Если клиентов нет — паузим таймер, чтобы countdown не тикал "в пустоту".
-      if (countdown !== WAITING_TIMER_SEC) setCountdown(WAITING_TIMER_SEC);
-      autoCallTriggeredRef.current = false;
+      setCountdown(WAITING_TIMER_SEC);
       return;
     }
 
-    if (countdown <= 0) return;
-
-    const tId = setTimeout(() => {
+    let primedLocalFallback = false;
+    const tick = () => {
+      const deadline = autoCallDeadlineAtClientMsRef.current;
+      if (deadline != null) {
+        primedLocalFallback = false;
+        setCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+        return;
+      }
+      if (!primedLocalFallback) {
+        primedLocalFallback = true;
+        setCountdown(WAITING_TIMER_SEC);
+        return;
+      }
       setCountdown((c) => Math.max(0, c - 1));
-    }, 1000);
+    };
 
-    return () => clearTimeout(tId);
-  }, [isWaitingForNext, hasNextClient, countdown, isAdminWithoutAutoCall]);
+    tick();
+    const tId = setInterval(tick, 1000);
+    return () => clearInterval(tId);
+  }, [isWaitingForNext, hasNextClient, isAdminWithoutAutoCall]);
 
   // Когда менеджер ожидает следующего клиента — отслеживаем появление/исчезновение next-tickets
   // и держим флаг hasNextClient синхронно.
   useEffect(() => {
     if (!isWaitingForNext) {
       setHasNextClient(false);
-      autoCallTriggeredRef.current = false;
       return;
     }
 
@@ -1007,21 +1042,39 @@ export default function QueueProfile() {
     // Сразу грузим состояние (на случай, если очередь уже не пуста).
     refresh();
 
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+    const startPolling = () => {
+      if (intervalId) return;
+      intervalId = setInterval(refresh, 5000);
+    };
+    // До первого успешного connect держим fallback polling включенным.
+    startPolling();
+
     if (branchId) {
       void subscribeToQueueBranchUpdates(branchId, refresh, {
         listen: ["queue"],
+        onConnectionStateChange: (state) => {
+          if (cancelled) return;
+          const isHealthy = state === "connected";
+          setIsQueueSocketHealthy(isHealthy);
+          if (isHealthy) stopPolling();
+          else startPolling();
+        },
       }).then((cleanup) => {
         unsubscribe = cleanup;
       });
     }
 
-    // Fallback polling keeps autocall healthy when websocket/branch bootstrap is unavailable.
-    intervalId = setInterval(refresh, 5000);
-
     return () => {
       cancelled = true;
       unsubscribe?.();
-      if (intervalId) clearInterval(intervalId);
+      stopPolling();
+      setIsQueueSocketHealthy(false);
     };
   }, [branchId, isWaitingForNext, checkHasNextClients]);
 
@@ -1435,18 +1488,7 @@ export default function QueueProfile() {
     [applyCallSuccessPayload, t],
   );
 
-  // Автовызов следующего клиента, когда countdown закончился.
-  // Если клиентов нет — не вызываем (и countdown не тикает из-за gating выше).
-  useEffect(() => {
-    if (!isWaitingForNext) return;
-    if (isAdminWithoutAutoCall) return;
-    if (!hasNextClient) return;
-    if (countdown > 0) return;
-    if (autoCallTriggeredRef.current) return;
-
-    autoCallTriggeredRef.current = true;
-    void handleCallClient();
-  }, [isWaitingForNext, hasNextClient, countdown, handleCallClient, isAdminWithoutAutoCall]);
+  /** Автовызов следующего клиента выполняет бэкенд (см. waitingTicketAutoCallJob); здесь только отображение таймера. */
 
   const runCloseBranchShift = useCallback(
     async (shiftId: string) => {
@@ -1537,7 +1579,19 @@ export default function QueueProfile() {
         );
         return;
       }
-      await runCloseBranchShift(sid);
+
+      let remaining = 0;
+      setShiftCloseManagers((prev) => {
+        const next = prev.filter((m) => m.id !== managerId);
+        remaining = next.length;
+        return next;
+      });
+
+      // Не дёргаем POST /close после каждого офлайна — только когда блокирующих не осталось
+      // или когда пользователь жмёт «Закрыть смену» (handleShiftCloseModalRetryClose).
+      if (remaining === 0) {
+        await runCloseBranchShift(sid);
+      }
     },
     [branchShiftId, runCloseBranchShift, t],
   );
