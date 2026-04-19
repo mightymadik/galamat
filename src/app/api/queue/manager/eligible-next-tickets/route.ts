@@ -79,7 +79,7 @@ export async function GET(_req: NextRequest) {
     ]);
     const eligibleQueueJson = (await eligibleQueueRes.json().catch(() => ({}))) as { data?: BranchQueueResponse };
     const previewJson = (await previewRes.json().catch(() => ({}))) as {
-      data?: { ticketId?: string | null };
+      data?: { ticketId?: string | null; autoCallAt?: string | null; serverNow?: string | null };
     };
     if (!eligibleQueueRes.ok || !eligibleQueueJson?.data || !previewRes.ok) {
       return NextResponse.json({ error: "queue_error" }, { status: 502 });
@@ -117,7 +117,12 @@ export async function GET(_req: NextRequest) {
 
     return NextResponse.json({
       data: tickets,
-      debug: { reason, nextTicketId },
+      debug: {
+        reason,
+        nextTicketId,
+        autoCallAt: previewJson?.data?.autoCallAt ?? null,
+        serverNow: previewJson?.data?.serverNow ?? null,
+      },
     });
   } catch (e) {
     console.error("[queue/manager/eligible-next-tickets]", e);

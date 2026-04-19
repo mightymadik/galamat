@@ -15,6 +15,7 @@ import DealsKanban from "../dealsKanban/DealsKanban";
 import AgreementsList from "../agreementsList/AgreementsList";
 import CashierPayments from "../cashierPayments/CashierPayments";
 import { QueueProfile } from "../queueProfile";
+import RopBranchTicketsPanel from "../queueProfile/RopBranchTicketsPanel";
 import StatsProfile from "../statsProfile/statsProfile";
 
 type MenuButtonProps = {
@@ -28,6 +29,7 @@ type MenuButtonProps = {
 
 const MenuButton: React.FC<MenuButtonProps> = ({ id, iconActive, iconInactive, text, active, setActive }) => {
     const isActive = active === id;
+    const isAllTicketsButton = id === "queue_all_tickets";
 
     return (
         <Button
@@ -45,7 +47,9 @@ const MenuButton: React.FC<MenuButtonProps> = ({ id, iconActive, iconInactive, t
                 width={25}
                 height={25}
             />
-            <span className={`${isActive ? "text-white" : "text-black"} text-[15px] font-medium`}>
+            <span
+                className={`${isActive ? "text-white" : "text-black"} text-[15px] font-medium ${isAllTicketsButton ? "whitespace-normal text-left leading-[16px]" : ""}`}
+            >
                 {text}
             </span>
         </Button>
@@ -68,6 +72,7 @@ export default function MenuProfile() {
     const normalizedRole = user?.role?.toLowerCase?.() ?? "";
     const isExternalManager = normalizedRole === "external_manager";
     const isRop = normalizedRole === "rop";
+    const isPlainAdmin = normalizedRole === "admin";
     const isAdmin = normalizedRole === "admin" || isRop;
     const isManager =
         (normalizedRole === "manager" || isAdmin) && !isExternalManager;
@@ -79,6 +84,7 @@ export default function MenuProfile() {
     const canAccessDeals = isManager || isCashier || isLawyer;
     const canAccessAgreements = isManager || isLawyer;
     const canAccessQueue = isManager || isExternalManager || isCashier;
+    const canAccessAllTicketsTab = isRop || isPlainAdmin;
 
     const setActiveAndSync = (id: string) => {
         setActive(id);
@@ -92,7 +98,13 @@ export default function MenuProfile() {
     useEffect(() => {
         const section = searchParams.get("section");
         const next = section && section.trim() ? section.trim() : "profile";
-        const allowedDevSections = isAdmin ? ["profile", "queue", "stats"] : ["profile", "queue"];
+        const allowedDevSections = isRop
+            ? ["profile", "queue", "stats", "queue_all_tickets"]
+            : isAdmin
+                ? ["profile", "queue", "stats"]
+                : canAccessAllTicketsTab
+                    ? ["profile", "queue", "queue_all_tickets"]
+                : ["profile", "queue"];
         const safeNext =
             isDevelopmentMode && !allowedDevSections.includes(next)
                 ? "profile"
@@ -106,18 +118,24 @@ export default function MenuProfile() {
             );
         }
         setActive((prev) => (prev === safeNext ? prev : safeNext));
-    }, [searchParams, isDevelopmentMode, pathname, router, isAdmin]);
+    }, [searchParams, isDevelopmentMode, pathname, router, isAdmin, isRop, canAccessAllTicketsTab]);
 
     useLayoutEffect(() => {
         if (!isExternalManager) return;
         const section = searchParams.get("section")?.trim() || "profile";
-        const allowedDevSections = isAdmin ? ["profile", "queue", "stats"] : ["profile", "queue"];
+        const allowedDevSections = isRop
+            ? ["profile", "queue", "stats", "queue_all_tickets"]
+            : isAdmin
+                ? ["profile", "queue", "stats"]
+                : canAccessAllTicketsTab
+                    ? ["profile", "queue", "queue_all_tickets"]
+                : ["profile", "queue"];
         const safeSection =
             isDevelopmentMode && !allowedDevSections.includes(section)
                 ? "profile"
                 : section;
         setActive(safeSection);
-    }, [isExternalManager, isDevelopmentMode, searchParams, isAdmin]);
+    }, [isExternalManager, isDevelopmentMode, searchParams, isAdmin, isRop, canAccessAllTicketsTab]);
 
     const handleLogout = () => {
         dispatch(logoutAuth() as any).then(() => {
@@ -132,6 +150,8 @@ export default function MenuProfile() {
                     return canAccessQueue ? <QueueProfile /> : <PersonalInfo />;
                 case "stats":
                     return isAdmin ? <StatsProfile /> : <PersonalInfo />;
+                case "queue_all_tickets":
+                    return canAccessAllTicketsTab ? <RopBranchTicketsPanel /> : <PersonalInfo />;
                 case "profile":
                 default:
                     return <PersonalInfo />;
@@ -156,6 +176,8 @@ export default function MenuProfile() {
                 return <BonusProfile />;
             case "queue":
                 return canAccessQueue ? <QueueProfile /> : <PersonalInfo />;
+            case "queue_all_tickets":
+                return canAccessAllTicketsTab ? <RopBranchTicketsPanel /> : <PersonalInfo />;
             case "objects":
                 return <ObjectProfile />;
             case "deals":
@@ -181,6 +203,9 @@ export default function MenuProfile() {
                     {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActiveAndSync} />}
                     {canAccessQueue && (
                         <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
+                    )}
+                    {canAccessAllTicketsTab && (
+                        <MenuButton id="queue_all_tickets" iconActive="/img/ticket-white.svg" iconInactive="/img/ticket-black.svg" text={t("queue_rop_all_tickets_menu")} active={active} setActive={setActiveAndSync} />
                     )}
                     {!isDevelopmentMode && canAccessDeals && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
                     {!isDevelopmentMode && canAccessAgreements && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}
@@ -212,6 +237,9 @@ export default function MenuProfile() {
                 {isAdmin && <MenuButton id="stats" iconActive="/img/stats-white.svg" iconInactive="/img/stats-black.svg" text={t("stats")} active={active} setActive={setActiveAndSync} />}
                 {canAccessQueue && (
                     <MenuButton id="queue" iconActive="/img/queue-white.svg" iconInactive="/img/queue-black.svg" text={t("queue")} active={active} setActive={setActiveAndSync} />
+                )}
+                {canAccessAllTicketsTab && (
+                    <MenuButton id="queue_all_tickets" iconActive="/img/ticket-white.svg" iconInactive="/img/ticket-black.svg" text={t("queue_rop_all_tickets_menu")} active={active} setActive={setActiveAndSync} />
                 )}
                 {!isDevelopmentMode && canAccessDeals && <MenuButton id="deals" iconActive="/img/tag-white.svg" iconInactive="/img/tag-black.svg" text={t("deals")} active={active} setActive={setActiveAndSync} />}
                 {!isDevelopmentMode && canAccessAgreements && <MenuButton id="agreements" iconActive="/img/agreement-white.svg" iconInactive="/img/agreement-black.svg" text={t("agreements")} active={active} setActive={setActiveAndSync} />}

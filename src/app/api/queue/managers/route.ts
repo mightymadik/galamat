@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const branchId = searchParams.get("branchId") || "";
   const serviceId = searchParams.get("serviceId") || "";
+  const includeOffline = searchParams.get("includeOffline") === "1" || searchParams.get("includeOffline") === "true";
 
   if (!branchId) {
     return NextResponse.json({ error: "branchId_required" }, { status: 400 });
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
         const status = String(item.status ?? "OFFLINE");
         return { id, name, shortName: a?.name ?? "", status };
       })
-      .filter((m) => m.status !== "OFFLINE");
+      .filter((m) => includeOffline || m.status !== "OFFLINE");
     return NextResponse.json(
       { managers },
       {

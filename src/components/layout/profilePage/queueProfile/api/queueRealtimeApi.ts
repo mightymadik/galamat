@@ -17,6 +17,7 @@ export async function subscribeToQueueBranchUpdates(
   onUpdate: () => void,
   options?: {
     listen?: QueueRealtimeEvent[];
+    onConnectionStateChange?: (state: "connected" | "disconnected") => void;
   },
 ): Promise<(() => void) | null> {
   try {
@@ -45,6 +46,7 @@ export async function subscribeToQueueBranchUpdates(
 
     const resync = () => {
       socket?.emit("subscribe:branch", branchId);
+      options?.onConnectionStateChange?.("connected");
       safeRefresh();
     };
 
@@ -65,7 +67,10 @@ export async function subscribeToQueueBranchUpdates(
     }
 
     socket.on("connect_error", () => {
-      // тихо игнорируем — список всё равно обновляется по refresh/первой загрузке
+      options?.onConnectionStateChange?.("disconnected");
+    });
+    socket.on("disconnect", () => {
+      options?.onConnectionStateChange?.("disconnected");
     });
 
     // Ensure first paint also gets a fresh HTTP state, even before socket events arrive.
@@ -75,6 +80,8 @@ export async function subscribeToQueueBranchUpdates(
       if (!socket) return;
       socket.emit("unsubscribe:branch", branchId);
       socket.off("connect", resync);
+      socket.off("disconnect");
+      socket.off("connect_error");
       if (shouldListenQueueEvents) {
         socket.off("queue:update", handleQueueUpdate);
         socket.off("queue-updated", handleQueueUpdate);
