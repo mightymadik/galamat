@@ -552,6 +552,7 @@
   "queue_rop_all_tickets_col_code": "Талон",
   "queue_rop_all_tickets_col_created": "Құрылған",
   "queue_rop_all_tickets_col_client": "Клиент",
+  "queue_rop_all_tickets_col_client_name": "Клиент аты",
   "queue_rop_all_tickets_col_service": "Қызмет",
   "queue_rop_all_tickets_col_manager": "Менеджер",
   "queue_rop_all_tickets_col_status": "Статус",

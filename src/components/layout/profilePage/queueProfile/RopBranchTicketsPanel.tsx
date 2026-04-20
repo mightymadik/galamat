@@ -390,7 +390,7 @@ export default function RopBranchTicketsPanel() {
       ) : null}
 
       <div className="overflow-x-auto rounded-[20px] border border-[rgba(26,60,126,0.08)] bg-white">
-        <table className="min-w-[900px] w-full border-collapse text-left text-[14px]">
+        <table className="min-w-[1020px] w-full border-collapse text-left text-[14px]">
           <thead>
             <tr className="border-b border-[rgba(26,60,126,0.12)] bg-[rgba(244,246,251,0.6)]">
               <th className="px-[14px] py-[12px] font-medium text-[#1A3C7E]">
@@ -401,6 +401,9 @@ export default function RopBranchTicketsPanel() {
               </th>
               <th className="px-[14px] py-[12px] font-medium text-[#1A3C7E]">
                 {t("queue_rop_all_tickets_col_client")}
+              </th>
+              <th className="px-[14px] py-[12px] font-medium text-[#1A3C7E]">
+                {t("queue_rop_all_tickets_col_client_name")}
               </th>
               <th className="px-[14px] py-[12px] font-medium text-[#1A3C7E]">
                 {t("queue_rop_all_tickets_col_service")}
@@ -422,7 +425,7 @@ export default function RopBranchTicketsPanel() {
             {!loading && rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={canForceTicketStatus ? 7 : 6}
+                  colSpan={canForceTicketStatus ? 8 : 7}
                   className="px-[14px] py-[28px] text-center text-[rgba(7,_7,_31,_0.48)]"
                 >
                   {t("queue_rop_all_tickets_empty")}
@@ -439,6 +442,9 @@ export default function RopBranchTicketsPanel() {
                 </td>
                 <td className="px-[14px] py-[12px] text-[#1E1E1E] whitespace-nowrap">
                   {formatDt(row.createdAt)}
+                </td>
+                <td className="px-[14px] py-[12px] text-[#1E1E1E]">
+                  {row.client?.phone?.trim() || "—"}
                 </td>
                 <td className="px-[14px] py-[12px] text-[#1E1E1E]">
                   {row.client?.fullName?.trim() || "—"}

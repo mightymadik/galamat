@@ -1079,7 +1079,7 @@ export default function QueueProfile() {
   }, [branchId, isWaitingForNext, checkHasNextClients]);
 
   useEffect(() => {
-    if (!shouldShowBranchManagersInWaitingSidebar || !branchId || !isWaitingForNext) {
+    if (!shouldShowBranchManagersInWaitingSidebar || !branchId) {
       setBranchManagersForSidebar([]);
       setBranchManagersLoading(false);
       return;
@@ -1124,7 +1124,7 @@ export default function QueueProfile() {
       cancelled = true;
       unsubscribeSocket?.();
     };
-  }, [shouldShowBranchManagersInWaitingSidebar, branchId, isWaitingForNext]);
+  }, [shouldShowBranchManagersInWaitingSidebar, branchId]);
 
   const handleStatusChange = (key: QueueProfileStatus) => {
     setStatusChangeError(null);
@@ -1490,7 +1490,13 @@ export default function QueueProfile() {
         });
 
         socket.on("connect", () => {
-          socket?.emit("subscribe:branch", branchId);
+          if (isAdminUser) {
+            socket?.emit("subscribe:branch", branchId);
+            return;
+          }
+          if (currentManagerId) {
+            socket?.emit("subscribe:manager", currentManagerId);
+          }
         });
 
         socket.on("ticket-called", handleTicketCalled);
@@ -1504,7 +1510,11 @@ export default function QueueProfile() {
     return () => {
       cancelled = true;
       if (!socket) return;
-      socket.emit("unsubscribe:branch", branchId);
+      if (isAdminUser) {
+        socket.emit("unsubscribe:branch", branchId);
+      } else if (currentManagerId) {
+        socket.emit("unsubscribe:manager", currentManagerId);
+      }
       socket.off("connect");
       socket.off("ticket-called", handleTicketCalled);
       socket.disconnect();
@@ -1880,7 +1890,7 @@ export default function QueueProfile() {
               reannounceCooldownSecondsLeft={reannounceCooldownSecondsLeft}
               isAdminView={isAdminUser}
             />
-          ) : isWaitingForNext ? (
+          ) : isWaitingForNext || shouldShowBranchManagersInWaitingSidebar ? (
             <QueueSidebarContent
               mode="waitingForNext"
               countdown={countdown}
