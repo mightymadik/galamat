@@ -1418,6 +1418,106 @@ export default function QueueProfile() {
     [currentManagerId, dispatch, isAdminUser, selectedDesk],
   );
 
+  // Подхватываем авто-вызов (backend ticket-called) и переводим менеджера в режим
+  // "с клиентом", даже если вызов произошел без клика на кнопке "Вызвать".
+  useEffect(() => {
+    if (!branchId) return;
+    if (typeof window === "undefined") return;
+
+    let cancelled = false;
+    let socket: Socket | null = null;
+
+    type TicketCalledPayload = {
+      id?: string;
+      ticketCode?: string;
+      waitTimeSeconds?: number | null;
+      client?: { fullName?: string | null; phone?: string | null } | null;
+      branch?: { id?: string; name?: string | null } | null;
+      service?: { id?: string; name?: string | null; code?: string | null } | null;
+      manager?: { id?: string; name?: string | null } | null;
+      managerName?: string | null;
+      counter?: { id?: string; code?: string | null; name?: string | null } | null;
+    };
+
+    const handleTicketCalled = (payload?: TicketCalledPayload) => {
+      if (cancelled || !payload?.id) return;
+
+      const payloadManagerId =
+        payload.manager?.id != null ? String(payload.manager.id) : "";
+      const payloadCounterId =
+        payload.counter?.id != null ? String(payload.counter.id) : "";
+
+      // Обычный менеджер принимает только "свой" авто-вызов.
+      if (!isAdminUser) {
+        if (!payloadManagerId || (currentManagerId && payloadManagerId !== currentManagerId)) {
+          return;
+        }
+        if (selectedDesk && payloadCounterId && payloadCounterId !== selectedDesk) {
+          return;
+        }
+      }
+
+      applyCallSuccessPayload({
+        success: true,
+        ticketId: String(payload.id),
+        code: payload.ticketCode ?? "",
+        name: payload.client?.fullName ?? "Клиент",
+        phone: payload.client?.phone ?? null,
+        waitTimeSeconds: payload.waitTimeSeconds ?? null,
+        branch: payload.branch ?? null,
+        service: payload.service ?? null,
+        manager: {
+          id: payloadManagerId || undefined,
+          name: payload.manager?.name ?? payload.managerName ?? null,
+        },
+        counter: payload.counter ?? null,
+      });
+    };
+
+    async function connect() {
+      try {
+        const res = await fetch("/api/queue/socket-token", {
+          credentials: "include",
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          queueApiUrl?: string;
+        };
+        if (cancelled || !res.ok) return;
+
+        const socketUrl = body.queueApiUrl?.trim() || undefined;
+        socket = io(socketUrl, {
+          ...getDefaultQueueSocketOptions(),
+        });
+
+        socket.on("connect", () => {
+          socket?.emit("subscribe:branch", branchId);
+        });
+
+        socket.on("ticket-called", handleTicketCalled);
+      } catch {
+        // ignore socket bootstrap errors; UI has HTTP fallbacks
+      }
+    }
+
+    void connect();
+
+    return () => {
+      cancelled = true;
+      if (!socket) return;
+      socket.emit("unsubscribe:branch", branchId);
+      socket.off("connect");
+      socket.off("ticket-called", handleTicketCalled);
+      socket.disconnect();
+      socket = null;
+    };
+  }, [
+    applyCallSuccessPayload,
+    branchId,
+    currentManagerId,
+    isAdminUser,
+    selectedDesk,
+  ]);
+
   const handleCallClient = useCallback(async () => {
     if (actionLoading) return;
     setActionLoading(true);
