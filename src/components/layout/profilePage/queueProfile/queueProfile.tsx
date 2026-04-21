@@ -1447,7 +1447,7 @@ export default function QueueProfile() {
 
   /** Если `ticket-called` потерялся (сокет), подтягиваем CALLED/SERVING с API — иначе талон пропал из waiting и экран пустой. */
   const recoverMissedActiveTicket = useCallback(async () => {
-    if (isAdminUser) return;
+    if (isAdminUser && !hasDualCallMode) return;
     if (!isWaitingForNextRef.current || !branchId) return;
     if (currentClientRef.current?.id) return;
     const now = Date.now();
@@ -1498,7 +1498,7 @@ export default function QueueProfile() {
     } catch {
       // ignore
     }
-  }, [applyCallSuccessPayload, branchId, isAdminUser]);
+  }, [applyCallSuccessPayload, branchId, hasDualCallMode, isAdminUser]);
 
   // Подхватываем авто-вызов (backend ticket-called) и переводим менеджера в режим
   // "с клиентом", даже если вызов произошел без клика на кнопке "Вызвать".
@@ -1593,7 +1593,10 @@ export default function QueueProfile() {
         socket.on("connect", () => {
           if (isAdminUser) {
             if (!hasDualCallMode) return;
-            socket?.emit("subscribe:branch", branchId);
+            if (currentManagerId) {
+              socket?.emit("subscribe:manager", currentManagerId);
+              void recoverMissedActiveTicket();
+            }
             return;
           }
           if (currentManagerId) {
@@ -1615,7 +1618,9 @@ export default function QueueProfile() {
       if (!socket) return;
       if (isAdminUser) {
         if (hasDualCallMode) {
-          socket.emit("unsubscribe:branch", branchId);
+          if (currentManagerId) {
+            socket.emit("unsubscribe:manager", currentManagerId);
+          }
         }
       } else if (currentManagerId) {
         socket.emit("unsubscribe:manager", currentManagerId);
@@ -1637,7 +1642,7 @@ export default function QueueProfile() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (isAdminUser) return;
+    if (isAdminUser && !hasDualCallMode) return;
     const onRefresh = () => {
       window.setTimeout(() => {
         void recoverMissedActiveTicket();
@@ -1645,7 +1650,7 @@ export default function QueueProfile() {
     };
     window.addEventListener("queue:refresh", onRefresh);
     return () => window.removeEventListener("queue:refresh", onRefresh);
-  }, [isAdminUser, recoverMissedActiveTicket]);
+  }, [hasDualCallMode, isAdminUser, recoverMissedActiveTicket]);
 
   const handleCallClient = useCallback(async () => {
     if (actionLoading) return;
