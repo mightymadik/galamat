@@ -72,7 +72,10 @@ import {
 
 /** Временно без паузы между повторными вызовами на табло (раньше 15 с). */
 const REANNOUNCE_COOLDOWN_SEC = 15;
-const DUAL_CALL_USER_ID = "fwo2nkfqmn9sme7efmt9r6aq";
+const DUAL_CALL_USER_IDS = new Set<string>([
+  "fwo2nkfqmn9sme7efmt9r6aq",
+  "l8ji8yhznd90gxqidu4zeq1s",
+]);
 
 function normalizeServingAt(raw: unknown): string | null {
   if (raw == null) return null;
@@ -214,7 +217,7 @@ export default function QueueProfile() {
         : "";
   const normalizedRole = String(user?.role ?? "").toLowerCase();
   const isAdminUser = normalizedRole === "admin" || normalizedRole === "rop";
-  const hasDualCallMode = currentManagerId === DUAL_CALL_USER_ID;
+  const hasDualCallMode = DUAL_CALL_USER_IDS.has(currentManagerId);
   const isAdminWithoutAutoCall = isAdminUser && !hasDualCallMode;
   const shouldShowBranchManagersInWaitingSidebar = isAdminUser;
   const shouldShowCountdownWithManagers = isAdminUser && hasDualCallMode;
@@ -255,6 +258,9 @@ export default function QueueProfile() {
   selectedDeskRef.current = selectedDesk;
   const callServicePhaseRef = useRef(callServicePhase);
   callServicePhaseRef.current = callServicePhase;
+  const isWaitingForNextRef = useRef(isWaitingForNext);
+  isWaitingForNextRef.current = isWaitingForNext;
+  const lastActiveTicketRecoveryAtRef = useRef(0);
 
   const checkHasNextClients = useCallback(async () => {
     try {
@@ -1358,15 +1364,29 @@ export default function QueueProfile() {
     manager?: { id?: string; name?: string | null } | null;
     counter?: { id?: string; code?: string | null; name?: string | null } | null;
     history?: ClientHistoryItem[];
+    /** Сырые поля талона (сокет / Prisma), если вложенные relation не сериализовались */
+    managerId?: string;
+    counterId?: string;
   };
 
   const applyCallSuccessPayload = useCallback(
-    (payload: CallTicketSuccessPayload | undefined) => {
+    (
+      payload: CallTicketSuccessPayload | undefined,
+      options?: { openModal?: boolean; servingAtIso?: string | null },
+    ) => {
       if (payload) {
         const payloadManagerId =
-          payload.manager?.id != null ? String(payload.manager.id) : "";
+          payload.manager?.id != null
+            ? String(payload.manager.id)
+            : payload.managerId != null
+              ? String(payload.managerId)
+              : "";
         const payloadCounterId =
-          payload.counter?.id != null ? String(payload.counter.id) : "";
+          payload.counter?.id != null
+            ? String(payload.counter.id)
+            : payload.counterId != null
+              ? String(payload.counterId)
+              : "";
 
         // Anti-race guard: обычный менеджер принимает только "свой" вызов.
         if (!isAdminUser) {
@@ -1382,6 +1402,8 @@ export default function QueueProfile() {
           payload.manager?.name ?? null,
           payloadManagerId || currentManagerId,
         );
+        const servingAtIso = options?.servingAtIso ?? null;
+        const callPhaseForCookie: CallServicePhase = servingAtIso ? "servicing" : "waiting";
         const current: CurrentClient = {
           id: payload.ticketId || "",
           code: payload.code || "",
@@ -1395,16 +1417,21 @@ export default function QueueProfile() {
           serviceName: payload.service?.name ?? payload.service?.code ?? null,
           managerName: resolvedManagerName,
           counterCode: payload.counter?.code ?? null,
-          servingAt: null,
+          servingAt: servingAtIso,
         };
         dispatch(setWithClient());
         dispatch(setCurrentClient(current));
+        if (servingAtIso) {
+          dispatch(startServicing());
+        }
         if (typeof current.waitTimeSeconds === "number") {
           dispatch(setFrozenWaitingSeconds(current.waitTimeSeconds));
         }
         dispatch(setCurrentClientHistory(payload.history ?? []));
-        saveCurrentTicketCookie(current, "waiting", currentManagerId);
-        setIsCallTicketModalOpen(true);
+        saveCurrentTicketCookie(current, callPhaseForCookie, currentManagerId);
+        if (options?.openModal !== false) {
+          setIsCallTicketModalOpen(true);
+        }
       } else {
         dispatch(setCurrentClient(null));
         dispatch(setCurrentClientHistory([]));
@@ -1417,6 +1444,61 @@ export default function QueueProfile() {
     },
     [currentManagerId, dispatch, isAdminUser, selectedDesk],
   );
+
+  /** Если `ticket-called` потерялся (сокет), подтягиваем CALLED/SERVING с API — иначе талон пропал из waiting и экран пустой. */
+  const recoverMissedActiveTicket = useCallback(async () => {
+    if (isAdminUser) return;
+    if (!isWaitingForNextRef.current || !branchId) return;
+    if (currentClientRef.current?.id) return;
+    const now = Date.now();
+    if (now - lastActiveTicketRecoveryAtRef.current < 2000) return;
+    lastActiveTicketRecoveryAtRef.current = now;
+    try {
+      const res = await fetch("/api/queue/manager/my-active-ticket", { credentials: "include" });
+      const json = (await res.json().catch(() => ({}))) as {
+        data?: { ticket?: Record<string, unknown> | null };
+      };
+      if (!res.ok || !json?.data?.ticket || typeof json.data.ticket !== "object") return;
+      const t = json.data.ticket;
+      const st = String(t.status ?? "").toUpperCase();
+      if (st !== "CALLED" && st !== "SERVING") return;
+
+      const mgr = t.manager as {
+        id?: string;
+        name?: string | null;
+        fullName?: string | null;
+      } | null | undefined;
+      const ctr = t.counter as { id?: string; code?: string | null } | null | undefined;
+      const cli = t.client as { fullName?: string | null; phone?: string | null } | null | undefined;
+      const br = t.branch as { id?: string; name?: string | null } | null | undefined;
+      const svc = t.service as { name?: string | null; code?: string | null } | null | undefined;
+
+      applyCallSuccessPayload(
+        {
+          ticketId: t.id != null ? String(t.id) : "",
+          code: t.ticketCode != null ? String(t.ticketCode) : "",
+          name: cli?.fullName ?? "Клиент",
+          phone: cli?.phone ?? null,
+          waitTimeSeconds:
+            typeof t.waitTimeSeconds === "number" ? t.waitTimeSeconds : null,
+          branch: br ? { id: br.id, name: br.name ?? null } : null,
+          service: svc ? { name: svc.name ?? null, code: svc.code ?? null } : null,
+          manager: mgr?.id
+            ? { id: mgr.id, name: mgr.fullName ?? mgr.name ?? null }
+            : undefined,
+          counter: ctr?.id ? { id: ctr.id, code: ctr.code ?? null } : undefined,
+          managerId: t.managerId != null ? String(t.managerId) : undefined,
+          counterId: t.counterId != null ? String(t.counterId) : undefined,
+        },
+        {
+          openModal: false,
+          servingAtIso: st === "SERVING" ? normalizeServingAt(t.servingAt) : null,
+        },
+      );
+    } catch {
+      // ignore
+    }
+  }, [applyCallSuccessPayload, branchId, isAdminUser]);
 
   // Подхватываем авто-вызов (backend ticket-called) и переводим менеджера в режим
   // "с клиентом", даже если вызов произошел без клика на кнопке "Вызвать".
@@ -1437,18 +1519,35 @@ export default function QueueProfile() {
       manager?: { id?: string; name?: string | null } | null;
       managerName?: string | null;
       counter?: { id?: string; code?: string | null; name?: string | null } | null;
+      managerId?: string;
+      counterId?: string;
     };
 
     const handleTicketCalled = (payload?: TicketCalledPayload) => {
       if (cancelled || !payload?.id) return;
 
       const payloadManagerId =
-        payload.manager?.id != null ? String(payload.manager.id) : "";
+        payload.manager?.id != null
+          ? String(payload.manager.id)
+          : payload.managerId != null
+            ? String(payload.managerId)
+            : "";
       const payloadCounterId =
-        payload.counter?.id != null ? String(payload.counter.id) : "";
+        payload.counter?.id != null
+          ? String(payload.counter.id)
+          : payload.counterId != null
+            ? String(payload.counterId)
+            : "";
 
-      // Обычный менеджер принимает только "свой" авто-вызов.
-      if (!isAdminUser) {
+      if (isAdminUser) {
+        // Для admin/rop не переключаем UI по чужим авто-вызовам.
+        // Исключение: спец-режим dual-call, где пользователь работает как обычный менеджер.
+        if (!hasDualCallMode) return;
+        if (!payloadManagerId || (currentManagerId && payloadManagerId !== currentManagerId)) {
+          return;
+        }
+      } else {
+        // Обычный менеджер принимает только "свой" авто-вызов.
         if (!payloadManagerId || (currentManagerId && payloadManagerId !== currentManagerId)) {
           return;
         }
@@ -1471,6 +1570,8 @@ export default function QueueProfile() {
           name: payload.manager?.name ?? payload.managerName ?? null,
         },
         counter: payload.counter ?? null,
+        managerId: payload.managerId,
+        counterId: payload.counterId,
       });
     };
 
@@ -1491,11 +1592,13 @@ export default function QueueProfile() {
 
         socket.on("connect", () => {
           if (isAdminUser) {
+            if (!hasDualCallMode) return;
             socket?.emit("subscribe:branch", branchId);
             return;
           }
           if (currentManagerId) {
             socket?.emit("subscribe:manager", currentManagerId);
+            void recoverMissedActiveTicket();
           }
         });
 
@@ -1511,7 +1614,9 @@ export default function QueueProfile() {
       cancelled = true;
       if (!socket) return;
       if (isAdminUser) {
-        socket.emit("unsubscribe:branch", branchId);
+        if (hasDualCallMode) {
+          socket.emit("unsubscribe:branch", branchId);
+        }
       } else if (currentManagerId) {
         socket.emit("unsubscribe:manager", currentManagerId);
       }
@@ -1524,9 +1629,23 @@ export default function QueueProfile() {
     applyCallSuccessPayload,
     branchId,
     currentManagerId,
+    hasDualCallMode,
     isAdminUser,
+    recoverMissedActiveTicket,
     selectedDesk,
   ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isAdminUser) return;
+    const onRefresh = () => {
+      window.setTimeout(() => {
+        void recoverMissedActiveTicket();
+      }, 0);
+    };
+    window.addEventListener("queue:refresh", onRefresh);
+    return () => window.removeEventListener("queue:refresh", onRefresh);
+  }, [isAdminUser, recoverMissedActiveTicket]);
 
   const handleCallClient = useCallback(async () => {
     if (actionLoading) return;
