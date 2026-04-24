@@ -235,6 +235,19 @@ export default function DealDrawer({
     const latestKazreestrStatus = data?.deal?.kazreestrStatus ?? "—";
     const latestKazreestrNameRu = extractKazreestrNameRu(latestKazreestrLog?.responsePayload);
     const kazreestrLogs = data?.kazreestrRequestLogs ?? [];
+    const signedAgreementsFull = data?.signedAgreements ?? [];
+    const KAZREESTR_REGISTRABLE_TEMPLATE_TYPES = new Set(["ДДУ", "Дополнительное соглашение"]);
+    const isPdbDeal = data?.deal?.baseContractType === "ПДБ";
+    const registrableAgreements = isPdbDeal
+        ? []
+        : signedAgreementsFull.filter((a) => KAZREESTR_REGISTRABLE_TEMPLATE_TYPES.has(String(a.templateType ?? "")));
+    const aggregatedKazreestrStatus: string = isPdbDeal
+        ? "Не применимо"
+        : registrableAgreements.length === 0
+            ? (latestKazreestrStatus && latestKazreestrStatus !== "—" ? latestKazreestrStatus : "Не применимо")
+            : registrableAgreements.every((a) => a.sendToKazreestr === true)
+                ? "Зарегистрирован"
+                : "Не зарегистрирован";
     const handleRenewalBack = () => {
         if (!renewalStep) return;
         if (renewalStep === "cost") {
@@ -292,22 +305,36 @@ export default function DealDrawer({
         }
     };
 
-    const handleSetKazreestrStatus = async (status: "Зарегистрировано" | "Отказано" | "Не отправлено") => {
+    const handleToggleAgreementRegistered = async (agreementDocumentId: string, nextValue: boolean) => {
         if (actionLoading) return;
-        setActionLoading(`kazreestr-${status}`);
+        setActionLoading(`agreement-${agreementDocumentId}`);
         try {
-            const res = await fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/kazreestr-status`, {
+            const res = await fetch(`/api/signed-agreements/${encodeURIComponent(agreementDocumentId)}/kazreestr-registered`, {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status }),
+                body: JSON.stringify({ sendToKazreestr: nextValue }),
             });
             const json = await res.json().catch(() => ({}));
             if (!res.ok) {
-                alert(json?.error ?? "Не удалось обновить статус Казреестра");
+                alert(json?.error ?? "Не удалось обновить статус регистрации договора");
                 return;
             }
-            setData((prev) => (prev ? { ...prev, deal: { ...prev.deal, kazreestrStatus: status } } : prev));
+            const nextDealKazreestrStatus: string | null =
+                typeof json?.dealKazreestrStatus === "string" ? json.dealKazreestrStatus : null;
+            setData((prev) => {
+                if (!prev) return prev;
+                const agreements = prev.signedAgreements ?? [];
+                return {
+                    ...prev,
+                    deal: nextDealKazreestrStatus
+                        ? { ...prev.deal, kazreestrStatus: nextDealKazreestrStatus }
+                        : prev.deal,
+                    signedAgreements: agreements.map((a) =>
+                        a.documentId === agreementDocumentId ? { ...a, sendToKazreestr: nextValue } : a,
+                    ),
+                };
+            });
             onUpdated?.();
         } catch {
             alert("Ошибка сети");
@@ -603,29 +630,152 @@ export default function DealDrawer({
                                     </section>
 
                                     {/* Секция: Казреестр */}
-                                    <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
-                                        <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Казреестр</h3>
-                                        <div className="flex flex-col gap-[8px] text-[14px] not-italic font-normal text-[#122C5E] w-full">
-                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Статус:</span>
-                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{latestKazreestrStatus || "—"}</span>
+                                    <section className="flex p-[32px] flex-col items-start gap-[20px] self-stretch rounded-[32px] bg-[#F4F6FB]">
+                                        <div className="flex items-center justify-between gap-3 self-stretch">
+                                            <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Казреестр</h3>
+                                            <span
+                                                className={
+                                                    aggregatedKazreestrStatus === "Зарегистрирован"
+                                                        ? "inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-[13px] font-semibold"
+                                                        : aggregatedKazreestrStatus === "Не зарегистрирован"
+                                                            ? "inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-3 py-1 text-[13px] font-semibold"
+                                                            : "inline-flex items-center gap-1 rounded-full bg-zinc-200 text-zinc-700 px-3 py-1 text-[13px] font-semibold"
+                                                }
+                                            >
+                                                {aggregatedKazreestrStatus === "Зарегистрирован" && (
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="20 6 9 17 4 12" />
+                                                    </svg>
+                                                )}
+                                                {aggregatedKazreestrStatus === "Не зарегистрирован" && (
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                        <circle cx="12" cy="12" r="9" />
+                                                        <line x1="12" y1="7" x2="12" y2="13" />
+                                                        <line x1="12" y1="16" x2="12" y2="16.5" />
+                                                    </svg>
+                                                )}
+                                                {aggregatedKazreestrStatus}
+                                            </span>
+                                        </div>
+
+                                        {(latestKazreestrNameRu && latestKazreestrNameRu !== "—" || latestKazreestrLog?.status || kazreestrLogs.length > 0) && (
+                                            <div className="flex flex-col gap-[4px] text-[14px] text-[#122C5E] w-full">
+                                                {latestKazreestrNameRu && latestKazreestrNameRu !== "—" && (
+                                                    <div className="flex justify-between items-start gap-3 self-stretch py-[6px] [border-bottom:1px_solid_rgba(38,_85,_175,_0.12)]">
+                                                        <span className="text-[#000]/60">Ответ системы</span>
+                                                        <span className="text-[#000] text-right">{latestKazreestrNameRu}</span>
+                                                    </div>
+                                                )}
+                                                {latestKazreestrLog?.status && (
+                                                    <div className="flex justify-between items-start gap-3 self-stretch py-[6px] [border-bottom:1px_solid_rgba(38,_85,_175,_0.12)]">
+                                                        <span className="text-[#000]/60">Последний запрос</span>
+                                                        <span className="text-[#000]">{latestKazreestrLog.status}</span>
+                                                    </div>
+                                                )}
+                                                {kazreestrLogs.length > 0 && (
+                                                    <div className="flex justify-between items-start gap-3 self-stretch py-[6px]">
+                                                        <span className="text-[#000]/60">Запросов всего</span>
+                                                        <span className="text-[#000]">{kazreestrLogs.length}</span>
+                                                    </div>
+                                                )}
                                             </div>
-                                            {latestKazreestrNameRu && latestKazreestrNameRu !== "—" && (
-                                                <div className="flex px-[0] py-[8px] justify-between items-start gap-3 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Ответ:</span>
-                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px] text-right">{latestKazreestrNameRu}</span>
+                                        )}
+
+                                        <div className="flex flex-col gap-[10px] w-full">
+                                            <div className="flex items-center justify-between self-stretch">
+                                                <span className="text-[#122C5E] text-[14px] font-semibold uppercase tracking-wide opacity-70">
+                                                    Договоры к регистрации
+                                                </span>
+                                                {registrableAgreements.length > 0 && !isPdbDeal && (
+                                                    <span className="text-[#122C5E] text-[12px] font-medium opacity-60">
+                                                        {registrableAgreements.filter((a) => a.sendToKazreestr).length} / {registrableAgreements.length}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {isPdbDeal ? (
+                                                <div className="flex items-center gap-2 rounded-[16px] bg-white/60 px-[16px] py-[12px] text-[14px] text-[#122C5E]/70">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <circle cx="12" cy="12" r="10" />
+                                                        <line x1="12" y1="8" x2="12" y2="12" />
+                                                        <line x1="12" y1="16" x2="12" y2="16.5" />
+                                                    </svg>
+                                                    Сделка по ПДБ — регистрация в Казреестре не требуется
                                                 </div>
-                                            )}
-                                            {latestKazreestrLog?.status && (
-                                                <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
-                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Последний запрос:</span>
-                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{latestKazreestrLog.status}</span>
+                                            ) : registrableAgreements.length === 0 ? (
+                                                <div className="flex items-center gap-2 rounded-[16px] bg-white/60 px-[16px] py-[12px] text-[14px] text-[#122C5E]/60">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <circle cx="12" cy="12" r="10" />
+                                                        <line x1="12" y1="8" x2="12" y2="12" />
+                                                        <line x1="12" y1="16" x2="12" y2="16.5" />
+                                                    </svg>
+                                                    Нет договоров, подлежащих регистрации (ДДУ / Доп. соглашение)
                                                 </div>
-                                            )}
-                                            {kazreestrLogs.length > 0 && (
-                                                <div className="flex px-[0] py-[8px] justify-between items-start self-stretch">
-                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Запросов всего:</span>
-                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{kazreestrLogs.length}</span>
+                                            ) : (
+                                                <div className="flex flex-col gap-[8px] w-full">
+                                                    {registrableAgreements.map((agreement) => {
+                                                        const titleParts = [agreement.templateType, agreement.agreementNumber ? `№ ${agreement.agreementNumber}` : null].filter(Boolean);
+                                                        const label = titleParts.join(" · ") || "Договор";
+                                                        const actionKey = `agreement-${agreement.documentId}`;
+                                                        const isRegistered = agreement.sendToKazreestr === true;
+                                                        const isBusy = actionLoading === actionKey;
+                                                        return (
+                                                            <div
+                                                                key={agreement.documentId}
+                                                                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 self-stretch rounded-[16px] bg-white px-[16px] py-[12px] border ${isRegistered ? "border-emerald-200" : "border-amber-200"}`}
+                                                            >
+                                                                <div className="flex items-center gap-3 min-w-0">
+                                                                    <div
+                                                                        className={`flex items-center justify-center shrink-0 w-9 h-9 rounded-full ${isRegistered ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}
+                                                                    >
+                                                                        {isRegistered ? (
+                                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                                                <polyline points="20 6 9 17 4 12" />
+                                                                            </svg>
+                                                                        ) : (
+                                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                                <line x1="12" y1="5" x2="12" y2="13" />
+                                                                                <line x1="12" y1="16" x2="12" y2="16.5" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex flex-col min-w-0">
+                                                                        <span className="text-[#000] text-[14px] font-medium truncate">{label}</span>
+                                                                        <span className={`text-[12px] font-medium ${isRegistered ? "text-emerald-600" : "text-amber-600"}`}>
+                                                                            {isRegistered ? "Зарегистрирован в Казреестре" : "Не зарегистрирован"}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                {canManageKazreestr && (
+                                                                    <div className="flex gap-2 shrink-0">
+                                                                        {isRegistered ? (
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="bordered"
+                                                                                className="text-[#DB1D31] border-[#DB1D31]"
+                                                                                onPress={() => handleToggleAgreementRegistered(agreement.documentId, false)}
+                                                                                isLoading={isBusy}
+                                                                                isDisabled={!!actionLoading}
+                                                                            >
+                                                                                Отменить
+                                                                            </Button>
+                                                                        ) : (
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="solid"
+                                                                                className="bg-[#02D15C] text-white"
+                                                                                onPress={() => handleToggleAgreementRegistered(agreement.documentId, true)}
+                                                                                isLoading={isBusy}
+                                                                                isDisabled={!!actionLoading}
+                                                                            >
+                                                                                Отметить зарегистрированным
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                         </div>
@@ -721,29 +871,6 @@ export default function DealDrawer({
                                         >
                                             Расторжение
                                         </Button>
-                                    )}
-                                    {canManageKazreestr && data && (
-                                        <>
-                                            <Button
-                                                variant="flat"
-                                                className="w-full justify-center text-white bg-[#02D15C]"
-                                                onPress={() => handleSetKazreestrStatus("Зарегистрировано")}
-                                                isLoading={actionLoading === "kazreestr-Зарегистрировано"}
-                                                isDisabled={!!actionLoading || latestKazreestrStatus === "Зарегистрировано"}
-                                            >
-                                                Зарегистрировано
-                                            </Button>
-                                            <Button
-                                                color="danger"
-                                                variant="bordered"
-                                                className="w-full justify-center text-white bg-[#DB1D31]"
-                                                onPress={() => handleSetKazreestrStatus("Отказано")}
-                                                isLoading={actionLoading === "kazreestr-Отказано"}
-                                                isDisabled={!!actionLoading || latestKazreestrStatus === "Отказано"}
-                                            >
-                                                Отказано
-                                            </Button>
-                                        </>
                                     )}
                                     <Button variant="light" className="w-full justify-center text-[#122C5E]" onPress={onClose}>
                                         Закрыть

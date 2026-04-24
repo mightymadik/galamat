@@ -1986,7 +1986,7 @@ export default function FlatsDetailPage({
                 {similarFlats.length > 0 && (
                     <div className="wrapper pb-[48px]">
                         <div className="flex flex-col gap-6">
-                            <h2 className="text-[#202028] text-[30px] lg:text-[36px] font-medium leading-tight">Похожие квартиры</h2>
+                            <h2 className="text-[#202028] text-[30px] lg:text-[36px] font-medium leading-tight">{t("similar_flats")}</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[24px]">
                                 {similarFlats.map((item) => (
                                     <Link

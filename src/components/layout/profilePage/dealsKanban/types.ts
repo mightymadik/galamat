@@ -54,6 +54,7 @@ export interface DealFull {
     expiresAt: string | null;
     paymentMethod: string | null;
     kazreestrStatus?: string | null;
+    baseContractType?: "ДДУ" | "ПДБ" | null;
     realEstateType?: "property" | "commerce" | "parking" | "pantry";
     property: {
       documentId: string;
@@ -92,6 +93,16 @@ export interface DealFull {
   paymentSchedules: { index: number; dueDate: string; amount: number; paymentStatus: string }[];
   payments: { amount: number; paymentStatus: string; createdAt: string }[];
   signedAgreement: { signed: boolean; signedAt: string | null } | null;
+  signedAgreements?: Array<{
+    documentId: string;
+    templateType: string | null;
+    agreementType: string | null;
+    agreementNumber: string | null;
+    signed: boolean;
+    signedAt: string | null;
+    sendToKazreestr: boolean;
+    createdAt: string | null;
+  }>;
   latestKazreestrRequestLog: {
     status: string | null;
     responsePayload: {

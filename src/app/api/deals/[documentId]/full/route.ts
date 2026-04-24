@@ -75,11 +75,21 @@ export async function GET(
     const paymentsList: any[] = (paymentsRes.data as any)?.data ?? [];
 
     const saRes = await strapiAxios.get(
-      `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(documentId)}&sort[0]=createdAt:desc&pagination[pageSize]=1&fields[0]=signed&fields[1]=signedAt`,
+      `${base}/api/signed-agreements?filters[deal][documentId][$eq]=${encodeURIComponent(documentId)}&sort[0]=createdAt:desc&pagination[pageSize]=100&fields[0]=signed&fields[1]=signedAt&fields[2]=templateType&fields[3]=agreementType&fields[4]=agreementNumber&fields[5]=sendToKazreestr&fields[6]=createdAt`,
       { headers }
     ).catch(() => ({ data: {} }));
     const saList: any[] = (saRes.data as any)?.data ?? [];
     const sa = Array.isArray(saList) ? saList[0] : null;
+    const signedAgreementsList = (Array.isArray(saList) ? saList : []).map((row: any) => ({
+      documentId: String(row?.documentId ?? row?.attributes?.documentId ?? row?.id ?? ""),
+      templateType: (row?.templateType ?? row?.attributes?.templateType ?? null) as string | null,
+      agreementType: (row?.agreementType ?? row?.attributes?.agreementType ?? null) as string | null,
+      agreementNumber: (row?.agreementNumber ?? row?.attributes?.agreementNumber ?? null) as string | null,
+      signed: Boolean(row?.signed ?? row?.attributes?.signed ?? false),
+      signedAt: (row?.signedAt ?? row?.attributes?.signedAt ?? null) as string | null,
+      sendToKazreestr: Boolean(row?.sendToKazreestr ?? row?.attributes?.sendToKazreestr ?? false),
+      createdAt: (row?.createdAt ?? row?.attributes?.createdAt ?? null) as string | null,
+    })).filter((row) => row.documentId);
 
     const logsFromDealRelationRaw =
       deal?.kazreestrRequestLogs ??
@@ -200,6 +210,7 @@ export async function GET(
         expiresAt: deal?.expiresAt ?? deal?.attributes?.expiresAt,
         paymentMethod: deal?.paymentMethod ?? deal?.attributes?.paymentMethod,
         kazreestrStatus: deal?.kazreestrStatus ?? deal?.attributes?.kazreestrStatus ?? null,
+        baseContractType: deal?.baseContractType ?? deal?.attributes?.baseContractType ?? null,
         realEstateType: selectedType,
         property: selectedEntity
           ? {
@@ -255,6 +266,7 @@ export async function GET(
       signedAgreement: sa
         ? { signed: sa?.signed ?? sa?.attributes?.signed, signedAt: sa?.signedAt ?? sa?.attributes?.signedAt }
         : null,
+      signedAgreements: signedAgreementsList,
       latestKazreestrRequestLog: latestKazreestrLog
         ? {
             status: latestKazreestrLog.status ?? null,
