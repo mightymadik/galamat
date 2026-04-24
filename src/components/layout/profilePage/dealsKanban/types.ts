@@ -23,6 +23,7 @@ export interface DealCardItem {
   expiresAt: string | null;
   paymentMethod: string | null;
   createdAt: string | null;
+  kazreestrStatus?: string | null;
   property: {
     documentId: string | null;
     apartmentNumber: string | number;

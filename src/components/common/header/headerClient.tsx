@@ -56,16 +56,6 @@ export default function HeaderClient({ data }: { data: HeaderItem[] }) {
         }
     }, []);
 
-    const handleDropdownChange = (key: string) => {
-        const city = cities.find(c => c.key === key);
-        if (!city) return;
-
-        setSelectedKeys(city.key);
-        setSelectedKeysLabel(city.label);
-        document.cookie = `city=${city.key}; path=/; SameSite=Lax; max-age=${60 * 60 * 24 * 30}`;
-        router.refresh();
-    };
-
     const [selected, setSelected] = useState<string>("ru");
 
     useEffect(() => {

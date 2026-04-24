@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search")?.trim() || "";
     const project = searchParams.get("project")?.trim() || "";
     const paymentMethod = searchParams.get("paymentMethod")?.trim() || "";
+    const kazreestrStatusFilter = searchParams.get("kazreestrStatus")?.trim() || "";
     const createdAtFrom = searchParams.get("createdAtFrom")?.trim() || "";
     const createdAtTo = searchParams.get("createdAtTo")?.trim() || "";
     const overdue = searchParams.get("overdue") === "1";
@@ -79,6 +80,16 @@ export async function GET(request: NextRequest) {
     if (paymentMethod) {
       filters.push(`filters[paymentMethod][$eq]=${encodeURIComponent(paymentMethod)}`);
     }
+    if (kazreestrStatusFilter) {
+      if (kazreestrStatusFilter === "Не применимо") {
+        filters.push(
+          `filters[$or][0][kazreestrStatus][$eq]=${encodeURIComponent("Не применимо")}` +
+          `&filters[$or][1][kazreestrStatus][$null]=true`
+        );
+      } else {
+        filters.push(`filters[kazreestrStatus][$eq]=${encodeURIComponent(kazreestrStatusFilter)}`);
+      }
+    }
     if (createdAtFrom) {
       filters.push(`filters[createdAt][$gte]=${encodeURIComponent(`${createdAtFrom}T00:00:00.000Z`)}`);
     }
@@ -98,7 +109,7 @@ export async function GET(request: NextRequest) {
 
     const url =
       `${base}/api/deals?${filters.join("&")}&${sort}&${pagination}&${populate}` +
-      "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=downPayment&fields[4]=reserveSum&fields[5]=expiresAt&fields[6]=paymentMethod&fields[7]=createdAt";
+      "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=downPayment&fields[4]=reserveSum&fields[5]=expiresAt&fields[6]=paymentMethod&fields[7]=createdAt&fields[8]=kazreestrStatus";
 
     const res = await strapiAxios.get(url, { headers });
     const rawList: any[] = (res.data as any)?.data ?? [];
@@ -108,7 +119,7 @@ export async function GET(request: NextRequest) {
       const byDocIdUrl =
         `${base}/api/deals?filters[manager][documentId][$eq]=${encodeURIComponent(String(managerId))}` +
         `&${sort}&${pagination}&${populate}` +
-        "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=downPayment&fields[4]=reserveSum&fields[5]=expiresAt&fields[6]=paymentMethod&fields[7]=createdAt";
+        "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=downPayment&fields[4]=reserveSum&fields[5]=expiresAt&fields[6]=paymentMethod&fields[7]=createdAt&fields[8]=kazreestrStatus";
       const res2 = await strapiAxios.get(byDocIdUrl, { headers }).catch(() => ({ data: {} }));
       const list2: any[] = (res2.data as any)?.data ?? [];
       if (Array.isArray(list2)) deals = list2;
@@ -212,6 +223,7 @@ export async function GET(request: NextRequest) {
         expiresAt: expiresAt || null,
         paymentMethod: d?.paymentMethod ?? d?.attributes?.paymentMethod ?? null,
         createdAt: d?.createdAt ?? d?.attributes?.createdAt ?? null,
+        kazreestrStatus: d?.kazreestrStatus ?? d?.attributes?.kazreestrStatus ?? null,
         property: {
           documentId: entity?.documentId ?? entity?.id ?? null,
           apartmentNumber,

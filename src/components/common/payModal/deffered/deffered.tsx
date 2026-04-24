@@ -13,11 +13,9 @@ import type { AgreementPayload } from "@/types/agreement";
 import {
     PROMO_LENGTH,
     formatPromoInput,
-    parseBonusAmount,
     formatPriceDisplay,
     formatMoney,
     parsePrice,
-    parseDownPaymentPercent,
     formatComplexDueDate,
     isPaymentConditionValidToday,
     isPaymentMethod,
@@ -26,12 +24,10 @@ import {
     getMatchingOptions,
     resolvePromocodeDiscountValue,
     resolveDownPaymentAmount,
-    resolveRaiseSurchargeValue,
     formatRaisePerM2Label,
     getPaymentValueUnit,
     resolveOptionTotalPrice,
 } from "@/lib/paymentFormUtils";
-import { withMask } from "use-mask-input";
 import { useTranslations } from "next-intl";
 import { mapSendCodeErrorMessage } from "@/lib/authErrorI18n";
 import type { RealEstateType } from "@/types/flat";
@@ -94,11 +90,6 @@ export default function Deffered({ flatData, realEstateType = "property", active
     const unitLabel = realEstateType === "commerce" ? "Коммерция" : realEstateType === "parking" ? "Паркинг" : realEstateType === "pantry" ? "Кладовка" : "Квартира";
     const user = useSelector((state: RootState) => state.auth.user);
     const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin" || user?.role === "rop";
-    const [galaBonus, setGalaBonus] = useState<string>("0 ₸");
-    const [galaBonusAmount, setGalaBonusAmount] = useState<number>(0);
-    const [galaBonusWhen, setGalaBonusWhen] = useState<string | null>(null);
-    const [galaBonusChecked, setGalaBonusChecked] = useState(false);
-    const [galaBonusChecking, setGalaBonusChecking] = useState(false);
     const [managerBonusPhone, setManagerBonusPhone] = useState<string>("");
     const [managerBonusPhoneVerified, setManagerBonusPhoneVerified] = useState<boolean>(false);
     const [bonusPhoneStep, setBonusPhoneStep] = useState<"phone" | "code" | "verified">("phone");
@@ -121,10 +112,6 @@ export default function Deffered({ flatData, realEstateType = "property", active
         today(getLocalTimeZone()),
     ]);
     const [amountByDateKey, setAmountByDateKey] = useState<Record<string, string>>({});
-
-    const effectiveBonusPhone = isManagerOrAdmin
-        ? (managerBonusPhoneVerified && managerBonusPhone.trim() ? managerBonusPhone.trim() : null)
-        : user?.phone ?? null;
 
     useEffect(() => {
         if (isManagerOrAdmin && bonusPhoneStep === "phone") setManagerBonusPhoneVerified(false);
@@ -309,7 +296,6 @@ export default function Deffered({ flatData, realEstateType = "property", active
     const totalArea = flatData?.totalArea ?? 0;
     const adjustmentArea = realEstateType === "parking" ? 0 : totalArea;
     const raiseRaw = parseRaise(selectedOption?.raise);
-    const raisePerM2 = raiseRaw >= 101 && raiseRaw <= 50_000 ? raiseRaw : 0;
     const totalPriceBeforeDiscounts = resolveOptionTotalPrice(basePrice, adjustmentArea, selectedOption);
     const promocodeDiscount = promocodeResult?.valid
         ? resolvePromocodeDiscountValue(promocodeResult?.value, totalPriceBeforeDiscounts, adjustmentArea)
@@ -539,7 +525,6 @@ export default function Deffered({ flatData, realEstateType = "property", active
                         <div className="flex flex-wrap gap-2">
                             {options.map((opt, i) => {
                                 const isSelected = selectedPvIndex === i;
-                                const raiseRaw = parseRaise(opt.raise);
                                 const priceBeforeDiscounts = resolveOptionTotalPrice(basePrice, adjustmentArea, opt);
                                 const promoDisc = promocodeResult?.valid
                                     ? resolvePromocodeDiscountValue(promocodeResult?.value, priceBeforeDiscounts, adjustmentArea)

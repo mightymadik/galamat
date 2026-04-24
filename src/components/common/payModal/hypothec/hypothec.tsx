@@ -15,9 +15,7 @@ import {
     formatMoney,
     formatPromoInput,
     parseRaise,
-    resolveRaiseSurchargeValue,
     resolveDownPaymentAmount,
-    formatDownPaymentLabel,
     parsePriceString,
     getMatchingOptions,
     isActivePaymentStatus,
@@ -26,7 +24,6 @@ import {
     formatValidToDate,
     formatComplexDueDate,
     resolvePromocodeDiscountValue,
-    getPaymentValueUnit,
     resolveOptionTotalPrice,
 } from "@/lib/paymentFormUtils";
 import { useTranslations } from "next-intl";

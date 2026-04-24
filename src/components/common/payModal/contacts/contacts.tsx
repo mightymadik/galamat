@@ -33,7 +33,7 @@ function phoneToRequestFormat(phone: string): string {
 
 function normalizeCyrillicNameInput(raw: string): string {
   const cleaned = String(raw || "")
-    .replace(/[^А-Яа-яЁё -]/g, "")
+    .replace(/[^\p{Script=Cyrillic} -]/gu, "")
     .replace(/\s+/g, " ")
     .replace(/-+/g, "-")
     .trimStart();
@@ -311,7 +311,6 @@ export default function Contacts({
     !!trimmedPhone &&
     !!lastName.trim() &&
     !!firstName.trim() &&
-    !!middleName.trim() &&
     !!gender.trim() &&
     !!dateOfBirth.trim() &&
     !!docNumber.trim() &&
@@ -456,40 +455,6 @@ export default function Contacts({
     await requestDocData(trimmedIin, trimmedPhone);
   };
 
-  const sendPhoneVerificationCode = async () => {
-    if (sendingPhoneCodeRef.current || sendingPhoneCode || !isManagerOrAdmin) return;
-    sendingPhoneCodeRef.current = true;
-    setPhoneVerifyError(null);
-    const raw = phone.trim();
-    const normalized = normalizePhone(raw);
-    if (!isValidKzPhoneE164(normalized)) {
-      setPhoneVerifyError(t("wrong_phone"));
-      sendingPhoneCodeRef.current = false;
-      return;
-    }
-    setSendingPhoneCode(true);
-    try {
-      const res = await fetch("/api/auth/send-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: raw }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json?.status !== "ok") {
-        setPhoneVerifyError(mapSendCodeErrorMessage(json?.message, t));
-        return;
-      }
-      setPhoneVerifyStep("code");
-      setPhoneVerifyCode("");
-      setVerifiedPhoneE164(null);
-    } catch {
-      setPhoneVerifyError("Ошибка сети");
-    } finally {
-      sendingPhoneCodeRef.current = false;
-      setSendingPhoneCode(false);
-    }
-  };
-
   const verifyPhoneCode = async () => {
     if (verifyingPhoneCode || !isManagerOrAdmin || !pendingCheckDocData) return;
     setPhoneVerifyError(null);
@@ -614,7 +579,6 @@ export default function Contacts({
     if (
       !currentDocData.lastName ||
       !currentDocData.firstName ||
-      !currentDocData.middleName ||
       !currentDocData.gender ||
       !currentDocData.dateOfBirth ||
       !currentDocData.docNumber ||
@@ -625,7 +589,7 @@ export default function Contacts({
       setManualFieldErrors({
         lastName: currentDocData.lastName ? undefined : required,
         firstName: currentDocData.firstName ? undefined : required,
-        middleName: currentDocData.middleName ? undefined : required,
+        middleName: undefined,
         gender: currentDocData.gender ? undefined : required,
         dateOfBirth: currentDocData.dateOfBirth ? undefined : required,
         docNumber: currentDocData.docNumber ? undefined : required,
@@ -724,7 +688,13 @@ export default function Contacts({
       });
       const genJson = await genRes.json().catch(() => ({}));
       if (!genRes.ok) {
-        setError(genJson?.detail ?? genJson?.message ?? genJson?.error ?? t("error_generating_agreement"));
+        const rawError =
+          genJson?.detail ?? genJson?.message ?? genJson?.error ?? "";
+        if (String(rawError).trim() === "flatData_mismatch_with_deal") {
+          setError("Не удалось сформировать договор: выбранная квартира не совпадает с объектом сделки. Обновите страницу и повторите попытку.");
+        } else {
+          setError(rawError || t("error_generating_agreement"));
+        }
         setLoading(false);
         return;
       }
@@ -923,7 +893,6 @@ export default function Contacts({
                             innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
                           }}
                           isDisabled={loading}
-                          isRequired
                           isInvalid={!!manualFieldErrors.middleName}
                           errorMessage={manualFieldErrors.middleName}
                         />

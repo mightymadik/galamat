@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Button } from "@heroui/button"
 import Image from "next/image"
+import Link from "next/link";
 import { Flat as FlatType, PaymentConditionForFlat, RealEstateType } from "@/types/flat";
+import type { FlatDetailBootstrap, SimilarPropertyItem } from "@/app/api/properties/detailServer";
 import { notFound, useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "@/store";
@@ -26,7 +28,6 @@ import {
     getFullPaymentDiscountFromConditions,
     parsePriceString,
     parseRaise,
-    resolveRaiseSurchargeValue,
     formatRaiseLabel,
     getPaymentValueUnit,
     resolveOptionTotalPrice,
@@ -34,7 +35,6 @@ import {
     formatValidToDate,
     monthsBetween,
     resolveDownPaymentAmount,
-    formatDownPaymentLabel,
 } from "@/lib/paymentFormUtils";
 
 interface FlatDetail {
@@ -103,6 +103,20 @@ type PropertyDetailApi = Partial<{
     sunshine: string;
     paymentConditions: PaymentConditionForFlat[];
 }>;
+
+interface SimilarFlatCardItem {
+    id: number;
+    documentId: string;
+    title: string;
+    address: string;
+    price: string;
+    priceM2: string;
+    tags: string[];
+    images: string[];
+    room: number;
+    area: number;
+    floor: number;
+}
 
 /** Адаптер из ответа /api/properties/[id] в FlatDetail и Flat для PayModal */
 function adaptPropertyDetail(
@@ -201,13 +215,46 @@ function adaptPropertyDetail(
     return { flatDetail, originalFlat };
 }
 
-export default function FlatsDetailPage({ id, realEstateType = "property" }: { id: string | string[]; realEstateType?: RealEstateType }) {
+export default function FlatsDetailPage({
+    id,
+    realEstateType = "property",
+    initial,
+}: {
+    id: string | string[];
+    realEstateType?: RealEstateType;
+    initial?: FlatDetailBootstrap;
+}) {
     const router = useRouter();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const t = useTranslations();
-    const [flat, setFlat] = useState<FlatDetail | null>(null);
-    const [originalFlat, setOriginalFlat] = useState<FlatType | null>(null);
-    const [loading, setLoading] = useState(true);
+    const initialAdapted = useMemo(() => {
+        if (!initial?.property) return null;
+        return adaptPropertyDetail(initial.property as unknown as PropertyDetailApi, realEstateType);
+    }, [initial, realEstateType]);
+    const mapSimilarRow = useCallback((row: SimilarPropertyItem): SimilarFlatCardItem | null => {
+        if (!row?.documentId) return null;
+        const numericPrice = Number(row.priceCheckmate ?? 0);
+        const numericPriceM2 = Number(row.priceM2Checkmate ?? 0);
+        return {
+            id: Number(row.id ?? 0),
+            documentId: String(row.documentId),
+            title: String(row.projectName ?? ""),
+            address: String(row.complexAddress ?? ""),
+            price: formatPriceDisplay(numericPrice),
+            priceM2: realEstateType === "parking" ? "" : `${formatPriceDisplay(numericPriceM2)}/м²`,
+            tags: Array.isArray(row.tags) ? row.tags : [],
+            images: [
+                ...(Array.isArray(row.images) ? row.images : []),
+                ...(Array.isArray(row.platformPlanImages) ? row.platformPlanImages : []),
+            ],
+            room: Number(row.room ?? 0),
+            area: Number(row.totalArea ?? 0),
+            floor: Number(row.floor ?? 0),
+        };
+    }, [realEstateType]);
+    const [flat, setFlat] = useState<FlatDetail | null>(() => initialAdapted?.flatDetail ?? null);
+    const [originalFlat, setOriginalFlat] = useState<FlatType | null>(() => initialAdapted?.originalFlat ?? null);
+    const [loading, setLoading] = useState(() => !initialAdapted);
     const [error, setError] = useState<string | null>(null);
     const [activeButton, setActiveButton] = useState<string | null>(null);
     const [selectedInstallmentPvIndex, setSelectedInstallmentPvIndex] = useState(0);
@@ -222,6 +269,12 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
     const [isMagnifierVisible, setIsMagnifierVisible] = useState(false);
     const [magnifierPoint, setMagnifierPoint] = useState({ x: 0, y: 0 });
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+    const [similarFlats, setSimilarFlats] = useState<SimilarFlatCardItem[]>(() => {
+        if (!initial?.similar?.length) return [];
+        return initial.similar
+            .map((row) => mapSimilarRow(row))
+            .filter((row): row is SimilarFlatCardItem => row != null);
+    });
     const pdfRef = useRef<HTMLDivElement | null>(null);
 
     const dispatch = useDispatch();
@@ -268,7 +321,9 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
             ? (formatPdfPhone(user?.phone) || pdfCompanyPhone)
             : pdfCompanyPhone;
     /** Есть ли активная сделка по квартире (Бронь/Ожидания оплаты/договора) — решаем по сделкам, не по propertyStatus */
-    const [hasActiveDeal, setHasActiveDeal] = useState<boolean | null>(null);
+    const [hasActiveDeal, setHasActiveDeal] = useState<boolean | null>(
+        initial?.activeDeal?.hasActiveDeal != null ? initial.activeDeal.hasActiveDeal : null,
+    );
     const canOpenPayModal = (user?.role === "manager" || user?.role === "admin" || user?.role === "rop") && hasActiveDeal === false;
 
     /** Сделка в «Ожидания договора»/«Договор подписан» по этой квартире — показать «Продолжить подписание» после перезагрузки */
@@ -294,8 +349,6 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
         const w = el.clientWidth;
         const h = el.clientHeight;
 
-        // Мы масштабируем контент "w x h" -> "w*scale x h*scale"
-        // Допустимое смещение — половина "лишнего" размера
         const maxX = Math.max(0, (w * (scale - 1)) / 2);
         const maxY = Math.max(0, (h * (scale - 1)) / 2);
 
@@ -308,6 +361,12 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
     useEffect(() => {
         if (!id) {
             notFound();
+            return;
+        }
+        if (initialAdapted) {
+            setFlat(initialAdapted.flatDetail);
+            setOriginalFlat(initialAdapted.originalFlat);
+            setLoading(false);
             return;
         }
 
@@ -346,7 +405,8 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
         };
 
         fetchFlat();
-    }, [id, realEstateType]);
+    }, [id, realEstateType, initialAdapted]);
+
 
     useEffect(() => {
         const flatId = Array.isArray(id) ? id?.[0] : id;
@@ -1222,7 +1282,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                 </Button>
                             </div>
                         </div>
-                        <div className="flex flex-row justify-end items-center w-full gap-6">
+                        <div className="flex flex-row justify-center items-center w-full gap-6">
                             {activePlan === "Планировка" ? (
                                 flat.images && flat.images.length > 0 ? (
                                     <div
@@ -1490,7 +1550,7 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                             )}
                                         </div>
                                         {realEstateType !== "parking" && (
-                                        <h2 className="text-[#1A3C7E] text-[20px] not-italic font-medium leading-[24px] opacity-80">
+                                            <h2 className="text-[#1A3C7E] text-[20px] not-italic font-medium leading-[24px] opacity-80">
                                                 {displayPriceForPayment.priceM2}
                                             </h2>
                                         )}
@@ -1824,7 +1884,6 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                                                                     <p className="self-stretch text-[#FFF] text-[14px] leading-[16px] opacity-70 min-w-[0]">
                                                                         {t("hypothec_conditions")}
                                                                     </p>
-                                                                    {/* <span className="text-[#FFF] text-[14px] font-medium leading-[16px]">{formatPriceDisplay(hypothecPreview.monthlyPayment)}</span> */}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1924,8 +1983,108 @@ export default function FlatsDetailPage({ id, realEstateType = "property" }: { i
                         </div>
                     </div>
                 </div>
+                {similarFlats.length > 0 && (
+                    <div className="wrapper pb-[48px]">
+                        <div className="flex flex-col gap-6">
+                            <h2 className="text-[#202028] text-[30px] lg:text-[36px] font-medium leading-tight">Похожие квартиры</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[24px]">
+                                {similarFlats.map((item) => (
+                                    <Link
+                                        key={item.documentId}
+                                        href={
+                                            realEstateType === "commerce"
+                                                ? `/commerce/${item.documentId}`
+                                                : realEstateType === "parking"
+                                                    ? `/parking/${item.documentId}`
+                                                    : realEstateType === "pantry"
+                                                        ? `/pantry/${item.documentId}`
+                                                        : `/flats/${item.documentId}`
+                                        }
+                                        className="flex p-[16px] flex-col items-center gap-[24px] rounded-[18px] border-[2px] border-solid border-[#E3E3E3] bg-[#FFF] w-full h-full hover:border-[#1A3C7E]/30 transition-colors"
+                                    >
+                                        <div className="flex flex-col items-start gap-[12px] self-stretch w-full">
+                                            <div className="flex items-center gap-[12px] self-stretch">
+                                                <h3 className="flex-[1_0_0] text-[#07071F] text-[24px] font-medium truncate">
+                                                    {item.title}
+                                                </h3>
+                                                <div className="flex justify-end items-center gap-[4px] flex-[1_0_0] flex-wrap">
+                                                    {item.tags.map((tag: string, i: number) => (
+                                                        <div
+                                                            key={i}
+                                                            className={`flex text-[10px] p-[4px] justify-center items-center rounded-[16px] leading-full ${tag === "Ипотека" ? "bg-[#3682F5] text-[#FFF]"
+                                                                : tag === "Рассрочка" || tag === "Отложенный платеж" ? "bg-[#1A3C7E] text-[#FFF]"
+                                                                    : "bg-[#F4F5F9] text-[#282D3C]"
+                                                                }`}
+                                                        >
+                                                            {tag}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <p className="text-[#122C5E] text-[12px] truncate w-full">{item.address}</p>
+                                        </div>
+
+
+                                        {item.images.length > 0 ? (
+                                            <div className="relative h-[205px] w-full flex flex-col justify-center items-center gap-[8px] self-stretch min-h-0 overflow-hidden rounded-[12px]">
+                                                <div className="relative w-full h-full min-w-0 min-h-0 flex items-center justify-center">
+                                                    <Image
+                                                        src={item.images[0]}
+                                                        alt={item.title}
+                                                        width={216}
+                                                        height={193}
+                                                        className="object-contain max-h-full max-w-full w-auto h-auto"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="relative h-[205px] w-full flex flex-col justify-center items-center gap-[8px] self-stretch min-h-0 overflow-hidden rounded-[12px] bg-[#F4F5F9]">
+                                                <div className="h-full w-full flex items-center justify-center text-[12px] text-gray-500">
+                                                    No image
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {item.images.length > 1 && (
+                                            <div className="flex h-[4px] justify-center items-center gap-[9px] self-stretch">
+                                                {item.images.map((_, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className={`h-[4px] rounded-full transition-all duration-200 ${i === 0 ? "w-[26px] bg-[#122C5E]" : "w-[4px] bg-[#E3E3E3]"
+                                                            }`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        <div className="flex flex-col items-start gap-[12px] self-stretch w-full">
+                                            <div className="flex flex-col items-start gap-[4px] self-stretch">
+                                                <div className="text-[#07071F] text-[24px] font-medium">{item.price}</div>
+                                                {item.priceM2 && <div className="text-[#07071F] text-[16px] opacity-45">{item.priceM2}</div>}
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 text-[#07071F] text-[16px]">
+                                                <span>{item.room > 0 ? `${item.room} ${t("rooms_count")}` : unitLabel}</span>
+                                                {item.area > 0 && (
+                                                    <>
+                                                        <span className="text-[#CCCCCC]">•</span>
+                                                        <span>{item.area} м²</span>
+                                                    </>
+                                                )}
+                                                {item.floor > 0 && (
+                                                    <>
+                                                        <span className="text-[#CCCCCC]">•</span>
+                                                        <span>{item.floor} {t("floor")}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <LeaveRequestDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
-                {/* Hidden PDF Layout (must be inside return) */}
                 <div
                     ref={pdfRef}
                     className="pdf-safe-root fixed left-0 top-0 -z-10 opacity-0 pointer-events-none text-black"

@@ -126,7 +126,6 @@ export function captureUtmParams(): UtmParams | null {
         }
     });
 
-    // Only store if we have at least one UTM parameter
     if (hasUtmParams) {
         const expiryDate = new Date(Date.now() + UTM_TTL_MS);
 
@@ -139,7 +138,7 @@ export function captureUtmParams(): UtmParams | null {
         return utmParams;
     }
 
-    return hasUtmParams ? utmParams : null;
+    return utmParams;
 }
 
 /**

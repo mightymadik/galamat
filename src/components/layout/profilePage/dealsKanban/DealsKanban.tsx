@@ -19,6 +19,13 @@ const PAYMENT_METHOD_KEYS: { value: string; labelKey: string }[] = [
   { value: "Ипотека", labelKey: "payment_hypothec" },
 ];
 
+const KAZREESTR_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Все" },
+  { value: "Зарегистрировано", label: "Зарегистрировано" },
+  { value: "Отказано", label: "Отказано" },
+  { value: "Не применимо", label: "Не отправлено" },
+];
+
 const STATUS_TO_KEY: Record<string, string> = {
   "Бронь": "status_reservation",
   "Ожидания оплаты": "status_awaiting_payment",
@@ -86,6 +93,7 @@ export default function DealsKanban() {
   const [projectFilter, setProjectFilter] = useState("");
   const [projectOptions, setProjectOptions] = useState<string[]>([]);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("");
+  const [kazreestrStatusFilter, setKazreestrStatusFilter] = useState<string>("");
   const [createdAtFrom, setCreatedAtFrom] = useState<string>(getTodayIsoDate());
   const [createdAtTo, setCreatedAtTo] = useState<string>(getTodayIsoDate());
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
@@ -99,6 +107,7 @@ export default function DealsKanban() {
     if (search) params.set("search", search);
     if (projectFilter) params.set("project", projectFilter);
     if (paymentMethodFilter) params.set("paymentMethod", paymentMethodFilter.trim());
+    if (kazreestrStatusFilter) params.set("kazreestrStatus", kazreestrStatusFilter.trim());
     if (createdAtFrom) params.set("createdAtFrom", createdAtFrom);
     if (createdAtTo) params.set("createdAtTo", createdAtTo);
 
@@ -128,7 +137,7 @@ export default function DealsKanban() {
     } finally {
       setLoading(false);
     }
-  }, [search, projectFilter, paymentMethodFilter, createdAtFrom, createdAtTo, t]);
+  }, [search, projectFilter, paymentMethodFilter, kazreestrStatusFilter, createdAtFrom, createdAtTo, t]);
 
   useEffect(() => {
     if (selectedFromQueryRef.current) return;
@@ -159,11 +168,12 @@ export default function DealsKanban() {
   const listEndItem = Math.min(safePage * listPageSize, listDeals.length);
   const statusItems = [{ key: "__all__", label: t("all_columns") }, ...columns.map((s) => ({ key: s, label: t(STATUS_TO_KEY[s] ?? s) }))];
   const paymentItems = PAYMENT_METHOD_KEYS.map(({ value, labelKey }) => ({ key: value || "__any__", label: t(labelKey) }));
+  const kazreestrItems = KAZREESTR_STATUS_OPTIONS.map(({ value, label }) => ({ key: value || "__any__", label }));
   const pageSizeItems = [10, 20, 50].map((size) => ({ key: String(size), label: `${size}` }));
 
   useEffect(() => {
     setListPage(1);
-  }, [search, statusFilter, projectFilter, paymentMethodFilter, createdAtFrom, createdAtTo]);
+  }, [search, statusFilter, projectFilter, paymentMethodFilter, kazreestrStatusFilter, createdAtFrom, createdAtTo]);
 
   useEffect(() => {
     if (viewMode === "list") setListPage(1);
@@ -251,6 +261,20 @@ export default function DealsKanban() {
         >
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
         </Select>
+        <Select
+          label="Казреестр"
+          placeholder="Все"
+          items={kazreestrItems}
+          selectedKeys={kazreestrStatusFilter ? [kazreestrStatusFilter] : ["__any__"]}
+          onSelectionChange={(keys) => {
+            const k = Array.from(keys)[0] as string;
+            setKazreestrStatusFilter(k === "__any__" ? "" : k ?? "");
+          }}
+          size="sm"
+          classNames={{ base: "max-w-[180px]" }}
+        >
+          {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
+        </Select>
         <Input
           type="date"
           label="Дата с"
@@ -291,6 +315,7 @@ export default function DealsKanban() {
             setStatusFilter("");
             setProjectFilter("");
             setPaymentMethodFilter("");
+            setKazreestrStatusFilter("");
             const today = getTodayIsoDate();
             setCreatedAtFrom(today);
             setCreatedAtTo(today);

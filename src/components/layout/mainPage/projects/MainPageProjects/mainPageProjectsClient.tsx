@@ -21,8 +21,6 @@ interface Countdown {
 
 export function useCountdown(dateString?: string): Countdown | null {
     const [time, setTime] = useState<Countdown | null>(null);
-    const [block, setBlock] = useState(true);
-    const [map, setMap] = useState(false);
 
     useEffect(() => {
         if (!dateString) {

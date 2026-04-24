@@ -66,30 +66,6 @@ function extractKazreestrNameRu(payload: unknown): string {
     return "—";
 }
 
-function mapKazreestrOperationLabel(operationType: string | null | undefined): string {
-    const v = String(operationType ?? "").trim().toLowerCase();
-    if (v === "registration") return "Первичная регистрация";
-    if (v === "assignment" || v === "renewal") return "Переоформление";
-    if (v === "termination" || v === "removal") return "Расторжение";
-    return "Операция не указана";
-}
-
-function mapKazreestrLogStatusLabel(status: string | null | undefined): string {
-    const v = String(status ?? "").trim().toLowerCase();
-    if (v === "sent" || v === "success") return "Отправлено успешно";
-    if (v === "failed" || v === "error") return "Ошибка отправки";
-    if (v === "pending") return "В обработке";
-    return "Статус не указан";
-}
-
-function mapHttpStatusLabel(httpStatus: number | null | undefined): string {
-    if (httpStatus == null) return "Ответ не получен";
-    if (httpStatus >= 200 && httpStatus < 300) return "Успешный ответ";
-    if (httpStatus >= 400 && httpStatus < 500) return "Ошибка в данных запроса";
-    if (httpStatus >= 500) return "Временная ошибка сервиса";
-    return `Код ответа ${httpStatus}`;
-}
-
 type DownloadAgreementItem = {
     url: string;
     name?: string;
@@ -120,10 +96,10 @@ export default function DealDrawer({
     const userRole = useSelector<RootState, string>((state) => state.auth.user?.role ?? "");
     const normalizedRole = String(userRole ?? "").toLowerCase();
     const isRopOrAdmin = normalizedRole === "rop" || normalizedRole === "admin";
-    const isManagerOrAdmin = normalizedRole === "manager" || normalizedRole === "admin";
     const isCashierReadOnly = normalizedRole === "cashier" || normalizedRole === "cshier";
     const isLawyerReadOnly = normalizedRole === "lawyer";
     const isReadOnlyRole = isCashierReadOnly || isLawyerReadOnly;
+    const canManageKazreestr = isLawyerReadOnly || isRopOrAdmin;
     const [data, setData] = useState<DealFull | null>(null);
     const [planImage, setPlanImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -309,6 +285,30 @@ export default function DealDrawer({
             }
             onUpdated?.();
             onClose();
+        } catch {
+            alert("Ошибка сети");
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleSetKazreestrStatus = async (status: "Зарегистрировано" | "Отказано" | "Не отправлено") => {
+        if (actionLoading) return;
+        setActionLoading(`kazreestr-${status}`);
+        try {
+            const res = await fetch(`/api/deals/${encodeURIComponent(dealDocumentId)}/kazreestr-status`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(json?.error ?? "Не удалось обновить статус Казреестра");
+                return;
+            }
+            setData((prev) => (prev ? { ...prev, deal: { ...prev.deal, kazreestrStatus: status } } : prev));
+            onUpdated?.();
         } catch {
             alert("Ошибка сети");
         } finally {
@@ -602,6 +602,35 @@ export default function DealDrawer({
                                         </div>
                                     </section>
 
+                                    {/* Секция: Казреестр */}
+                                    <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
+                                        <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">Казреестр</h3>
+                                        <div className="flex flex-col gap-[8px] text-[14px] not-italic font-normal text-[#122C5E] w-full">
+                                            <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Статус:</span>
+                                                <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{latestKazreestrStatus || "—"}</span>
+                                            </div>
+                                            {latestKazreestrNameRu && latestKazreestrNameRu !== "—" && (
+                                                <div className="flex px-[0] py-[8px] justify-between items-start gap-3 self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Ответ:</span>
+                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px] text-right">{latestKazreestrNameRu}</span>
+                                                </div>
+                                            )}
+                                            {latestKazreestrLog?.status && (
+                                                <div className="flex px-[0] py-[8px] justify-between items-start self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Последний запрос:</span>
+                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{latestKazreestrLog.status}</span>
+                                                </div>
+                                            )}
+                                            {kazreestrLogs.length > 0 && (
+                                                <div className="flex px-[0] py-[8px] justify-between items-start self-stretch">
+                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">Запросов всего:</span>
+                                                    <span className="text-[#000] text-[16px] not-italic font-normal leading-[16px]">{kazreestrLogs.length}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+
                                     {/* Секция 6: График платежей */}
                                     <section className="flex p-[32px] flex-col items-start gap-[16px] self-stretch rounded-[32px] bg-[#F4F6FB]">
                                         <h3 className="text-[#000] text-[20px] not-italic font-medium leading-[20px]">График платежей</h3>
@@ -692,6 +721,29 @@ export default function DealDrawer({
                                         >
                                             Расторжение
                                         </Button>
+                                    )}
+                                    {canManageKazreestr && data && (
+                                        <>
+                                            <Button
+                                                variant="flat"
+                                                className="w-full justify-center text-white bg-[#02D15C]"
+                                                onPress={() => handleSetKazreestrStatus("Зарегистрировано")}
+                                                isLoading={actionLoading === "kazreestr-Зарегистрировано"}
+                                                isDisabled={!!actionLoading || latestKazreestrStatus === "Зарегистрировано"}
+                                            >
+                                                Зарегистрировано
+                                            </Button>
+                                            <Button
+                                                color="danger"
+                                                variant="bordered"
+                                                className="w-full justify-center text-white bg-[#DB1D31]"
+                                                onPress={() => handleSetKazreestrStatus("Отказано")}
+                                                isLoading={actionLoading === "kazreestr-Отказано"}
+                                                isDisabled={!!actionLoading || latestKazreestrStatus === "Отказано"}
+                                            >
+                                                Отказано
+                                            </Button>
+                                        </>
                                     )}
                                     <Button variant="light" className="w-full justify-center text-[#122C5E]" onPress={onClose}>
                                         Закрыть

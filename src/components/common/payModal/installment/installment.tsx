@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { Button, Input, Popover, PopoverTrigger, PopoverContent, } from "@heroui/react";
 import { useSelector } from "react-redux";
@@ -10,11 +10,9 @@ import type { AgreementPayload, AgreementPaymentRow } from "@/types/agreement";
 import {
     PROMO_LENGTH,
     formatPromoInput,
-    parseBonusAmount,
     formatPriceDisplay,
     formatMoney,
     parsePrice,
-    parseDownPaymentPercent,
     formatComplexDueDate,
     monthsBetween,
     isPaymentConditionValidToday,
@@ -24,12 +22,10 @@ import {
     getMatchingOptions,
     resolvePromocodeDiscountValue,
     resolveDownPaymentAmount,
-    resolveRaiseSurchargeValue,
     formatRaisePerM2Label,
     getPaymentValueUnit,
     resolveOptionTotalPrice,
 } from "@/lib/paymentFormUtils";
-import { withMask } from "use-mask-input";
 import type { DateValue } from "@react-types/calendar";
 import { getLocalTimeZone, today, CalendarDate } from "@internationalized/date";
 import { Calendar } from "@heroui/react";
@@ -81,11 +77,6 @@ export default function Installment({ flatData, realEstateType = "property", act
     const unitLabel = realEstateType === "commerce" ? "Коммерция" : realEstateType === "parking" ? "Паркинг" : realEstateType === "pantry" ? "Кладовка" : "Квартира";
     const user = useSelector((state: RootState) => state.auth.user);
     const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin" || user?.role === "rop";
-    const [galaBonus, setGalaBonus] = useState<string>("0 ₸");
-    const [galaBonusAmount, setGalaBonusAmount] = useState<number>(0);
-    const [galaBonusWhen, setGalaBonusWhen] = useState<string | null>(null);
-    const [galaBonusChecked, setGalaBonusChecked] = useState(false);
-    const [galaBonusChecking, setGalaBonusChecking] = useState(false);
     const [managerBonusPhone, setManagerBonusPhone] = useState<string>("");
     const [managerBonusPhoneVerified, setManagerBonusPhoneVerified] = useState<boolean>(false);
     const [bonusPhoneStep, setBonusPhoneStep] = useState<"phone" | "code" | "verified">("phone");
@@ -107,10 +98,6 @@ export default function Installment({ flatData, realEstateType = "property", act
     } | null>(null);
     const defaultCalendarDateRef = useRef(today(getLocalTimeZone()));
     const [paymentDayDate, setPaymentDayDate] = useState<DateValue | null>(() => defaultCalendarDateRef.current);
-
-    const effectiveBonusPhone = isManagerOrAdmin
-        ? (managerBonusPhoneVerified && managerBonusPhone.trim() ? managerBonusPhone.trim() : null)
-        : user?.phone ?? null;
 
     useEffect(() => {
         if (isManagerOrAdmin && bonusPhoneStep === "phone") setManagerBonusPhoneVerified(false);

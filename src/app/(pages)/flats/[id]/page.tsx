@@ -1,26 +1,17 @@
-"use client"
+import { notFound } from "next/navigation";
+import { fetchFlatDetailBootstrap } from "@/app/api/properties/detailServer";
+import FlatDetailClient from "@/components/layout/flatsPage/FlatsDetailPage/FlatDetailClient";
 
-import withPreload from "@/components/common/preload/withPreload";
-import FlatsDetailPage from "@/components/layout/flatsPage/FlatsDetailPage/flatsDetailPage"
-// import SimilarFlats from "@/components/layout/flatsPage/SimilarFlats/similarFlats";
-import { useParams } from "next/navigation"
-import PayModal from "@/components/common/payModal/payModal";
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  if (!id) notFound();
 
-function Page() {
-    const params = useParams()
-    const id = Array.isArray(params.id) ? params.id[0] : params.id
-    
-    return (
-        <div className="mt-[68px]">
-            {id && (
-                <>
-                    <FlatsDetailPage id={id} realEstateType="property" />
-                    {/* <SimilarFlats currentFlatId={typeof id === 'string' ? parseInt(id) : undefined} /> */}
-                    <PayModal id={id} realEstateType="property" />
-                </>
-            )}
-        </div>
-    )
+  const initial = await fetchFlatDetailBootstrap(id, "property");
+  if (!initial.property) notFound();
+
+  return <FlatDetailClient id={id} realEstateType="property" initial={initial} />;
 }
-
-export default withPreload(Page);

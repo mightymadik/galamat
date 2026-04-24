@@ -139,8 +139,6 @@ export default function AuthModal() {
                         ? `${t("code_verification_error")}. ${t("retry")}.`
                         : null;
 
-    const isCodeError = !!verifyError;
-
     return (
         <Drawer
             isDismissable={false}

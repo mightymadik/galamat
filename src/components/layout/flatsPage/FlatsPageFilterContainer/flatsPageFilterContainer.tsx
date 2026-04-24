@@ -263,19 +263,12 @@ export default function FlatsPageFilter({ initialFilterParams, onFilterChange, t
     const [pricePerM2Value, setPricePerM2Value] = useState<[number, number]>([325000, 500000]);
     const [m2Value, setM2Value] = useState<[number, number]>([36, 101]);
 
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => setMounted(true), []);
-
     //Selectors map (district/project храним как FILTER_VALUE_ALL или название; отображение "Все" через t("all"))
     const [selectedValues, setSelectedValues] = useState({
         district: FILTER_VALUE_ALL,
         project: FILTER_VALUE_ALL,
         view: FILTER_VALUE_ALL,
     });
-
-    // Add new state for view dropdown
-    const [isViewDropdownOpen, setIsViewDropdownOpen] = React.useState(false);
-    const toggleViewDropdown = () => setIsViewDropdownOpen(!isViewDropdownOpen);
 
     const selectors = [
         {

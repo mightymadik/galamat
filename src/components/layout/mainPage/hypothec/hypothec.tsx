@@ -1,16 +1,13 @@
 "use client";
 import Image from "next/image";
-import { Input } from "@heroui/react";
-import React, { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
     Button,
-    ButtonGroup,
 } from "@heroui/button";
 import {
     Dropdown,
     DropdownTrigger,
     DropdownMenu,
-    DropdownSection,
     DropdownItem
 } from "@heroui/dropdown";
 import Slider from "rc-slider";

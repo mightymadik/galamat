@@ -1,11 +1,10 @@
 "use client"
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link"
 import Image from "next/image";
 import "./news.scss"
 import { Button } from "@heroui/button";
-import { SocialMediaData, NewsData, CtaNewsData, ResidentsReviewData, PositionNewsData } from "@/types/mainPage";
+import { NewsData } from "@/types/mainPage";
 import NewsModal from "./newsModal";
 import { useTranslations } from "next-intl";
 import { NewsProps } from "./newsServer";
@@ -18,7 +17,6 @@ export default function NewsClient({
   positionNewsData
 }: NewsProps) {
     const t = useTranslations();
-    const router = useRouter();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedNews, setSelectedNews] = useState<NewsData | null>(null);
 

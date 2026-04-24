@@ -30,10 +30,18 @@ function formatPrizeDisplay(prize: string | number): string {
 /** Одна запись бонуса из API (пополнение или списание) */
 interface BonusRecord {
   prize: string | number;
+  createdAt?: string;
   updatedAt?: string;
   issueAt?: string;
   active?: boolean;
   property?: unknown;
+}
+
+interface BonusHistoryEntry {
+  kind: "topup" | "writeOff";
+  amount: number;
+  date: string;
+  timestamp: number;
 }
 
 export default function BonusProfile() {
@@ -59,6 +67,7 @@ export default function BonusProfile() {
             typeof rawPrize === "number" ? rawPrize : typeof rawPrize === "string" ? rawPrize : Number(rawPrize) || 0;
           return {
             prize,
+            createdAt: String(attrs?.createdAt ?? item?.createdAt ?? ""),
             updatedAt: String(attrs?.updatedAt ?? item?.updatedAt ?? ""),
             issueAt: String(attrs?.issueAt ?? item?.issueAt ?? ""),
             active: Boolean(attrs?.active ?? item?.active ?? true),
@@ -72,8 +81,46 @@ export default function BonusProfile() {
   }, [user?.documentId]);
 
   const displayName = user ? [user.name, user.surname].filter(Boolean).join(" ") || user.phone || "—" : "—";
-  const totalPrize = records.reduce((sum, r) => sum + Number(String(r.prize).replace(/\D/g, "") || 0), 0);
+  // Текущий доступный бонус — сумма только активных записей (не списанных).
+  const totalPrize = records.reduce((sum, r) => {
+    if (r.active === false) return sum;
+    return sum + Number(String(r.prize).replace(/\D/g, "") || 0);
+  }, 0);
   const displayPrize = formatPrizeDisplay(String(totalPrize));
+  const historyEntries: BonusHistoryEntry[] = records
+    .flatMap((rec) => {
+    const amount = Number(String(rec.prize).replace(/\D/g, "") || 0);
+    const topupDate = rec.createdAt || rec.updatedAt || rec.issueAt || "";
+    const writeOffDate = rec.issueAt || rec.updatedAt || rec.createdAt || "";
+    const topupTs = Date.parse(topupDate);
+    const writeOffTs = Date.parse(writeOffDate);
+    if (rec.active === false) {
+      // Для списанного бонуса показываем и пополнение, и отдельное списание.
+      return [
+        {
+          kind: "topup" as const,
+          amount,
+          date: topupDate,
+          timestamp: Number.isNaN(topupTs) ? 0 : topupTs,
+        },
+        {
+          kind: "writeOff" as const,
+          amount,
+          date: writeOffDate,
+          timestamp: Number.isNaN(writeOffTs) ? 0 : writeOffTs,
+        },
+      ];
+    }
+    return [
+      {
+        kind: "topup" as const,
+        amount,
+        date: topupDate,
+        timestamp: Number.isNaN(topupTs) ? 0 : topupTs,
+      },
+    ];
+    })
+    .sort((a, b) => b.timestamp - a.timestamp);
 
   return (
     <div className="inline-flex flex-col gap-[32px] items-start">
@@ -139,12 +186,10 @@ export default function BonusProfile() {
             <div className="flex flex-col justify-center items-start gap-[10px] flex-[1_0_0] w-full">
               {loading ? (
                 <p className="text-[#000] text-[14px] opacity-60">{t("loading")}</p>
-              ) : records.length > 0 ? (
+              ) : historyEntries.length > 0 ? (
                 <div className="flex flex-col gap-[8px] w-full">
-                  {records.map((rec, i) => {
-                    const date = rec.issueAt || rec.updatedAt || "";
-                    const amount = Number(String(rec.prize).replace(/\D/g, "") || 0);
-                    const isWriteOff = rec.active === false && amount === 0;
+                  {historyEntries.map((entry, i) => {
+                    const isWriteOff = entry.kind === "writeOff";
                     return (
                       <div
                         key={i}
@@ -152,21 +197,22 @@ export default function BonusProfile() {
                       >
                         <div className="flex flex-col justify-center items-start gap-[4px]">
                           <p className="text-[#000] text-[10px] not-italic font-normal leading-[10px] opacity-30">
-                            {formatClaimedDate(date)}
+                            {formatClaimedDate(entry.date)}
                           </p>
                           <span className="text-[#000] text-[16px] not-italic font-medium leading-[16px]">
                             {isWriteOff ? "Списание" : "Gala Bonus"}
                           </span>
                         </div>
-                        {isWriteOff ? (
-                          <span className="text-[#7E7E7E] text-[16px] not-italic font-medium leading-[16px]">
-                            {t("used")}
-                          </span>
-                        ) : (
-                          <span className="text-[#20B837] text-[16px] not-italic font-medium leading-[16px]">
-                            +{formatPrizeDisplay(rec.prize)}
-                          </span>
-                        )}
+                        <span
+                          className={
+                            isWriteOff
+                              ? "text-[#7E7E7E] text-[16px] not-italic font-medium leading-[16px]"
+                              : "text-[#20B837] text-[16px] not-italic font-medium leading-[16px]"
+                          }
+                        >
+                          {isWriteOff ? "-" : "+"}
+                          {formatPrizeDisplay(entry.amount)}
+                        </span>
                       </div>
                     );
                   })}

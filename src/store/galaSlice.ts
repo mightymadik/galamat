@@ -10,6 +10,7 @@ export interface WheelSegment {
 export interface LastBonus {
   prize: string;
   updatedAt: string;
+  active?: boolean;
 }
 
 interface GalaState {
@@ -68,6 +69,7 @@ const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
 
 export function canClaimBonus(lastBonus: LastBonus | null): boolean {
   if (!lastBonus) return true;
+  if (lastBonus.active === true) return false; // active = not used yet -> no re-spin
   const updated = new Date(lastBonus.updatedAt).getTime();
   return Date.now() - updated >= TWO_MONTHS_MS;
 }
@@ -253,13 +255,14 @@ export const fetchBonuses = createAsyncThunk<
   async (documentId, { rejectWithValue }) => {
     try {
       const { data } = await axios.get<{
-        data?: Array<{ prize?: string; updatedAt?: string }>;
+        data?: Array<{ prize?: string; updatedAt?: string; active?: boolean }>;
       }>(`/api/galaBonus/bonuses?documentId=${encodeURIComponent(documentId)}`);
       const list = data?.data;
       if (!list?.length) return null;
-      const first = list[0];
+      const activeFirst = list.find((item) => item?.active === true);
+      const first = activeFirst ?? list[0];
       if (!first?.prize || !first?.updatedAt) return null;
-      return { prize: first.prize, updatedAt: first.updatedAt };
+      return { prize: first.prize, updatedAt: first.updatedAt, active: first.active === true };
     } catch (e) {
       return rejectWithValue("Ошибка загрузки бонусов");
     }
@@ -389,7 +392,7 @@ const galaSlice = createSlice({
     builder.addCase(createBonus.fulfilled, (state, action) => {
       const prize = action.meta.arg.prize.replace(/\D/g, "") || "0";
       const updatedAt = new Date().toISOString();
-      state.lastBonus = { prize, updatedAt };
+      state.lastBonus = { prize, updatedAt, active: true };
       state.when = updatedAt;
     });
     builder.addCase(logoutAuth.fulfilled, (state) => {

@@ -185,7 +185,7 @@ function augmentFlatForPromocodeFilters(
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { code, projectDocumentId, flat, payment, realEstateType, objectDocumentId } = body as {
+    const { code, projectDocumentId, flat, payment, realEstateType } = body as {
       code?: string;
       projectDocumentId?: string;
       flat?: FlatForValidation;

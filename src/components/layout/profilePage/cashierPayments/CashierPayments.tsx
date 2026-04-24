@@ -305,7 +305,7 @@ export default function CashierPayments() {
     form.append("dealDocumentId", confirmingDealId);
     form.append("amount", String(num));
     if (scheduleId) form.append("paymentScheduleDocumentId", scheduleId);
-    if (receiptFile) form.append("receipt", receiptFile);
+    form.append("receipt", receiptFile);
     setSubmittingPayment(true);
     try {
       const res = await fetch("/api/cashier/confirm-payment", {
