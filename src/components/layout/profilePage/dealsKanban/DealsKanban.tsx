@@ -19,6 +19,14 @@ const PAYMENT_METHOD_KEYS: { value: string; labelKey: string }[] = [
   { value: "Ипотека", labelKey: "payment_hypothec" },
 ];
 
+const PROPERTY_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Все" },
+  { value: "property", label: "Квартира" },
+  { value: "commerce", label: "Коммерция" },
+  { value: "parking", label: "Паркинг" },
+  { value: "pantry", label: "Кладовая" },
+];
+
 const KAZREESTR_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "Все" },
   { value: "Зарегистрировано", label: "Зарегистрировано" },
@@ -108,6 +116,7 @@ export default function DealsKanban() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [projectFilter, setProjectFilter] = useState("");
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState<string>("");
   const [projectOptions, setProjectOptions] = useState<string[]>([]);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("");
   const [kazreestrStatusFilter, setKazreestrStatusFilter] = useState<string>("");
@@ -175,8 +184,12 @@ export default function DealsKanban() {
 
   const columns = DEAL_STATUS_COLUMNS;
   const visibleColumns = statusFilter ? [statusFilter] : columns;
+  const matchesPropertyType = (deal: DealCardItem): boolean => {
+    if (!propertyTypeFilter) return true;
+    return deal.property?.type === propertyTypeFilter;
+  };
   const listDeals: Array<DealCardItem & { __status: string }> = visibleColumns.flatMap((status) =>
-    (byStatus[status] ?? []).map((deal) => ({ ...deal, __status: status })),
+    (byStatus[status] ?? []).filter(matchesPropertyType).map((deal) => ({ ...deal, __status: status })),
   );
   const totalListPages = Math.max(1, Math.ceil(listDeals.length / listPageSize));
   const safePage = Math.min(listPage, totalListPages);
@@ -185,12 +198,13 @@ export default function DealsKanban() {
   const listEndItem = Math.min(safePage * listPageSize, listDeals.length);
   const statusItems = [{ key: "__all__", label: t("all_columns") }, ...columns.map((s) => ({ key: s, label: t(STATUS_TO_KEY[s] ?? s) }))];
   const paymentItems = PAYMENT_METHOD_KEYS.map(({ value, labelKey }) => ({ key: value || "__any__", label: t(labelKey) }));
+  const propertyTypeItems = PROPERTY_TYPE_OPTIONS.map(({ value, label }) => ({ key: value || "__any__", label }));
   const kazreestrItems = KAZREESTR_STATUS_OPTIONS.map(({ value, label }) => ({ key: value || "__any__", label }));
   const pageSizeItems = [10, 20, 50].map((size) => ({ key: String(size), label: `${size}` }));
 
   useEffect(() => {
     setListPage(1);
-  }, [search, statusFilter, projectFilter, paymentMethodFilter, kazreestrStatusFilter, createdAtFrom, createdAtTo]);
+  }, [search, statusFilter, projectFilter, propertyTypeFilter, paymentMethodFilter, kazreestrStatusFilter, createdAtFrom, createdAtTo]);
 
   useEffect(() => {
     if (viewMode === "list") setListPage(1);
@@ -265,6 +279,20 @@ export default function DealsKanban() {
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
         </Select>
         <Select
+          label="Тип объекта"
+          placeholder="Все"
+          items={propertyTypeItems}
+          selectedKeys={propertyTypeFilter ? [propertyTypeFilter] : ["__any__"]}
+          onSelectionChange={(keys) => {
+            const k = Array.from(keys)[0] as string;
+            setPropertyTypeFilter(k === "__any__" ? "" : k ?? "");
+          }}
+          size="sm"
+          classNames={{ base: "max-w-[180px]" }}
+        >
+          {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
+        </Select>
+        <Select
           label={t("payment_type_label")}
           placeholder={t("payment_any")}
           items={paymentItems}
@@ -331,6 +359,7 @@ export default function DealsKanban() {
             setSearch("");
             setStatusFilter("");
             setProjectFilter("");
+            setPropertyTypeFilter("");
             setPaymentMethodFilter("");
             setKazreestrStatusFilter("");
             const today = getTodayIsoDate();
@@ -348,7 +377,7 @@ export default function DealsKanban() {
       {viewMode === "kanban" ? (
         <div className="max-w-[1095px] flex gap-4 overflow-x-auto pb-4">
           {visibleColumns.map((status) => {
-            const list = byStatus[status] ?? [];
+            const list = (byStatus[status] ?? []).filter(matchesPropertyType);
             return (
               <KanbanColumn
                 key={status}
