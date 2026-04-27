@@ -69,14 +69,31 @@ function formatDate(value: string | null | undefined): string {
 
 function formatCurrency(value: number | null | undefined): string {
   if (value == null) return "-";
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
+  const amount = new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: 0,
   })
     .format(value)
     .replace(/\u00A0/g, " ")
     .replace(/\u202F/g, " ");
+  return `${amount} ₸`;
+}
+
+function formatPropertyType(deal: DealCardItem): string {
+  const typeLabel = deal.property?.typeLabel?.trim();
+  if (typeLabel) return typeLabel;
+
+  switch (deal.property?.type) {
+    case "property":
+      return "Квартира";
+    case "commerce":
+      return "Коммерция";
+    case "parking":
+      return "Паркинг";
+    case "pantry":
+      return "Кладовая";
+    default:
+      return "-";
+  }
 }
 
 export default function DealsKanban() {
@@ -380,10 +397,11 @@ export default function DealsKanban() {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-[2fr_1.2fr_0.9fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 bg-gray-50 text-xs uppercase tracking-wide font-semibold text-gray-500 border-b border-gray-200">
+          <div className="grid grid-cols-[1.2fr_1.2fr_0.9fr_1.1fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 bg-gray-50 text-xs uppercase tracking-wide font-semibold text-gray-500 border-b border-gray-200">
             <span>Клиент / Проект</span>
             <span>Статус</span>
-            <span>Кв.</span>
+            <span>№</span>
+            <span>Тип объекта</span>
             <span>Менеджер</span>
             <span>Стоимость</span>
             <span>Оплата</span>
@@ -394,7 +412,7 @@ export default function DealsKanban() {
               <button
                 key={deal.documentId}
                 type="button"
-                className="w-full grid grid-cols-[2fr_1.2fr_0.9fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 text-left hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 transition"
+                className="w-full grid grid-cols-[1.2fr_1.2fr_0.9fr_1.1fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 text-left hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 transition"
                 onClick={() => {
                   setSelectedDealId(deal.documentId);
                   const next = new URLSearchParams(searchParams.toString());
@@ -406,7 +424,7 @@ export default function DealsKanban() {
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-gray-800 truncate">{deal.customer?.displayName || "-"}</span>
                   <span className="block text-xs text-gray-500 truncate">
-                    {deal.property?.projectName || "-"} | ID: {deal.documentId}
+                    {deal.property?.projectName || "-"}
                   </span>
                 </span>
                 <span className="min-w-0">
@@ -417,6 +435,7 @@ export default function DealsKanban() {
                   </span>
                 </span>
                 <span className="text-sm text-gray-700 truncate">{deal.property?.apartmentNumber || "-"}</span>
+                <span className="text-sm text-gray-700 truncate">{formatPropertyType(deal)}</span>
                 <span className="text-sm text-gray-700 truncate">{deal.manager?.displayName || "-"}</span>
                 <span className="text-sm text-gray-700 truncate">{formatCurrency(deal.dealPrice)}</span>
                 <span className="text-sm text-gray-600 truncate">{deal.paymentMethod || "-"}</span>
