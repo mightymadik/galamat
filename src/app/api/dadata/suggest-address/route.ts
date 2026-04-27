@@ -20,10 +20,27 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const query = typeof body?.query === "string" ? body.query.trim() : "";
+    const fromBound = typeof body?.from_bound?.value === "string" ? body.from_bound.value : undefined;
+    const toBound = typeof body?.to_bound?.value === "string" ? body.to_bound.value : undefined;
+    const rawCount = typeof body?.count === "number" ? body.count : undefined;
+    const count = typeof rawCount === "number" && Number.isFinite(rawCount)
+      ? Math.min(20, Math.max(1, Math.trunc(rawCount)))
+      : 10;
+    const locations = Array.isArray(body?.locations) ? body.locations : undefined;
+    const hasLocations = Array.isArray(locations) && locations.length > 0;
 
     if (!query) {
       return NextResponse.json({ suggestions: [] });
     }
+
+    const payload: Record<string, unknown> = {
+      query,
+      count,
+      locations: hasLocations ? locations : [{ country: "Казахстан" }],
+    };
+
+    if (fromBound) payload.from_bound = { value: fromBound };
+    if (toBound) payload.to_bound = { value: toBound };
 
     const res = await fetch(DADATA_URL, {
       method: "POST",
@@ -31,10 +48,7 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
         Authorization: `Token ${token}`,
       },
-      body: JSON.stringify({
-        query,
-        locations: [{ country: "Казахстан" }],
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {

@@ -346,7 +346,7 @@ export default function DealsKanban() {
       </div>
 
       {viewMode === "kanban" ? (
-        <div className="max-w-[1095px] flex gap-4 overflow-x-auto pb-4 min-h-[400px]">
+        <div className="max-w-[1095px] flex gap-4 overflow-x-auto pb-4">
           {visibleColumns.map((status) => {
             const list = byStatus[status] ?? [];
             return (
@@ -367,7 +367,7 @@ export default function DealsKanban() {
           })}
         </div>
       ) : (
-        <div className="max-w-[1095px] min-h-[400px] rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+        <div className="max-w-[1095px] rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-gray-50">
             <div className="text-sm text-gray-700">
               Найдено: <span className="font-semibold">{listDeals.length}</span>

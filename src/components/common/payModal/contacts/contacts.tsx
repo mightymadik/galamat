@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, type Key } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
@@ -94,6 +94,108 @@ interface BankOption {
   iik?: string;
 }
 
+interface AddressParts {
+  country: string;
+  city: string;
+  street: string;
+  house: string;
+  apartment: string;
+}
+
+type AddressFieldKey = keyof AddressParts;
+
+type AddressSuggestionItem = {
+  value: string;
+  unrestricted_value?: string;
+  data?: {
+    country?: string | null;
+    region?: string | null;
+    region_with_type?: string | null;
+    city?: string | null;
+    city_with_type?: string | null;
+    settlement?: string | null;
+    settlement_with_type?: string | null;
+    street?: string | null;
+    street_with_type?: string | null;
+    house?: string | null;
+    house_type?: string | null;
+    block?: string | null;
+    block_type?: string | null;
+    flat?: string | null;
+    flat_type?: string | null;
+  };
+};
+
+const addressFieldBounds: Record<AddressFieldKey, { from: string; to: string }> = {
+  country: { from: "country", to: "country" },
+  city: { from: "city", to: "city" },
+  street: { from: "street", to: "street" },
+  house: { from: "house", to: "house" },
+  apartment: { from: "flat", to: "flat" },
+};
+
+function joinNonEmpty(parts: (string | null | undefined)[], separator = ", "): string {
+  return parts
+    .map((part) => (part ?? "").trim())
+    .filter(Boolean)
+    .join(separator);
+}
+
+function getAddressFieldValue(field: AddressFieldKey, item: AddressSuggestionItem): string {
+  const d = item.data ?? {};
+  switch (field) {
+    case "country":
+      return (d.country ?? "").trim() || item.value.trim();
+    case "city":
+      return (
+        (d.city_with_type ?? d.city ?? d.settlement_with_type ?? d.settlement ?? "").trim() ||
+        item.value.trim()
+      );
+    case "street":
+      return (d.street_with_type ?? d.street ?? "").trim() || item.value.trim();
+    case "house": {
+      const houseStr =
+        d.house_type && d.house ? `${d.house_type} ${d.house}` : (d.house ?? "").trim();
+      const blockStr = d.block_type && d.block ? `${d.block_type} ${d.block}` : "";
+      const combined = joinNonEmpty([houseStr, blockStr]);
+      return combined || item.value.trim();
+    }
+    case "apartment": {
+      const flatStr =
+        d.flat_type && d.flat ? `${d.flat_type} ${d.flat}` : (d.flat ?? "").trim();
+      return flatStr || item.value.trim();
+    }
+  }
+}
+
+function getAddressFieldSubtitle(field: AddressFieldKey, item: AddressSuggestionItem): string {
+  const d = item.data ?? {};
+  switch (field) {
+    case "country":
+      return "";
+    case "city":
+      return joinNonEmpty([d.region_with_type, d.country]);
+    case "street":
+      return joinNonEmpty([
+        d.city_with_type ?? d.settlement_with_type,
+        d.region_with_type,
+        d.country,
+      ]);
+    case "house":
+      return joinNonEmpty([
+        d.street_with_type,
+        d.city_with_type ?? d.settlement_with_type,
+        d.region_with_type,
+      ]);
+    case "apartment":
+      return joinNonEmpty([
+        d.house_type && d.house ? `${d.house_type} ${d.house}` : "",
+        d.street_with_type,
+        d.city_with_type ?? d.settlement_with_type,
+      ]);
+  }
+}
+
 type ManualFieldErrors = Partial<
   Record<
     | "lastName"
@@ -113,6 +215,33 @@ function formatDateApiToDisplay(iso?: string): string {
   const [y, m, d] = iso.split("-");
   if (!d || !m || !y) return iso;
   return `${d}.${m}.${y}`;
+}
+
+function composeAddress(parts: AddressParts): string {
+  return [parts.country, parts.city, parts.street, parts.house, parts.apartment]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function normalizeApartment(value: string): string {
+  const v = String(value || "").trim();
+  if (!v) return "";
+  return /^кв\.?\s*/i.test(v) ? v.replace(/^кв\.?\s*/i, "кв. ") : `кв. ${v}`;
+}
+
+function parseAddress(value: string): AddressParts {
+  const [country = "", city = "", street = "", house = "", apartment = ""] = String(value || "")
+    .split(",")
+    .map((part) => part.trim());
+
+  return {
+    country: country || "Казахстан",
+    city,
+    street,
+    house,
+    apartment: normalizeApartment(apartment),
+  };
 }
 
 function parseBiometricResponse(data: any): DocData {
@@ -220,16 +349,61 @@ export default function Contacts({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contactEmail, setContactEmail] = useState("");
-  const [contactAddress, setContactAddress] = useState("");
+  const [contactCountry, setContactCountry] = useState("Казахстан");
+  const [contactCity, setContactCity] = useState("");
+  const [contactStreet, setContactStreet] = useState("");
+  const [contactHouse, setContactHouse] = useState("");
+  const [contactApartment, setContactApartment] = useState("");
+  const [addressSuggestionsByField, setAddressSuggestionsByField] = useState<
+    Record<AddressFieldKey, AddressSuggestionItem[]>
+  >({
+    country: [],
+    city: [],
+    street: [],
+    house: [],
+    apartment: [],
+  });
+  const [addressLoadingByField, setAddressLoadingByField] = useState<Record<AddressFieldKey, boolean>>({
+    country: false,
+    city: false,
+    street: false,
+    house: false,
+    apartment: false,
+  });
+  const addressSuggestDebounceRef = useRef<Record<AddressFieldKey, ReturnType<typeof setTimeout> | null>>({
+    country: null,
+    city: null,
+    street: null,
+    house: null,
+    apartment: null,
+  });
+  const addressJustSelectedRef = useRef<Record<AddressFieldKey, string | null>>({
+    country: null,
+    city: null,
+    street: null,
+    house: null,
+    apartment: null,
+  });
+  const addressFetchCounterRef = useRef<Record<AddressFieldKey, number>>({
+    country: 0,
+    city: 0,
+    street: 0,
+    house: 0,
+    apartment: 0,
+  });
+  const addressSuggestionsRef = useRef<Record<AddressFieldKey, AddressSuggestionItem[]>>({
+    country: [],
+    city: [],
+    street: [],
+    house: [],
+    apartment: [],
+  });
   const [bankName, setBankName] = useState("");
   const [bankBik, setBankBik] = useState("");
   const [bankIik, setBankIik] = useState("");
   const [selectedBankKey, setSelectedBankKey] = useState<string | null>(null);
   const [banks, setBanks] = useState<BankOption[]>([]);
   const [banksLoading, setBanksLoading] = useState(false);
-  const [addressSuggestions, setAddressSuggestions] = useState<{ value: string }[]>([]);
-  const [addressSuggestionsLoading, setAddressSuggestionsLoading] = useState(false);
-  const addressSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [pendingCheckDocData, setPendingCheckDocData] = useState<DocData | null>(null);
   const requestDocDataInFlightRef = useRef(false);
@@ -265,75 +439,261 @@ export default function Contacts({
     };
   }, []);
 
-  const fetchAddressSuggestions = useCallback(async (query: string) => {
+  const effectivePhone = isManagerOrAdmin ? phone : (user?.phone ?? "");
+  const contactAddress = composeAddress({
+    country: contactCountry,
+    city: contactCity,
+    street: contactStreet,
+    house: contactHouse,
+    apartment: contactApartment,
+  });
+  const addressParts: AddressParts = {
+    country: contactCountry,
+    city: contactCity,
+    street: contactStreet,
+    house: contactHouse,
+    apartment: contactApartment,
+  };
+
+  const buildAddressLocations = useCallback(
+    (field: AddressFieldKey): Record<string, string>[] => {
+      if (field === "country") {
+        return [{ country: "*" }];
+      }
+
+      const country = addressParts.country
+        .trim()
+        .replace(/^Республика\s+/i, "");
+      const city = addressParts.city.trim();
+      const street = addressParts.street.trim();
+
+      const baseLocation: Record<string, string> = {};
+      if (country) baseLocation.country = country;
+      if ((field === "street" || field === "house") && city) {
+        baseLocation.city = city.replace(/^(г|с|пгт|пос|г\.|с\.)\s+/i, "");
+      }
+      if (field === "house" && street) {
+        baseLocation.street = street.replace(
+          /^(ул|пр-кт|просп|пр|пер|шоссе|ш|пл|наб|туп|б-р|пр)\s+/i,
+          ""
+        );
+      }
+
+      return Object.keys(baseLocation).length > 0 ? [baseLocation] : [{ country: "*" }];
+    },
+    [addressParts]
+  );
+
+  const fetchAddressSuggestions = useCallback(async (field: AddressFieldKey, query: string) => {
     const q = query.trim();
     if (!q) {
-      setAddressSuggestions([]);
+      addressSuggestionsRef.current[field] = [];
+      setAddressSuggestionsByField((prev) => ({ ...prev, [field]: [] }));
       return;
     }
-    setAddressSuggestionsLoading(true);
+
+    setAddressLoadingByField((prev) => ({ ...prev, [field]: true }));
     try {
+      const bounds = addressFieldBounds[field];
       const res = await fetch("/api/dadata/suggest-address", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: q }),
+        body: JSON.stringify({
+          query: q,
+          count: 10,
+          from_bound: { value: bounds.from },
+          to_bound: { value: bounds.to },
+          locations: buildAddressLocations(field),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       const list = Array.isArray(data?.suggestions) ? data.suggestions : [];
-      setAddressSuggestions(list.map((s: { value: string }) => ({ value: s.value })));
+      addressFetchCounterRef.current[field] += 1;
+      addressSuggestionsRef.current[field] = list;
+      setAddressSuggestionsByField((prev) => ({ ...prev, [field]: list }));
     } catch {
-      setAddressSuggestions([]);
+      addressSuggestionsRef.current[field] = [];
+      setAddressSuggestionsByField((prev) => ({ ...prev, [field]: [] }));
     } finally {
-      setAddressSuggestionsLoading(false);
+      setAddressLoadingByField((prev) => ({ ...prev, [field]: false }));
     }
-  }, []);
+  }, [buildAddressLocations]);
 
-  const onAddressInputChange = useCallback(
-    (value: string) => {
-      setContactAddress(value);
-      if (addressSuggestDebounceRef.current) clearTimeout(addressSuggestDebounceRef.current);
-      addressSuggestDebounceRef.current = setTimeout(() => {
-        addressSuggestDebounceRef.current = null;
-        fetchAddressSuggestions(value);
-      }, 300);
+  const applyAddressSuggestion = useCallback(
+    (field: AddressFieldKey, item: AddressSuggestionItem) => {
+      const data = item.data ?? {};
+      const countryStr = (data.country ?? "").trim();
+      const cityStr = (data.city_with_type ?? data.city ?? data.settlement_with_type ?? data.settlement ?? "").trim();
+      const streetStr = (data.street_with_type ?? data.street ?? "").trim();
+      const houseStr = data.house_type && data.house
+        ? `${data.house_type} ${data.house}`
+        : (data.house ?? "").trim();
+      const blockStr = data.block_type && data.block ? `${data.block_type} ${data.block}` : "";
+      const houseFull = joinNonEmpty([houseStr, blockStr]);
+      const flatStr = data.flat_type && data.flat
+        ? `${data.flat_type} ${data.flat}`
+        : (data.flat ?? "").trim();
+      const fieldDisplay = getAddressFieldValue(field, item);
+
+      // Cascade-fill only parents above the current field, never overwrite siblings/children.
+      if (field === "country") {
+        setContactCountry(fieldDisplay);
+      }
+      if (field === "city") {
+        if (countryStr) setContactCountry(countryStr);
+        setContactCity(fieldDisplay);
+      }
+      if (field === "street") {
+        if (countryStr) setContactCountry(countryStr);
+        if (cityStr) setContactCity(cityStr);
+        setContactStreet(fieldDisplay);
+      }
+      if (field === "house") {
+        if (countryStr) setContactCountry(countryStr);
+        if (cityStr) setContactCity(cityStr);
+        if (streetStr) setContactStreet(streetStr);
+        setContactHouse(houseFull || fieldDisplay);
+      }
+      if (field === "apartment") {
+        if (countryStr) setContactCountry(countryStr);
+        if (cityStr) setContactCity(cityStr);
+        if (streetStr) setContactStreet(streetStr);
+        if (houseFull) setContactHouse(houseFull);
+        setContactApartment(flatStr || fieldDisplay);
+      }
+    },
+    []
+  );
+
+  const handleAddressInputChange = useCallback(
+    (field: AddressFieldKey, value: string) => {
+      if (field === "country") setContactCountry(value);
+      if (field === "city") setContactCity(value);
+      if (field === "street") setContactStreet(value);
+      if (field === "house") setContactHouse(value);
+      if (field === "apartment") setContactApartment(value);
+
+      const timer = addressSuggestDebounceRef.current[field];
+      if (timer) clearTimeout(timer);
+
+      // Skip the next debounced fetch if value matches the value just chosen
+      // from the dropdown (avoids re-opening the suggestions list right after select).
+      if (addressJustSelectedRef.current[field] === value) {
+        addressJustSelectedRef.current[field] = null;
+        return;
+      }
+      addressJustSelectedRef.current[field] = null;
+
+      addressSuggestDebounceRef.current[field] = setTimeout(() => {
+        addressSuggestDebounceRef.current[field] = null;
+        fetchAddressSuggestions(field, value);
+      }, 200);
     },
     [fetchAddressSuggestions]
   );
 
-  const effectivePhone = isManagerOrAdmin ? phone : (user?.phone ?? "");
+  const handleAddressSuggestionPick = useCallback(
+    (field: AddressFieldKey, selected: AddressSuggestionItem) => {
+      const pending = addressSuggestDebounceRef.current[field];
+      if (pending) {
+        clearTimeout(pending);
+        addressSuggestDebounceRef.current[field] = null;
+      }
+
+      addressJustSelectedRef.current[field] = getAddressFieldValue(field, selected);
+
+      applyAddressSuggestion(field, selected);
+      addressSuggestionsRef.current[field] = [];
+      setAddressSuggestionsByField((prev) => ({ ...prev, [field]: [] }));
+    },
+    [applyAddressSuggestion]
+  );
+
+  const renderAddressAutocomplete = (
+    field: AddressFieldKey,
+    label: string,
+    currentValue: string
+  ) => {
+    const suggestions = addressSuggestionsByField[field];
+    const items = suggestions.map((item, idx) => ({
+      ...item,
+      _key: String(idx),
+      _idx: idx,
+    }));
+
+    return (
+      <>
+        <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
+          {label} <span className="text-red-500">*</span>
+        </span>
+        <Autocomplete
+          placeholder={label}
+          inputValue={currentValue}
+          selectedKey={null}
+          onInputChange={(value) => handleAddressInputChange(field, value)}
+          onSelectionChange={(key) => {
+            if (key == null) return;
+            const idx = Number(key);
+            const list = addressSuggestionsRef.current[field];
+            const selected = Number.isFinite(idx) ? list[idx] : undefined;
+            if (!selected) return;
+            handleAddressSuggestionPick(field, selected);
+          }}
+          isLoading={addressLoadingByField[field]}
+          items={items}
+          allowsCustomValue
+          allowsEmptyCollection
+          variant="flat"
+          menuTrigger="input"
+          classNames={{
+            base: "w-full !bg-[#F4F6FB] rounded-[16px]",
+            listboxWrapper: "w-full !bg-[#F4F6FB] rounded-[16px]",
+            listbox: "w-full !bg-[#F4F6FB] rounded-[16px]",
+            popoverContent: "w-full !bg-[#F4F6FB] rounded-[16px]",
+          }}
+          className="
+          [&_input]:!text-[#2655AF]
+          [&_input]:text-[18px]
+          [&_input]:font-medium
+          [&_input::placeholder]:!text-[#2655AF]
+          [&_[data-slot='input-wrapper']]:bg-[#F4F6FB]
+          [&_[data-slot='input-wrapper']]:rounded-[16px]
+          [&_[data-slot='input-wrapper']]:px-[8px]
+          [&_[data-slot='input-wrapper']]:py-[8px]
+          [&_[data-slot='input-wrapper']]:shadow-none
+          "
+          isDisabled={loading}
+          defaultFilter={() => true}
+          aria-label={label}
+        >
+          {(item) => {
+            const display = getAddressFieldValue(field, item);
+            const subtitle = getAddressFieldSubtitle(field, item);
+            return (
+              <AutocompleteItem key={item._key} textValue={display}>
+                <div className="flex flex-col">
+                  <span className="text-[14px] text-[#2655AF] font-medium leading-[18px]">
+                    {display}
+                  </span>
+                  {subtitle ? (
+                    <span className="text-[12px] text-[#2655AF] opacity-60 leading-[16px]">
+                      {subtitle}
+                    </span>
+                  ) : null}
+                </div>
+              </AutocompleteItem>
+            );
+          }}
+        </Autocomplete>
+      </>
+    );
+  };
 
   const trimmedIin = iin.trim();
   const trimmedPhone = (isManagerOrAdmin ? phone : user?.phone ?? "").trim();
   const normalizedIin = trimmedIin.replace(/\D/g, "");
   const hasValidPhoneAndIin = !!trimmedPhone && normalizedIin.length === 12;
-  const hasAllRequiredDocFields =
-    !!trimmedIin &&
-    !!trimmedPhone &&
-    !!lastName.trim() &&
-    !!firstName.trim() &&
-    !!gender.trim() &&
-    !!dateOfBirth.trim() &&
-    !!docNumber.trim() &&
-    !!docIssuer.trim() &&
-    !!dateOfIssue.trim();
 
-  const proceedWithoutBiometric = () => {
-    setError(null);
-    setDocData({
-      lastName: lastName.trim(),
-      firstName: firstName.trim(),
-      middleName: middleName.trim(),
-      gender: gender.trim(),
-      dateOfBirth: dateOfBirth.trim(),
-      docNumber: docNumber.trim(),
-      docIssuer: docIssuer.trim(),
-      dateOfIssue: dateOfIssue.trim(),
-      phone: effectivePhone,
-      email: contactEmail.trim(),
-      address: contactAddress.trim(),
-    });
-    setStep("success");
-  };
 
   const requestDocData = async (trimmedIin: string, trimmedPhone: string) => {
     if (requestDocDataInFlightRef.current) return;
@@ -369,7 +729,12 @@ export default function Contacts({
         };
         setPendingCheckDocData(data);
         setContactEmail(d.email ?? "");
-        setContactAddress(d.address ?? "");
+        const parsedAddress = parseAddress(d.address ?? "");
+        setContactCountry(parsedAddress.country);
+        setContactCity(parsedAddress.city);
+        setContactStreet(parsedAddress.street);
+        setContactHouse(parsedAddress.house);
+        setContactApartment(parsedAddress.apartment);
 
         const sendRes = await fetch("/api/auth/send-code", {
           method: "POST",
@@ -541,7 +906,12 @@ export default function Contacts({
         parsed.phone = effectivePhone;
         setDocData(parsed);
         setContactEmail(parsed.email || "");
-        setContactAddress(parsed.address || "");
+        const parsedAddress = parseAddress(parsed.address || "");
+        setContactCountry(parsedAddress.country);
+        setContactCity(parsedAddress.city);
+        setContactStreet(parsedAddress.street);
+        setContactHouse(parsedAddress.house);
+        setContactApartment(parsedAddress.apartment);
         setStep("success");
       } else {
         setError(t("no_data_in_response"));
@@ -568,7 +938,13 @@ export default function Contacts({
         dateOfIssue: dateOfIssue.trim(),
         phone: effectivePhone,
         email: contactEmail.trim(),
-        address: contactAddress.trim(),
+        address: composeAddress({
+          country: contactCountry,
+          city: contactCity,
+          street: contactStreet,
+          house: contactHouse,
+          apartment: contactApartment,
+        }),
       }
       : docData;
 
@@ -605,7 +981,13 @@ export default function Contacts({
     }
 
     const email = contactEmail.trim();
-    const address = contactAddress.trim();
+    const address = composeAddress({
+      country: contactCountry,
+      city: contactCity,
+      street: contactStreet,
+      house: contactHouse,
+      apartment: contactApartment,
+    });
     const bik = bankBik.trim().toUpperCase();
     const iik = bankIik.trim().toUpperCase();
     const bank = bankName.trim();
@@ -1110,47 +1492,34 @@ export default function Contacts({
                       isRequired
                     />
                   </div>
-                  <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)]">
+                  <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
+                    {renderAddressAutocomplete("country", t("country"), contactCountry)}
+                    {renderAddressAutocomplete("city", t("city"), contactCity)}
+                    {renderAddressAutocomplete("street", t("street"), contactStreet)}
+                    {renderAddressAutocomplete("house", t("house"), contactHouse)}
                     <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
-                      {t("address")} <span className="text-red-500">*</span>
+                      {t("apartment")} <span className="text-red-500">*</span>
                     </span>
-                    <Autocomplete
-                      placeholder={t("city_street_house_apartment")}
-                      inputValue={contactAddress}
-                      onInputChange={onAddressInputChange}
-                      onSelectionChange={(key) => key != null && setContactAddress(String(key))}
-                      items={addressSuggestions}
-                      isLoading={addressSuggestionsLoading}
-                      allowsCustomValue
-                      variant="flat"
-                      classNames={{
-                        base: "w-full !bg-[#F4F6FB] rounded-[16px]",
-                        listboxWrapper: "w-full !bg-[#F4F6FB] rounded-[16px]",
-                        listbox: "w-full !bg-[#F4F6FB] rounded-[16px]",
-                        popoverContent: "w-full !bg-[#F4F6FB] rounded-[16px]",
+                    <Input
+                      placeholder={t("apartment")}
+                      value={contactApartment.replace(/^кв\.?\s*/i, "")}
+                      onValueChange={(v) => {
+                        const digitsOnly = String(v || "").replace(/\D/g, "");
+                        setContactApartment(digitsOnly ? normalizeApartment(digitsOnly) : "");
                       }}
-                      className="
-                      [&_input]:!text-[#2655AF]
-                      [&_input]:text-[18px]
-                      [&_input]:font-medium
-                      [&_input::placeholder]:!text-[#2655AF]
-                      [&_[data-slot='input-wrapper']]:bg-[#F4F6FB]
-                      [&_[data-slot='input-wrapper']]:rounded-[16px]
-                      [&_[data-slot='input-wrapper']]:px-[8px]
-                      [&_[data-slot='input-wrapper']]:py-[8px]
-                      [&_[data-slot='input-wrapper']]:shadow-none
-                      "
+                      inputMode="numeric"
+                      variant="flat"
+                      className="[&_input::placeholder]:!text-[#2655AF]"
+                      classNames={{
+                        base: "w-full bg-[#F4F6FB] rounded-[16px]",
+                        label: "!text-[#2655AF] text-[14px] opacity-20 leading-[14px]",
+                        input: "!text-[#2655AF] text-[18px] font-medium leading-[24px]",
+                        inputWrapper:
+                          "bg-transparent shadow-none p-2 hover:bg-transparent data-[hover=true]:bg-transparent data-[focus=true]:bg-transparent data-[disabled=true]:bg-transparent data-[invalid=true]:bg-transparent",
+                        innerWrapper: "bg-transparent shadow-none p-0 hover:bg-transparent",
+                      }}
                       isDisabled={loading}
-                      isRequired
-                      defaultFilter={() => true}
-                      aria-label={t("address")}
-                    >
-                      {(item: { value: string }) => (
-                        <AutocompleteItem key={item.value} textValue={item.value}>
-                          {item.value}
-                        </AutocompleteItem>
-                      )}
-                    </Autocomplete>
+                    />
                   </div>
                   <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
                     <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
@@ -1330,7 +1699,13 @@ export default function Contacts({
                 dateOfIssue: dateOfIssue.trim(),
                 phone: effectivePhone,
                 email: contactEmail.trim(),
-                address: contactAddress.trim(),
+                address: composeAddress({
+                  country: contactCountry,
+                  city: contactCity,
+                  street: contactStreet,
+                  house: contactHouse,
+                  apartment: contactApartment,
+                }),
               });
               setStep("success");
             }}
