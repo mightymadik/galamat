@@ -8,6 +8,12 @@ import WhyUsReview from "@/components/layout/whyUsPage/review/review"
 import WhyUsMap from "@/components/layout/whyUsPage/map/map"
 import OtherProjects from "@/components/layout/projectPage/otherProjects/otherProjects"
 import MainPageProjectsWrapper from "@/components/layout/mainPage/projects/MainPageProjects/mainPageProjectsWrapper";
+import WhyUsNumbers from "@/components/layout/whyUsPage/numbers/numbers";
+import WhyUsForm from "@/components/layout/whyUsPage/form/form";
+import WhyUsTeam from "@/components/layout/whyUsPage/team/team";
+import WhyUsConditions from "@/components/layout/whyUsPage/conditions/conditions";
+import WhyUsStages from "@/components/layout/whyUsPage/stages/stages";
+import WhyUsVacancies from "@/components/layout/whyUsPage/vacancies/vacancies";
 
 export const metadata = {
   title: "Почему мы — Galamat",
@@ -17,9 +23,15 @@ export const metadata = {
 
 export default async function WhyUs() {
     return (
-        <div className="mt-[68px]">
+        <div className="mt-[68px] max-lg:mb-[50px]">
             <WhyUsHero />
-            <WhyUsAbout />
+            <WhyUsNumbers />
+            <WhyUsForm />
+            <WhyUsTeam />
+            <WhyUsConditions />
+            <WhyUsStages />
+            <WhyUsVacancies />
+            {/* <WhyUsAbout />
             <WhyUsFacts />
             <WhyUsBuild />
             <WhyUsInfra />
@@ -27,7 +39,7 @@ export default async function WhyUs() {
             <WhyUsReview />
             <WhyUsMap />
             <OtherProjects /> 
-            <MainPageProjectsWrapper />
+            <MainPageProjectsWrapper /> */}
         </div>
     )
 }

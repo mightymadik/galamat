@@ -1084,6 +1084,33 @@ export default function QueueProfile() {
     };
   }, [branchId, isWaitingForNext, checkHasNextClients]);
 
+  // Планшеты часто "усыпляют" вкладку: сокеты/таймеры отваливаются или догоняют с задержкой.
+  // На возврате вкладки сразу пересинхронизируем next-ticket и дедлайн автозова.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!isWaitingForNext) return;
+
+    const refreshOnResume = () => {
+      if (document.visibilityState === "hidden") return;
+      void checkHasNextClients();
+    };
+
+    window.addEventListener("focus", refreshOnResume);
+    window.addEventListener("pageshow", refreshOnResume);
+    window.addEventListener("online", refreshOnResume);
+    document.addEventListener("visibilitychange", refreshOnResume);
+
+    // На первом рендере в режиме ожидания тоже делаем явный sync.
+    refreshOnResume();
+
+    return () => {
+      window.removeEventListener("focus", refreshOnResume);
+      window.removeEventListener("pageshow", refreshOnResume);
+      window.removeEventListener("online", refreshOnResume);
+      document.removeEventListener("visibilitychange", refreshOnResume);
+    };
+  }, [checkHasNextClients, isWaitingForNext]);
+
   useEffect(() => {
     if (!shouldShowBranchManagersInWaitingSidebar || !branchId) {
       setBranchManagersForSidebar([]);
@@ -1652,6 +1679,29 @@ export default function QueueProfile() {
     return () => window.removeEventListener("queue:refresh", onRefresh);
   }, [hasDualCallMode, isAdminUser, recoverMissedActiveTicket]);
 
+  // При возврате вкладки проверяем, не появился ли уже CALLED/SERVING талон во время сна вкладки.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isAdminUser && !hasDualCallMode) return;
+
+    const recoverOnResume = () => {
+      if (document.visibilityState === "hidden") return;
+      void recoverMissedActiveTicket();
+    };
+
+    window.addEventListener("focus", recoverOnResume);
+    window.addEventListener("pageshow", recoverOnResume);
+    window.addEventListener("online", recoverOnResume);
+    document.addEventListener("visibilitychange", recoverOnResume);
+
+    return () => {
+      window.removeEventListener("focus", recoverOnResume);
+      window.removeEventListener("pageshow", recoverOnResume);
+      window.removeEventListener("online", recoverOnResume);
+      document.removeEventListener("visibilitychange", recoverOnResume);
+    };
+  }, [hasDualCallMode, isAdminUser, recoverMissedActiveTicket]);
+
   const handleCallClient = useCallback(async () => {
     if (actionLoading) return;
     setActionLoading(true);
@@ -2012,7 +2062,7 @@ export default function QueueProfile() {
               onReannounceDisplay={handleReannounceDisplay}
               reannounceLoading={reannounceLoading}
               reannounceCooldownSecondsLeft={reannounceCooldownSecondsLeft}
-              isAdminView={isAdminUser}
+              isAdminView={isAdminWithoutAutoCall}
             />
           ) : isWaitingForNext || shouldShowBranchManagersInWaitingSidebar ? (
             <QueueSidebarContent

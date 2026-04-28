@@ -56,8 +56,9 @@ export const viewport = {
 
 export default async function RootLayout({ children }: Props) {
   return (
-    <html lang="ru">
+    <html lang="ru" translate="no" className="notranslate">
       <head>
+        <meta name="google" content="notranslate" />
         {/* Google Tag Manager */}
         <Script
           id="gtm-script"
@@ -93,7 +94,7 @@ ym(108235655, 'init', {
           }}
         />
       </head>
-      <body>
+      <body className="notranslate" translate="no">
         {/* Google Tag Manager (noscript) */}
         <noscript>
           <iframe
