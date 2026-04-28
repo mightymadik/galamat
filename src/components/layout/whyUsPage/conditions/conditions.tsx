@@ -1,34 +1,36 @@
 "use client";
 
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 
 export default function WhyUsConditions() {
+    const t = useTranslations();
 
     const conditions = [
         {
             id: 1,
             icon: '/img/numbers-calendar.svg',
-            conditionTitle: "График/оформление",
+            conditionTitle: t("why_us_conditions_item_1"),
         },
         {
             id: 2,
             icon: '/img/why-us-gramota.svg',
-            conditionTitle: "Обучение",
+            conditionTitle: t("why_us_conditions_item_2"),
         },
         {
             id: 3,
             icon: '/img/why-us-map.svg',
-            conditionTitle: "Корпоративные мероприятия",
+            conditionTitle: t("why_us_conditions_item_3"),
         },
         {
             id: 4,
             icon: '/img/why-us-buildings.svg',
-            conditionTitle: "Инфраструктура офиса",
+            conditionTitle: t("why_us_conditions_item_4"),
         },
         {
             id: 5,
             icon: '/img/why-us-notes.svg',
-            conditionTitle: "Прозрачность целей/бонусов",
+            conditionTitle: t("why_us_conditions_item_5"),
         },
     ]
     return (
@@ -36,10 +38,10 @@ export default function WhyUsConditions() {
             <div className="wrapper py-20 max-lg:py-15 flex flex-col gap-[60px]">
                 <div className="flex max-lg:flex-col flex-row justify-between gap-6">
                     <div className="max-w-1/2 max-lg:max-w-full self-stretch justify-center text-zinc-900 text-4xl font-medium font-['Gotham'] leading-10">
-                        Условия и плюсы
+                        {t("why_us_conditions_title")}
                     </div>
                     <div className="max-w-1/2 max-lg:max-w-full text-color-blue-24 text-base font-normal font-['Gotham'] leading-6 text-zinc-900">
-                        Компания придерживается принципов социальной ответственности и уделяет особое внимание развитию корпоративной культуры. Сотрудники получают расширенный социальный пакет — корпоративное обучение, мотивационные поездки, премии к профессиональным праздникам, медицинское страхование и другие привилегии
+                        {t("why_us_conditions_description")}
                     </div>
                 </div>
                 <div className="flex flex-row justify-between max-lg:justify-start gap-4 h-[240px] overflow-x-auto overflow-y-hidden">

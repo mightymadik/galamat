@@ -1,47 +1,50 @@
 "use client";
 
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 
 export default function WhyUsStages() {
+    const t = useTranslations();
 
     const stages = [
         {
             id: 1,
-            title: "Отлик",
+            title: t("why_us_stages_item_1"),
             icon: '/img/why-us-step-1.svg',
         },
         {
             id: 2,
-            title: "Звонок",
+            title: t("why_us_stages_item_2"),
             icon: '/img/why-us-step-2.svg',
         },
         {
             id: 3,
-            title: "Интервью",
+            title: t("why_us_stages_item_3"),
             icon: '/img/why-us-step-3.svg',
         },
         {
             id: 4,
-            title: "Оффер",
+            title: t("why_us_stages_item_4"),
             icon: '/img/why-us-step-4.svg',
         },
         {
             id: 5,
-            title: "Выход на работу",
+            title: t("why_us_stages_item_5"),
             icon: '/img/why-us-step-5.svg',
         },
     ]
     return (
         <section className="relative isolate bg-[#132C5E]">
-            <img
+            <Image
                 src="/img/why-us-team-bg.png"
-                alt="Why us team background"
+                alt={t("why_us_stages_bg_alt")}
+                fill
                 className="absolute inset-0 w-full h-full object-cover -z-10 pointer-events-none"
             />
             <div className="wrapper">
                 <div className="flex flex-col justify-between gap-6 py-20 max-lg:py-15">
                     <div className="max-w-1/2 max-lg:max-w-full self-stretch justify-center text-white text-4xl font-medium font-['Gotham'] leading-10">
-                        Этапы Отбора
+                        {t("why_us_stages_title")}
                     </div>
                     <div className="flex flex-row items-center justify-start h-[240px] overflow-x-auto overflow-y-hidden">
                         {stages.map((stage, index) => (

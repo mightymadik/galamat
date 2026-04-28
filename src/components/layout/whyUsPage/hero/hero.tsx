@@ -1,23 +1,36 @@
 "use client";
 
 import { Button } from "@heroui/react";
+import Image from "next/image";
+import { useTranslations } from "next-intl";
 
 export default function WhyUsHero() {
+  const t = useTranslations();
+
   return (
     <section>
-      <div
-        className="min-h-[800px]"
-        style={{
-          background:
-            "linear-gradient(0deg, rgba(28, 34, 49, 0.62) 0%, rgba(28, 34, 49, 0.62) 100%), url('/img/why-us-hero-poster.jpg') lightgray 50% / cover no-repeat",
-        }}
-      >
+      <div className="relative min-h-[800px]">
+        <Image
+          src="/img/why-us-hero-poster.jpg"
+          alt=""
+          fill
+          priority
+          className="object-cover"
+          sizes="100vw"
+        />
+        <div className="absolute inset-0 bg-[rgba(28,34,49,0.62)]" />
         <div className="relative z-10">
           <div className="wrapper">
             <div className="flex min-h-[800px] flex-col justify-center items-center gap-6">
-              <img src="/img/logo-white.svg" alt="Why us hero logo" className="w-48 h-6 object-cover object-center" />
+              <Image
+                src="/img/logo-white.svg"
+                alt={t("why_us_hero_logo_alt")}
+                width={192}
+                height={24}
+                className="w-48 h-6 object-cover object-center"
+              />
               <h1 className="text-white text-4xl font-bold text-center">
-                Мы строим будущее <br /> вместе с сильной, уверенной командой
+                {t("why_us_hero_title_line_1")} <br /> {t("why_us_hero_title_line_2")}
               </h1>
               <Button
                 as="a"
@@ -27,7 +40,7 @@ export default function WhyUsHero() {
                 radius="lg"
                 className="w-64 h-12 min-w-12 min-h-12 px-3.5 pt-3.5 pb-4 text-base font-medium bg-[#DB1D31] text-white"
               >
-                Обзор компании
+                {t("why_us_hero_company_review")}
               </Button>
             </div>
           </div>

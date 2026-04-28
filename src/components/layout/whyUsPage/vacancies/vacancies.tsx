@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 
 type VacancyItem = {
     id: string;
@@ -18,6 +19,7 @@ type VacanciesApiResponse = {
 };
 
 export default function WhyUsVacancies() {
+    const t = useTranslations();
     const [vacancies, setVacancies] = useState<VacancyItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
@@ -67,22 +69,22 @@ export default function WhyUsVacancies() {
             <div className="wrapper">
                 <div className="flex flex-col justify-between gap-8 py-20 max-lg:py-15">
                     <div className="max-w-1/2 max-lg:max-w-full self-stretch text-zinc-900 justify-center text-white text-4xl font-medium font-['Gotham'] leading-10">
-                        Вакансии
+                        {t("why_us_vacancies_title")}
                     </div>
                     <div className="flex flex-col justify-between gap-6">
                         {isLoading ? (
                             <div className="rounded-[32px] bg-slate-100 p-6 text-[rgba(19,44,94,1)]">
-                                Загрузка вакансий...
+                                {t("why_us_vacancies_loading")}
                             </div>
                         ) : null}
                         {!isLoading && hasError ? (
                             <div className="rounded-[32px] bg-slate-100 p-6 text-[rgba(19,44,94,1)]">
-                                Не удалось загрузить вакансии. Попробуйте позже.
+                                {t("why_us_vacancies_error")}
                             </div>
                         ) : null}
                         {!isLoading && !hasError && vacanciesList.length === 0 ? (
                             <div className="rounded-[32px] bg-slate-100 p-6 text-[rgba(19,44,94,1)]">
-                                Пока нет опубликованных вакансий.
+                                {t("why_us_vacancies_empty")}
                             </div>
                         ) : null}
                         {vacanciesList.map((vacancy) => (
@@ -92,12 +94,14 @@ export default function WhyUsVacancies() {
                                     <p className="text-2xl font-light text-[rgba(19,44,94,1)] max-[600px]:text-base">{vacancy.address}</p>
                                 </div>
                                 <a href={vacancy.link} target="_blank" rel="noreferrer" className="h-16 p-5 max-[600px]:p-3 max-[600px]:h-12 max-[600px]:min-w-12 bg-white rounded-[20px] inline-flex justify-center items-center">
-                                    <Image src="/img/why-us-redirect-btn.svg" alt="Redirect arrow" width={24} height={24} />
+                                    <Image src="/img/why-us-redirect-btn.svg" alt={t("why_us_vacancies_redirect_alt")} width={24} height={24} />
                                 </a>
                             </div>
                         ))}
                     </div>
-                    <a href={allVacanciesLink} target="_blank" rel="noreferrer" className="w-[240px] h-11 min-h-11 p-3 bg-[#F4F6FB] text-zinc-900 rounded-xl self-center flex justify-center items-center font-medium">Смотреть все вакансии</a>
+                    <a href={allVacanciesLink} target="_blank" rel="noreferrer" className="text-center w-[240px] min-h-11 p-3 bg-[#F4F6FB] text-zinc-900 rounded-xl self-center flex justify-center items-center font-medium">
+                        {t("why_us_vacancies_all")}
+                    </a>
                 </div>
             </div>
         </section>

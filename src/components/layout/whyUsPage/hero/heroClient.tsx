@@ -1,4 +1,5 @@
 import { WhyUsHeroItemData } from "@/types/whyUsPage";
+import Image from "next/image";
 
 export default function HeroClient({ heroData }: { heroData: WhyUsHeroItemData[] }) {
     const firstItem = heroData[0];
@@ -45,7 +46,7 @@ export default function HeroClient({ heroData }: { heroData: WhyUsHeroItemData[]
                                 <div className="flex items-center gap-[14px] max-h-[64px]">
 
                                     {item.whyUsHeroIcon ? (
-                                        <img src={item.whyUsHeroIcon} alt={item.whyUsHeroIconTitle} width={64} height={64} />
+                                        <Image src={item.whyUsHeroIcon} alt={item.whyUsHeroIconTitle} width={64} height={64} />
                                     ) : (
                                         <svg width={64} height={64} viewBox="0 0 64 64" fill="none">
                                             <path d="..." fill="#FFF" />
