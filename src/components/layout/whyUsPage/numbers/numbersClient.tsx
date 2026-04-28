@@ -14,7 +14,7 @@ export default function NumbersClient({ data }: { data: WhyUsHrNumberData[] }) {
           <div className="self-stretch justify-center text-zinc-900 text-4xl font-medium font-['Gotham'] leading-10">
             {t("why_us_numbers_title")}
           </div>
-          <div className="w-full min-w-0 flex max-lg:flex-nowrap max-lg:gap-6 max-lg:overflow-x-auto max-lg:overflow-y-hidden max-lg:pb-2 max-lg:[-webkit-overflow-scrolling:touch] lg:grid lg:grid-cols-4 lg:auto-rows-[370px] lg:overflow-visible gap-6">
+          <div className="w-full min-w-0 flex flex-col gap-6 lg:grid lg:grid-cols-4 lg:auto-rows-[370px] lg:overflow-visible">
             {data.map((number, index) => {
               const isWide = index % 5 === 0;
               const hasBackgroundImage = Boolean(number.bgImage);
@@ -23,7 +23,7 @@ export default function NumbersClient({ data }: { data: WhyUsHrNumberData[] }) {
               return (
                 <div
                   key={number.id}
-                  className={`${isWide ? "col-span-2 max-lg:min-w-[20rem]" : "col-span-1 max-lg:min-w-[10rem]"} max-lg:shrink-0 rounded-[32px] overflow-hidden max-lg:w-80 max-lg:h-56`}
+                  className={`${isWide ? "col-span-2" : "col-span-1"} rounded-[32px] overflow-hidden w-full h-56 lg:h-auto`}
                 >
                   <div className="flex flex-col justify-between relative p-6 h-full w-full">
                     {hasBackgroundImage ? (

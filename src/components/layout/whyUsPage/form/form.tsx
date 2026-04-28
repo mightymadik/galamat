@@ -7,7 +7,14 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 
 const CV_ACCEPT =
-  ".docx,.doc,.pdf,.png,.jpg,.jpeg,.xlsx,.rtf,image/png,image/jpeg,application/pdf";
+  ".docx,.pdf,.jpg,.jpeg,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,image/jpeg";
+const MAX_CV_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_CV_MIME_TYPES = new Set([
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/pdf",
+  "image/jpeg",
+]);
+const ALLOWED_CV_EXTENSIONS = new Set(["docx", "pdf", "jpg", "jpeg"]);
 
 export default function WhyUsForm() {
   const t = useTranslations();
@@ -16,16 +23,40 @@ export default function WhyUsForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [cvError, setCvError] = useState<string | null>(null);
+
+  function isCvFileTypeValid(file: File) {
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (extension && ALLOWED_CV_EXTENSIONS.has(extension)) {
+      return true;
+    }
+
+    return ALLOWED_CV_MIME_TYPES.has(file.type);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
     setSubmitMessage(null);
+    setCvError(null);
     setIsSubmitting(true);
 
     try {
       const form = event.currentTarget;
       const formData = new FormData(form);
+      const cvFile = formData.get("cv");
+
+      if (cvFile instanceof File && cvFile.size > MAX_CV_SIZE_BYTES) {
+        setCvError(t("why_us_form_cv_max_size"));
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (cvFile instanceof File && !isCvFileTypeValid(cvFile)) {
+        setCvError(t("why_us_form_cv_formats"));
+        setIsSubmitting(false);
+        return;
+      }
 
       const response = await fetch("/api/hr-request", {
         method: "POST",
@@ -140,10 +171,28 @@ export default function WhyUsForm() {
                                     required
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
+                                        if (file && !isCvFileTypeValid(file)) {
+                                            setCvFileName(null);
+                                            setCvError(t("why_us_form_cv_formats"));
+                                            e.target.value = "";
+                                            return;
+                                        }
+
+                                        if (file && file.size > MAX_CV_SIZE_BYTES) {
+                                            setCvFileName(null);
+                                            setCvError(t("why_us_form_cv_max_size"));
+                                            e.target.value = "";
+                                            return;
+                                        }
+
+                                        setCvError(null);
                                         setCvFileName(file ? file.name : null);
                                     }}
                                 />
                             </div>
+                            {cvError ? (
+                                <p className="text-sm text-red-600">{cvError}</p>
+                            ) : null}
                             {submitMessage ? (
                                 <p className="text-sm text-emerald-600">{submitMessage}</p>
                             ) : null}

@@ -641,7 +641,7 @@
   "why_us_form_email_placeholder": "Введите вашу электронную почту",
   "why_us_form_cv_label": "Прикрепите резюме",
   "why_us_form_cv_upload_title": "Загрузите файл с резюме",
-  "why_us_form_cv_formats": "Допустимые форматы: docx, doc, pdf, png, jpg, xlsx, rtf.",
+  "why_us_form_cv_formats": "Допустимые форматы: docx, pdf, jpg.",
   "why_us_form_cv_max_size": "Максимальный размер файла - 10MB",
   "why_us_form_upload_icon_alt": "Иконка загрузки",
   "why_us_form_submit": "Отправить заявку",

@@ -67,7 +67,7 @@ export default function TeamClient({ data }: { data: WhyUsHrTeamData[] }) {
       <div className="wrapper relative z-10">
         <div className="flex flex-col items-center justify-center py-20 max-lg:py-15 gap-6">
           <div className="self-stretch justify-center text-white text-4xl font-medium font-['Gotham'] leading-10">
-            {slides[0]?.title || t("why_us_team_title")}
+            {t("why_us_team_title")}
           </div>
 
           <div className="relative w-full px-5 max-lg:px-0">

@@ -88,7 +88,7 @@ export default function WhyUsVacancies() {
                             </div>
                         ) : null}
                         {vacanciesList.map((vacancy) => (
-                            <div key={vacancy.id} className="self-stretch h-32 p-6 bg-slate-100 rounded-[32px] outline outline-1 outline-offset-[-1px] outline-indigo-200 inline-flex gap-3.5 justify-between items-center">
+                            <div key={vacancy.id} className="self-stretch min-h-32 p-6 bg-slate-100 rounded-[32px] outline outline-1 outline-offset-[-1px] outline-indigo-200 inline-flex gap-3.5 justify-between items-center">
                                 <div className="text-zinc-900 text-xl font-medium font-['Gotham'] leading-6 text-left h-full flex flex-col justify-between">
                                     <p className="text-3xl font-medium text-[rgba(19,44,94,1)] max-[600px]:text-xl">{vacancy.title}</p>
                                     <p className="text-2xl font-light text-[rgba(19,44,94,1)] max-[600px]:text-base">{vacancy.address}</p>

@@ -27,7 +27,7 @@ export default function HeroClient({ data }: { data: WhyUsHrHeroData | null }) {
           <div className="wrapper">
             <div className="flex min-h-[800px] flex-col justify-center items-center gap-6">
               <Image
-                src="/img/logo-white.svg"
+                src="/img/Logo-white.svg"
                 alt={t("why_us_hero_logo_alt")}
                 width={192}
                 height={24}

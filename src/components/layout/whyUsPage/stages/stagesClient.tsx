@@ -20,10 +20,10 @@ export default function StagesClient({ data }: { data: WhyUsHrStageData[] }) {
           <div className="max-w-1/2 max-lg:max-w-full self-stretch justify-center text-white text-4xl font-medium font-['Gotham'] leading-10">
             {t("why_us_stages_title")}
           </div>
-          <div className="flex flex-row items-center justify-start h-[240px] overflow-x-auto overflow-y-hidden">
+          <div className="flex flex-col lg:flex-row items-center lg:items-start justify-start gap-1 lg:gap-0 lg:h-[240px] lg:overflow-x-auto lg:overflow-y-hidden">
             {data.map((stage, index) => (
-              <div key={stage.id} className="flex items-center shrink-0">
-                <div className="flex flex-col items-start justify-between rounded-[32px] bg-[#F4F6FB] p-6 w-[240px] h-[170px] shrink-0">
+              <div key={stage.id} className="flex flex-col lg:flex-row items-center shrink-0 max-lg:w-full">
+                <div className="flex flex-col items-start justify-between rounded-[32px] bg-[#F4F6FB] p-6 w-full lg:w-[240px] h-[170px] shrink-0">
                   <div className="w-full flex items-start justify-between">
                     <div className="text-[#DE153B] text-4xl font-medium font-['Gotham'] leading-10">{stage.number}</div>
                     {stage.icon ? (
@@ -32,7 +32,7 @@ export default function StagesClient({ data }: { data: WhyUsHrStageData[] }) {
                       <div className="w-[60px] h-[60px]" />
                     )}
                   </div>
-                  <div className="text-zinc-900 text-xl font-medium font-['Gotham'] leading-6 text-left">{stage.title}</div>
+                  <div className="text-zinc-900 max-lg:text-3xl text-xl font-medium font-['Gotham'] leading-6 text-left">{stage.title}</div>
                 </div>
                 {index < data.length - 1 && (
                   <Image
@@ -41,7 +41,7 @@ export default function StagesClient({ data }: { data: WhyUsHrStageData[] }) {
                     aria-hidden
                     width={48}
                     height={18}
-                    className="shrink-0 -ml-3 -mr-3 z-10"
+                    className="shrink-0 my-2 lg:my-0 lg:-ml-3 lg:-mr-3 rotate-90 lg:rotate-0 z-10"
                   />
                 )}
               </div>

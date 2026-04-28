@@ -18,9 +18,9 @@ export default function ConditionsClient({ data }: { data: WhyUsHrConditionData[
             {t("why_us_conditions_description")}
           </div>
         </div>
-        <div className="flex flex-row justify-between max-lg:justify-start gap-4 h-[240px] overflow-x-auto overflow-y-hidden">
+        <div className="flex flex-row justify-between max-lg:justify-start gap-4 overflow-x-auto overflow-y-hidden">
           {data.map((condition) => (
-            <div key={condition.id} className="flex flex-col items-left justify-between rounded-[32px] gap-6 bg-[#F4F6FB] p-6 w-[250px] h-[240px] shrink-0">
+            <div key={condition.id} className="flex flex-col items-left justify-between rounded-[32px] gap-6 max-lg:gap-0 bg-[#F4F6FB] p-6 min-w-[250px] max-w-[300px] shrink-0">
               {condition.icon ? (
                 <Image src={condition.icon} alt={condition.title} width={40} height={40} />
               ) : (
