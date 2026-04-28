@@ -6,3 +6,8 @@ export * from './getWhyUsInfra';
 export * from './getWhyUsHistory';
 export * from './getWhyUsReviews';
 export * from './getWhyUsOffice';
+export * from './getWhyUsHrHero';
+export * from './getWhyUsHrNumbers';
+export * from './getWhyUsHrTeam';
+export * from './getWhyUsHrConditions';
+export * from './getWhyUsHrStages';
