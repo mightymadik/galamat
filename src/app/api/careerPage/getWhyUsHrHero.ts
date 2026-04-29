@@ -1,14 +1,12 @@
 "use server";
 
 import { apiGet } from "@/app/api/fetcher";
-import { WhyUsHrHeroData } from "@/types/whyUsPage";
+import { CareerHeroData } from "@/types/careerPage";
 
-export async function getWhyUsHrHero(): Promise<WhyUsHrHeroData | null> {
+export async function getWhyUsHrHero(): Promise<CareerHeroData | null> {
   try {
     const res = await apiGet("/api/whyus-hr-heroes");
-    let item = res?.data?.[0];
-
-    console.log(item);
+    const item = res?.data?.[0];
 
     if (!item) return null;
 

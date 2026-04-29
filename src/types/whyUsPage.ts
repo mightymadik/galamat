@@ -65,35 +65,3 @@ export interface WhyUsOfficeItemData {
   officeImages: string[];
 }
 
-export interface WhyUsHrHeroData {
-  id: number;
-  title: string;
-  videoLink: string;
-}
-
-export interface WhyUsHrNumberData {
-  id: number;
-  icon: string | null;
-  title: string;
-  description: string;
-  bgImage: string | null;
-}
-
-export interface WhyUsHrTeamData {
-  id: number;
-  title: string;
-  image: string | null;
-}
-
-export interface WhyUsHrConditionData {
-  id: number;
-  icon: string | null;
-  title: string;
-}
-
-export interface WhyUsHrStageData {
-  id: number;
-  number: number;
-  icon: string | null;
-  title: string;
-}

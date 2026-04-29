@@ -6,12 +6,7 @@ import {
     getInfra,
     getHistory,
     getReviews,
-    getOffice,
-    getWhyUsHrHero,
-    getWhyUsHrNumbers,
-    getWhyUsHrTeam,
-    getWhyUsHrConditions,
-    getWhyUsHrStages
+    getOffice
 } from "@/services";
 
 export { getWhyUsHeroes };
@@ -22,4 +17,3 @@ export const getWhyUsInfra = getInfra
 export const getWhyUsHistory = getHistory;
 export const getWhyUsReviews = getReviews;
 export const getWhyUsOffice = getOffice;
-export { getWhyUsHrHero, getWhyUsHrNumbers, getWhyUsHrTeam, getWhyUsHrConditions, getWhyUsHrStages };

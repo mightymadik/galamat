@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { WhyUsHrConditionData } from "@/types/whyUsPage";
+import { CareerConditionData } from "@/types/careerPage";
 
-export default function ConditionsClient({ data }: { data: WhyUsHrConditionData[] }) {
+export default function CareerConditionsClient({ data }: { data: CareerConditionData[] }) {
   const t = useTranslations();
 
   return (

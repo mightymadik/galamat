@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { WhyUsHrStageData } from "@/types/whyUsPage";
+import { CareerStageData } from "@/types/careerPage";
 
-export default function StagesClient({ data }: { data: WhyUsHrStageData[] }) {
+export default function StagesClient({ data }: { data: CareerStageData[] }) {
   const t = useTranslations();
 
   return (

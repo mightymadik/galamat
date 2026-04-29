@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { WhyUsHrTeamData } from "@/types/whyUsPage";
+import { CareerTeamData } from "@/types/careerPage";
 
-export default function TeamClient({ data }: { data: WhyUsHrTeamData[] }) {
+export default function TeamClient({ data }: { data: CareerTeamData[] }) {
   const t = useTranslations();
 
   const slides = useMemo(

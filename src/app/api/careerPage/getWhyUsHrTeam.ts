@@ -1,11 +1,11 @@
 "use server";
 
 import { apiGet } from "@/app/api/fetcher";
-import { WhyUsHrTeamData } from "@/types/whyUsPage";
+import { CareerTeamData } from "@/types/careerPage";
 
 const BACKEND_URL = process.env.STRAPI_URL;
 
-export async function getWhyUsHrTeam(): Promise<WhyUsHrTeamData[]> {
+export async function getWhyUsHrTeam(): Promise<CareerTeamData[]> {
   try {
     const res = await apiGet("/api/whyus-hr-teams?populate=*");
     if (!Array.isArray(res?.data)) return [];

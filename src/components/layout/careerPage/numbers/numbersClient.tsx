@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { WhyUsHrNumberData } from "@/types/whyUsPage";
+import { CareerNumberData } from "@/types/careerPage";
 
-export default function NumbersClient({ data }: { data: WhyUsHrNumberData[] }) {
+export default function NumbersClient({ data }: { data: CareerNumberData[] }) {
   const t = useTranslations();
 
   return (
