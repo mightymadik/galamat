@@ -7,11 +7,19 @@ const RESEND_COOLDOWN_SEC = 30;
 const MAX_SENT_COUNT = 10;
 const SENT_COUNT_WINDOW_SEC = 24 * 60 * 60;
 
-type StrapiList<T> = { data: Array<{ id: number; attributes: T }> };
+type OtpChannel = "whatsapp" | "sms";
+
+function buildSmsAuthorizationHeader(): string | null {
+  const login = process.env.SMS_LOGIN;
+  const password = process.env.SMS_PASSWORD;
+  if (!login || !password) return null;
+  const token = Buffer.from(`${login}:${password}`).toString("base64");
+  return `Basic ${token}`;
+}
 
 export async function POST(req: Request) {
   try {
-    const { phone } = await req.json().catch(() => ({}));
+    const { phone, channel } = await req.json().catch(() => ({}));
     if (!phone) {
       return Response.json({ status: "error", message: "phone is required" }, { status: 400 });
     }
@@ -21,8 +29,13 @@ export async function POST(req: Request) {
       return Response.json({ status: "error", message: "invalid_phone" }, { status: 400 });
     }
 
-    if (!process.env.WASENDER_API_KEY) {
+    const sendChannel: OtpChannel = channel === "sms" ? "sms" : "whatsapp";
+    if (sendChannel === "whatsapp" && !process.env.WASENDER_API_KEY) {
       return Response.json({ status: "error", message: "WASENDER_API_KEY missing" }, { status: 500 });
+    }
+    const smsAuthorization = buildSmsAuthorizationHeader();
+    if (sendChannel === "sms" && !smsAuthorization) {
+      return Response.json({ status: "error", message: "SMS_LOGIN or SMS_PASSWORD missing" }, { status: 500 });
     }
 
     const base = getStrapiBaseUrl();
@@ -73,8 +86,10 @@ export async function POST(req: Request) {
     const otpAttrs = otpItem?.attributes ?? otpItem;
 
     // Enforce resend cooldown on server side.
+    // For SMS fallback we intentionally skip cooldown, so user can request
+    // an alternative channel immediately when WhatsApp delivery is delayed.
     const resendAtRaw = otpAttrs?.resendAvailableAt;
-    if (resendAtRaw) {
+    if (resendAtRaw && sendChannel !== "sms") {
       const resendAtTs = Date.parse(String(resendAtRaw));
       if (!Number.isNaN(resendAtTs) && resendAtTs > now.getTime()) {
         const retryAfterSec = Math.max(1, Math.ceil((resendAtTs - now.getTime()) / 1000));
@@ -142,31 +157,51 @@ export async function POST(req: Request) {
       }, { headers });
     }
 
-    // 5) отправляем в WhatsApp
-    const waBody = {
-      to: normalizedPhone,
-      content: {
-        whatsappContent: {
-          contentType: "AUTHENTICATION",
-          name: "authorization",
-          code,
+    // 5) отправляем OTP выбранным каналом
+    if (sendChannel === "whatsapp") {
+      const waBody = {
+        to: normalizedPhone,
+        content: {
+          whatsappContent: {
+            contentType: "AUTHENTICATION",
+            name: "authorization",
+            code,
+          },
         },
-      },
-    };
+      };
 
-    await axios.post("https://kazinfoteh.org/wasender/sendwamsg", waBody, {
-      headers: {
-        "X-API-KEY": process.env.WASENDER_API_KEY,
-        "Content-Type": "application/json",
-      },
-      timeout: 15000,
-    });
+      await axios.post("https://kazinfoteh.org/wasender/sendwamsg", waBody, {
+        headers: {
+          "X-API-KEY": process.env.WASENDER_API_KEY,
+          "Content-Type": "application/json",
+        },
+        timeout: 15000,
+      });
+    } else {
+      const smsTo = normalizedPhone.replace(/[^\d]/g, "");
+      await axios.post(
+        "https://so.kazinfoteh.org/api/sms/send",
+        {
+          from: process.env.SMS_SENDER_NAME || "Galamat",
+          to: smsTo,
+          text: code,
+        },
+        {
+          headers: {
+            Authorization: smsAuthorization!,
+            "Content-Type": "application/json",
+          },
+          timeout: 15000,
+        }
+      );
+    }
 
     return Response.json({
       status: "ok",
       meta: {
         expiresInSec: OTP_TTL_SEC,
         resendCooldownSec: RESEND_COOLDOWN_SEC,
+        sentVia: sendChannel,
       },
       ...(process.env.NODE_ENV !== "production" ? { dev: { code } } : {}),
     });

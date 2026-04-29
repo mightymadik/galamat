@@ -53,11 +53,12 @@ export default function AuthModal() {
         !(pathname === "/gala-bonus" && step === "registration" && !(isNameValid && isSurnameValid));
 
     const [code, setCode] = useState(["", "", "", ""]);
-    const [timeLeft, setTimeLeft] = useState(180); // 3 минуты
+    const [timeLeft, setTimeLeft] = useState(30); // 3 минуты
+    const [otpChannel, setOtpChannel] = useState<"whatsapp" | "sms">("whatsapp");
     const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
     useEffect(() => {
-        if (step === "verification") setTimeLeft(otpExpiresInSec || 180);
+        if (step === "verification") setTimeLeft(30);
     }, [step, otpExpiresInSec]);
 
     useEffect(() => {
@@ -105,9 +106,10 @@ export default function AuthModal() {
     };
 
     // === Повторная отправка кода ===
-    const resendCode = () => {
-        setTimeLeft(180);
-        dispatch(sendAuthCode({ phoneMasked: phone ?? "" }) as any);
+    const resendCode = (channel: "whatsapp" | "sms" = otpChannel) => {
+        setOtpChannel(channel);
+        setTimeLeft(30);
+        dispatch(sendAuthCode({ phoneMasked: phone ?? "", channel }) as any);
     };
 
     const [isMobile, setIsMobile] = useState(false);
@@ -188,7 +190,10 @@ export default function AuthModal() {
                                     </div>
                                     <div className="flex flex-col items-center gap-[16px] self-stretch">
                                         <Button
-                                            onPress={() => dispatch(sendAuthCode({ phoneMasked: phone || "" }) as any)}
+                                            onPress={() => {
+                                                setOtpChannel("whatsapp");
+                                                dispatch(sendAuthCode({ phoneMasked: phone || "", channel: "whatsapp" }) as any);
+                                            }}
                                             isDisabled={!isPhoneValid || isSendingCode}
                                             className={`flex w-full h-[44px] min-w-[44px] min-h-[44px] pl-[13px] pr-[13px] py-[11px] justify-center items-center self-stretch rounded-[12px] ${isPhoneValid && !isSendingCode ? "bg-[#DB1D31] text-white" : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"}`}
                                         >
@@ -212,7 +217,9 @@ export default function AuthModal() {
                                     <div className="flex flex-col gap-[12px]">
                                         <div className="flex flex-col items-start gap-[8px] self-stretch">
                                             <span className="text-[#122C5E] text-[16px] not-italic font-normal leading-[16px] opacity-60">
-                                                {t("auth_code_sent_to_whatsapp_on_number", { phone: phone ?? "" })}
+                                                {otpChannel === "sms"
+                                                    ? t("auth_code_sent_to_sms_on_number", { phone: phone ?? "" })
+                                                    : t("auth_code_sent_to_whatsapp_on_number", { phone: phone ?? "" })}
                                             </span>
                                             <div className="flex items-end gap-[16px] self-stretch">
                                                 <span className="text-[#122C5E] text-[16px] not-italic font-normal leading-[16px] opacity-60">
@@ -299,12 +306,22 @@ export default function AuthModal() {
                                                 {t("send_code_again_in")} {formatTime(timeLeft)}
                                             </Button>
                                         ) : (
-                                            <Button
-                                                onPress={resendCode}
-                                                className="!p-0 !m-0 !bg-transparent !border-none !rounded-none text-[#1A3C7E] text-[16px] not-italic font-bold leading-[16px] min-h-0 h-auto"
-                                            >
-                                                {t("send_code_again")}
-                                            </Button>
+                                            <div className="flex flex-col items-start gap-[8px] self-stretch">
+                                                <Button
+                                                    onPress={() => resendCode("whatsapp")}
+                                                    isDisabled={isSendingCode}
+                                                    className="!p-0 !m-0 !bg-transparent !border-none !rounded-none text-[#1A3C7E] text-[16px] not-italic font-bold leading-[16px] min-h-0 h-auto disabled:opacity-50"
+                                                >
+                                                    {isSendingCode && otpChannel === "whatsapp" ? t("sending") : t("auth_send_whatsapp")}
+                                                </Button>
+                                                <Button
+                                                    onPress={() => resendCode("sms")}
+                                                    isDisabled={isSendingCode}
+                                                    className="!p-0 !m-0 !bg-transparent !border-none !rounded-none text-[#1A3C7E] text-[16px] not-italic font-bold leading-[16px] min-h-0 h-auto disabled:opacity-50"
+                                                >
+                                                    {isSendingCode && otpChannel === "sms" ? t("sending") : t("auth_send_sms")}
+                                                </Button>
+                                            </div>
                                         )}
 
                                         <p className="text-[#1E1E1E] text-center text-[12px] not-italic font-normal leading-[100%]">
@@ -465,12 +482,11 @@ export default function AuthModal() {
                                                 dispatch(closeAuth());
                                                 router.push(
                                                     user?.documentId
-                                                        ? `/profile/${user.documentId}${
-                                                              String(user.role ?? "").toLowerCase() ===
-                                                              "external_manager"
-                                                                  ? "?section=queue"
-                                                                  : ""
-                                                          }`
+                                                        ? `/profile/${user.documentId}${String(user.role ?? "").toLowerCase() ===
+                                                            "external_manager"
+                                                            ? "?section=queue"
+                                                            : ""
+                                                        }`
                                                         : "/profile",
                                                 );
                                             }}

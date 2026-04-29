@@ -95,6 +95,7 @@ export default function FullPayment({ flatData, realEstateType = "property", act
     const [managerBonusPhoneVerified, setManagerBonusPhoneVerified] = useState<boolean>(false);
     const [bonusPhoneStep, setBonusPhoneStep] = useState<"phone" | "code" | "verified">("phone");
     const [bonusVerificationCode, setBonusVerificationCode] = useState<string[]>(["", "", "", ""]);
+    const [bonusOtpChannel, setBonusOtpChannel] = useState<"whatsapp" | "sms">("whatsapp");
     const [isSendingBonusCode, setIsSendingBonusCode] = useState(false);
     const [isVerifyingBonusCode, setIsVerifyingBonusCode] = useState(false);
     const [bonusVerifyError, setBonusVerifyError] = useState<string | null>(null);
@@ -132,15 +133,16 @@ export default function FullPayment({ flatData, realEstateType = "property", act
     }, [bonusTimeLeft]);
 
     const isManagerBonusPhoneValid = /^\+7 \(\d{3}\) \d{3}-\d{2}-\d{2}$/.test(managerBonusPhone.trim());
-    const sendBonusCode = async () => {
+    const sendBonusCode = async (channel: "whatsapp" | "sms" = bonusOtpChannel) => {
         if (!isManagerBonusPhoneValid || isSendingBonusCode) return;
+        setBonusOtpChannel(channel);
         setBonusVerifyError(null);
         setIsSendingBonusCode(true);
         try {
             const res = await fetch("/api/auth/send-code", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone: managerBonusPhone }),
+                body: JSON.stringify({ phone: managerBonusPhone, channel }),
             });
             const data = await res.json();
             if (data?.status === "ok") {
@@ -577,7 +579,7 @@ export default function FullPayment({ flatData, realEstateType = "property", act
                                 }}
                             />
                             <Button
-                                onPress={sendBonusCode}
+                                onPress={() => sendBonusCode("whatsapp")}
                                 isDisabled={!isManagerBonusPhoneValid || isSendingBonusCode}
                                 className="w-full rounded-[12px] bg-[#1A3C7E] text-white text-[14px] font-medium leading-[20px]"
                             >
@@ -591,7 +593,9 @@ export default function FullPayment({ flatData, realEstateType = "property", act
                     {bonusPhoneStep === "code" && (
                         <>
                             <p className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
-                                {t("code_sent_to_whatsapp", { managerBonusPhone: managerBonusPhone })}
+                                {bonusOtpChannel === "sms"
+                                    ? t("auth_code_sent_to_sms_on_number", { phone: managerBonusPhone })
+                                    : t("auth_code_sent_to_whatsapp_on_number", { phone: managerBonusPhone })}
                             </p>
                             <div className="flex gap-2">
                                 {bonusVerificationCode.map((val, i) => (
@@ -622,13 +626,27 @@ export default function FullPayment({ flatData, realEstateType = "property", act
                                 {isVerifyingBonusCode ? t("verification_in_progress") : t("confirm_number")}
                             </Button>
                             {bonusTimeLeft > 0 ? (
-                                <p className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
-                                    {t("resend_code_in")} {formatBonusTime(bonusTimeLeft)}
-                                </p>
+                                <div className="flex flex-col items-start gap-[6px]">
+                                    <p className="text-[#122C5E] text-[14px] font-normal leading-[20px] opacity-80">
+                                        {t("resend_code_in")} {formatBonusTime(bonusTimeLeft)}
+                                    </p>
+                                    {bonusOtpChannel === "whatsapp" && (
+                                        <Button onPress={() => sendBonusCode("sms")} isDisabled={isSendingBonusCode} className="!p-0 !min-h-0 h-auto !bg-transparent text-[#1A3C7E] text-[14px] font-medium">
+                                            {isSendingBonusCode ? t("sending") : t("auth_send_sms")}
+                                        </Button>
+                                    )}
+                                </div>
                             ) : (
-                                <Button onPress={sendBonusCode} isDisabled={isSendingBonusCode} className="!p-0 !min-h-0 h-auto !bg-transparent text-[#1A3C7E] text-[14px] font-medium">
-                                    {t("send_code_again")}
-                                </Button>
+                                <div className="flex flex-col items-start gap-[6px]">
+                                    <Button onPress={() => sendBonusCode("whatsapp")} isDisabled={isSendingBonusCode} className="!p-0 !min-h-0 h-auto !bg-transparent text-[#1A3C7E] text-[14px] font-medium">
+                                        {isSendingBonusCode && bonusOtpChannel === "whatsapp" ? t("sending") : t("auth_send_whatsapp")}
+                                    </Button>
+                                    {bonusOtpChannel === "whatsapp" && (
+                                        <Button onPress={() => sendBonusCode("sms")} isDisabled={isSendingBonusCode} className="!p-0 !min-h-0 h-auto !bg-transparent text-[#1A3C7E] text-[14px] font-medium">
+                                            {isSendingBonusCode ? t("sending") : t("auth_send_sms")}
+                                        </Button>
+                                    )}
+                                </div>
                             )}
                             <Button onPress={() => { setBonusPhoneStep("phone"); setBonusVerifyError(null); }} className="flex justify-end !p-0 !min-h-0 h-auto !bg-transparent text-[#2655AF] text-[14px]">
                                 {t("change_number")}

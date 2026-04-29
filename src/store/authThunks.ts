@@ -10,6 +10,7 @@ export type SendCodeResponse = {
     phone: string;
     expiresInSec: number;
     resendCooldownSec: number;
+    sentVia?: "whatsapp" | "sms";
   };
 };
 
@@ -54,12 +55,12 @@ export type CreateSessionReject = {
 
 export const sendAuthCode = createAsyncThunk<
   SendCodeResponse,
-  { phoneMasked: string },
+  { phoneMasked: string; channel?: "whatsapp" | "sms" },
   { rejectValue: SendCodeReject }
->("auth/sendCode", async ({ phoneMasked }, { rejectWithValue }) => {
+>("auth/sendCode", async ({ phoneMasked, channel = "whatsapp" }, { rejectWithValue }) => {
   try {
     const phone = normalizeKzPhone(phoneMasked);
-    const data = await apiPost<SendCodeResponse>("/api/auth/send-code", { phone });
+    const data = await apiPost<SendCodeResponse>("/api/auth/send-code", { phone, channel });
 
     if (data?.status !== "ok") {
       return rejectWithValue({ status: "error", message: "send_code_failed" });

@@ -327,6 +327,7 @@ export default function Contacts({
 
   // Phone verification (для менеджера/админа, когда вводят номер клиента)
   const [phoneVerifyStep, setPhoneVerifyStep] = useState<"idle" | "code" | "verified">("idle");
+  const [phoneVerifyChannel, setPhoneVerifyChannel] = useState<"whatsapp" | "sms">("whatsapp");
   const [phoneVerifyCode, setPhoneVerifyCode] = useState("");
   const [phoneVerifyError, setPhoneVerifyError] = useState<string | null>(null);
   const [sendingPhoneCode, setSendingPhoneCode] = useState(false);
@@ -748,6 +749,7 @@ export default function Contacts({
           setPendingCheckDocData(null);
           return;
         }
+        setPhoneVerifyChannel("whatsapp");
         setPhoneVerifyStep("code");
         setPhoneVerifyCode("");
         return;
@@ -864,6 +866,40 @@ export default function Contacts({
       setPhoneVerifyError("Ошибка сети");
     } finally {
       setVerifyingPhoneCode(false);
+    }
+  };
+
+  const sendPhoneCodeVia = async (channel: "whatsapp" | "sms") => {
+    if (sendingPhoneCodeRef.current || !isManagerOrAdmin || !pendingCheckDocData) return;
+    const raw = phone.trim();
+    const normalized = normalizePhone(raw);
+    if (!isValidKzPhoneE164(normalized)) {
+      setPhoneVerifyError(t("wrong_phone"));
+      return;
+    }
+
+    sendingPhoneCodeRef.current = true;
+    setSendingPhoneCode(true);
+    setPhoneVerifyError(null);
+    try {
+      const res = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: raw, channel }),
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.status !== "ok") {
+        setPhoneVerifyError(mapSendCodeErrorMessage(json?.message, t));
+        return;
+      }
+      setPhoneVerifyChannel(channel);
+      setPhoneVerifyCode("");
+    } catch {
+      setPhoneVerifyError(t("error_sending_code"));
+    } finally {
+      setSendingPhoneCode(false);
+      sendingPhoneCodeRef.current = false;
     }
   };
 
@@ -1143,7 +1179,9 @@ export default function Contacts({
     return (
       <div className="flex flex-col gap-[32px]">
         <p className="text-[#122C5E] text-[16px] not-italic font-normal leading-[16px] opacity-60">
-          {t("enter_whatsapp_code_description", { phone: phone.trim() || effectivePhone })}
+          {phoneVerifyChannel === "sms"
+            ? t("auth_code_sent_to_sms_on_number", { phone: phone.trim() || effectivePhone })
+            : t("enter_whatsapp_code_description", { phone: phone.trim() || effectivePhone })}
         </p>
 
         <div className="flex flex-col gap-[8px]">
@@ -1157,6 +1195,16 @@ export default function Contacts({
             onChange={setPhoneVerifyCode}
             isDisabled={loading || verifyingPhoneCode}
           />
+          {phoneVerifyChannel === "whatsapp" && (
+            <Button
+              onPress={() => sendPhoneCodeVia("sms")}
+              isLoading={sendingPhoneCode}
+              isDisabled={sendingPhoneCode || verifyingPhoneCode}
+              className="self-start !p-0 !min-h-0 h-auto !bg-transparent text-[#1A3C7E] text-[14px] font-normal"
+            >
+              <span>{t("auth_send_sms")}</span>
+            </Button>
+          )}
         </div>
 
         {phoneVerifyError && <p className="text-red-600 text-[14px]">{phoneVerifyError}</p>}
@@ -1467,7 +1515,7 @@ export default function Contacts({
                 </h1>
                 <div className="flex flex-col items-start gap-[8px] self-stretch">
                   <Row label={t("phone")} value={docData.phone} />
-                  
+
                   <div className="flex flex-col gap-[8px] self-stretch [border-bottom:1px_solid_rgba(38,_85,_175,_0.16)] pb-[8px]">
                     <span className="text-[#000] text-[14px] not-italic font-normal leading-[14px] opacity-80">
                       {t("email")} <span className="text-red-500">*</span>

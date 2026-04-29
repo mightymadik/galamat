@@ -135,66 +135,7 @@ export default function Installment({ flatData, realEstateType = "property", act
             setIsSendingBonusCode(false);
         }
     };
-
-    const verifyBonusCode = async () => {
-        const code = bonusVerificationCode.join("");
-        if (!/^\d{4}$/.test(code) || isVerifyingBonusCode) return;
-        setBonusVerifyError(null);
-        setIsVerifyingBonusCode(true);
-        try {
-            const res = await fetch("/api/galaBonus/verify-phone", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone: managerBonusPhone, code }),
-            });
-            const data = await res.json();
-            if (data?.status === "ok") {
-                setManagerBonusPhoneVerified(true);
-                setBonusPhoneStep("verified");
-                setBonusVerifyError(null);
-            } else {
-                setBonusVerifyError(
-                    data?.message === "invalid_code"
-                        ? `${t("wrong_code")}${typeof data?.meta?.attemptsLeft === "number" ? `. ${t("attempts_left")}: ${data.meta.attemptsLeft}` : ""}`
-                        : data?.message === "code_expired_or_not_found"
-                            ? `${t("code_expired")}. ${t("request_new_code")}`
-                            : data?.message === "too_many_attempts"
-                                ? `${t("too_many_attempts")}. ${t("try_later")}`
-                                : `${t("code_verification_error")}`
-                );
-                setBonusAttemptsLeft(data?.meta?.attemptsLeft ?? null);
-                setBonusVerificationCode(["", "", "", ""]);
-                bonusCodeInputsRef.current[0]?.focus();
-            }
-        } catch {
-            setBonusVerifyError(t("code_verification_error"));
-        } finally {
-            setIsVerifyingBonusCode(false);
-        }
-    };
-
-    const handleBonusCodeChange = (index: number, value: string) => {
-        if (!/^\d?$/.test(value)) return;
-        const next = [...bonusVerificationCode];
-        next[index] = value;
-        setBonusVerificationCode(next);
-        setBonusVerifyError(null);
-        if (value && index < 3) bonusCodeInputsRef.current[index + 1]?.focus();
-        if (next.join("").length === 4) bonusCodeInputsRef.current[3]?.blur();
-    };
-
-    const handleBonusCodeKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Backspace" && !bonusVerificationCode[index] && index > 0) {
-            bonusCodeInputsRef.current[index - 1]?.focus();
-        }
-    };
-
-    const formatBonusTime = (sec: number) => {
-        const m = Math.floor(sec / 60).toString().padStart(2, "0");
-        const s = (sec % 60).toString().padStart(2, "0");
-        return `${m}:${s}`;
-    };
-
+    
     useEffect(() => {
         const code = formatPromoInput(promocodeInput);
         if (code.length < PROMO_LENGTH) {
