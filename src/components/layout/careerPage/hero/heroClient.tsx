@@ -13,7 +13,7 @@ export default function CareerHeroClient({ data }: { data: CareerHeroData | null
 
   return (
     <section>
-      <div className="relative min-h-[800px]">
+      <div className="relative min-h-[calc(100vh-68px)]">
         <Image
           src="/img/why-us-hero-poster.jpg"
           alt=""
