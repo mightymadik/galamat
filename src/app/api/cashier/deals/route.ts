@@ -7,7 +7,8 @@ import { resolveEffectiveRole } from "@/lib/dealManagerAuth";
 
 /**
  * Strapi `rest.maxLimit` (по умолчанию 100) — запросы с pageSize=1000 всё равно отдают до 100 строк.
- * На проде с большим числом графиков без постранички виден только «первый транш» по сделкам.
+ * Поэтому сделки тянем постранично, а график/оплаты подгружаем populate'ом из самой сделки —
+ * это исключает «потерю» строк при глобальной выборке payment-schedules с нестабильной сортировкой.
  */
 const STRAPI_PAGE = 100;
 
@@ -67,85 +68,25 @@ export async function GET(request: NextRequest) {
       "&populate[pantry][populate][project][fields][0]=projectName" +
       "&populate[customer][fields][0]=name&populate[customer][fields][1]=surname&populate[customer][fields][2]=phone" +
       "&populate[manager][fields][0]=name&populate[manager][fields][1]=surname" +
+      "&populate[paymentSchedules][fields][0]=documentId" +
+      "&populate[paymentSchedules][fields][1]=index" +
+      "&populate[paymentSchedules][fields][2]=dueDate" +
+      "&populate[paymentSchedules][fields][3]=amount" +
+      "&populate[paymentSchedules][fields][4]=paymentStatus" +
+      "&populate[payments][fields][0]=documentId" +
+      "&populate[payments][fields][1]=amount" +
+      "&populate[payments][fields][2]=paymentStatus" +
+      "&populate[payments][fields][3]=createdAt" +
+      "&populate[payments][fields][4]=confirmedAt" +
+      "&populate[payments][populate][confirmedBy][fields][0]=name" +
+      "&populate[payments][populate][confirmedBy][fields][1]=surname" +
+      "&populate[payments][populate][receipt][fields][0]=url" +
+      "&populate[payments][populate][receipt][fields][1]=name" +
+      "&populate[payments][populate][receipt][fields][2]=mime" +
       "&fields[0]=documentId&fields[1]=dealStatus&fields[2]=dealPrice&fields[3]=paymentMethod&fields[4]=createdAt";
 
     let rawDeals: any[] = await fetchAllStrapiList(dealsQuery, headers);
     if (!Array.isArray(rawDeals)) rawDeals = [];
-
-    const dealIdSet = new Set(rawDeals.map((d: any) => String(d?.documentId ?? d?.id ?? "")).filter(Boolean));
-    const schedulesByDeal: Record<string, any[]> = {};
-    const paymentsByDeal: Record<string, any[]> = {};
-
-    let scheduleList: any[] = [];
-    try {
-      scheduleList = await fetchAllStrapiList(
-        "/api/payment-schedules" +
-          "?sort[0]=index:asc" +
-          "&fields[0]=documentId&fields[1]=index&fields[2]=dueDate&fields[3]=amount&fields[4]=paymentStatus" +
-          "&populate[deal][fields][0]=documentId",
-        headers
-      );
-    } catch {
-      scheduleList = [];
-    }
-    for (const s of scheduleList) {
-      const dealRel = s?.deal ?? s?.attributes?.deal;
-      const dealData = (dealRel as any)?.data ?? dealRel;
-      const docId = dealData?.documentId ?? dealData?.id;
-      if (docId && dealIdSet.has(String(docId))) {
-        if (!schedulesByDeal[docId]) schedulesByDeal[docId] = [];
-        schedulesByDeal[docId].push({
-          documentId: s?.documentId ?? s?.id,
-          index: s?.index ?? s?.attributes?.index,
-          dueDate: s?.dueDate ?? s?.attributes?.dueDate,
-          amount: s?.amount ?? s?.attributes?.amount,
-          paymentStatus: s?.paymentStatus ?? s?.attributes?.paymentStatus,
-        });
-      }
-    }
-
-    let paymentsList: any[] = [];
-    try {
-      paymentsList = await fetchAllStrapiList(
-        "/api/payments" +
-          "?sort[0]=createdAt:desc" +
-          "&fields[0]=documentId&fields[1]=amount&fields[2]=paymentStatus&fields[3]=createdAt&fields[4]=confirmedAt" +
-          "&populate[deal][fields][0]=documentId" +
-          "&populate[confirmedBy][fields][0]=name&populate[confirmedBy][fields][1]=surname" +
-          "&populate[receipt][fields][0]=url&populate[receipt][fields][1]=name&populate[receipt][fields][2]=mime",
-        headers
-      );
-    } catch {
-      paymentsList = [];
-    }
-    for (const p of paymentsList) {
-      const dealRel = p?.deal ?? p?.attributes?.deal;
-      const dealData = (dealRel as any)?.data ?? dealRel;
-      const docId = dealData?.documentId ?? dealData?.id;
-      if (docId && dealIdSet.has(String(docId))) {
-        const confBy = p?.confirmedBy ?? p?.attributes?.confirmedBy;
-        const confByData = (confBy as any)?.data ?? confBy;
-        const cbName = confByData?.name ?? confByData?.attributes?.name ?? "";
-        const cbSurname = confByData?.surname ?? confByData?.attributes?.surname ?? "";
-        const confirmedByDisplayName = [cbSurname, cbName].filter(Boolean).join(" ").trim() || null;
-        if (!paymentsByDeal[docId]) paymentsByDeal[docId] = [];
-        const receiptRel = p?.receipt ?? p?.attributes?.receipt;
-        const receiptData = (receiptRel as any)?.data ?? receiptRel;
-        const receiptUrl = receiptData?.url ?? null;
-        const receiptName = receiptData?.name ?? null;
-
-        paymentsByDeal[docId].push({
-          documentId: p?.documentId ?? p?.id,
-          amount: p?.amount ?? p?.attributes?.amount,
-          paymentStatus: p?.paymentStatus ?? p?.attributes?.paymentStatus,
-          createdAt: p?.createdAt ?? p?.attributes?.createdAt,
-          confirmedAt: p?.confirmedAt ?? p?.attributes?.confirmedAt,
-          confirmedByDisplayName,
-          receiptUrl,
-          receiptName,
-        });
-      }
-    }
 
     const deals = rawDeals.map((d: any) => {
       const docId = String(d?.documentId ?? d?.id ?? "");
@@ -168,7 +109,53 @@ export async function GET(request: NextRequest) {
       const mgrName = mgrData?.name ?? mgrData?.attributes?.name ?? "";
       const mgrSurname = mgrData?.surname ?? mgrData?.attributes?.surname ?? "";
       const managerDisplayName = [mgrSurname, mgrName].filter(Boolean).join(" ").trim() || null;
-      const payments = paymentsByDeal[docId] ?? [];
+
+      const rawSchedules = (() => {
+        const rel = d?.paymentSchedules ?? d?.attributes?.paymentSchedules;
+        const data = (rel as any)?.data ?? rel;
+        return Array.isArray(data) ? data : [];
+      })();
+      const paymentSchedules = rawSchedules
+        .map((s: any) => ({
+          documentId: s?.documentId ?? s?.id,
+          index: s?.index ?? s?.attributes?.index,
+          dueDate: s?.dueDate ?? s?.attributes?.dueDate,
+          amount: s?.amount ?? s?.attributes?.amount,
+          paymentStatus: s?.paymentStatus ?? s?.attributes?.paymentStatus,
+        }))
+        .sort((a: any, b: any) => (Number(a.index) || 0) - (Number(b.index) || 0));
+
+      const rawPayments = (() => {
+        const rel = d?.payments ?? d?.attributes?.payments;
+        const data = (rel as any)?.data ?? rel;
+        return Array.isArray(data) ? data : [];
+      })();
+      const payments = rawPayments.map((pp: any) => {
+        const confBy = pp?.confirmedBy ?? pp?.attributes?.confirmedBy;
+        const confByData = (confBy as any)?.data ?? confBy;
+        const cbName = confByData?.name ?? confByData?.attributes?.name ?? "";
+        const cbSurname = confByData?.surname ?? confByData?.attributes?.surname ?? "";
+        const confirmedByDisplayName = [cbSurname, cbName].filter(Boolean).join(" ").trim() || null;
+        const receiptRel = pp?.receipt ?? pp?.attributes?.receipt;
+        const receiptData = (receiptRel as any)?.data ?? receiptRel;
+        const receiptList = Array.isArray(receiptData)
+          ? receiptData
+          : receiptData
+            ? [receiptData]
+            : [];
+        const firstReceipt = receiptList[0] || null;
+        return {
+          documentId: pp?.documentId ?? pp?.id,
+          amount: pp?.amount ?? pp?.attributes?.amount,
+          paymentStatus: pp?.paymentStatus ?? pp?.attributes?.paymentStatus,
+          createdAt: pp?.createdAt ?? pp?.attributes?.createdAt,
+          confirmedAt: pp?.confirmedAt ?? pp?.attributes?.confirmedAt,
+          confirmedByDisplayName,
+          receiptUrl: firstReceipt?.url ?? firstReceipt?.attributes?.url ?? null,
+          receiptName: firstReceipt?.name ?? firstReceipt?.attributes?.name ?? null,
+        };
+      });
+
       return {
         documentId: docId,
         dealStatus: d?.dealStatus ?? d?.attributes?.dealStatus,
@@ -191,7 +178,7 @@ export async function GET(request: NextRequest) {
         },
         customer: { displayName: clientName, phone: custData?.phone ?? custData?.attributes?.phone },
         manager: managerDisplayName ? { displayName: managerDisplayName } : null,
-        paymentSchedules: (schedulesByDeal[docId] ?? []).sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0)),
+        paymentSchedules,
         payments,
       };
     });
