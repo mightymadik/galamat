@@ -395,6 +395,7 @@ export default function FullPayment({ flatData, realEstateType = "property", act
             usedPromocodeCode: promocodeResult?.valid ? promocodeResult.code : undefined,
             usedGalaBonusAmount: usedGalaBonusAmount || undefined,
             propertyDocumentId: flatData?.documentId,
+            downPaymentAmount: Math.max(0, totalWithBonus),
         };
         onNext(payload);
     };

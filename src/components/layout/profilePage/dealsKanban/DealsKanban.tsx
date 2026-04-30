@@ -239,7 +239,7 @@ export default function DealsKanban() {
     <div className="flex w-full max-w-[1095px] flex-col gap-6">
       <h1 className="text-[#000] text-2xl lg:text-3xl font-medium">{t("deals")}</h1>
 
-      <div className="max-w-[1095px] sticky top-0 z-20 flex flex-wrap items-end gap-3 p-4 rounded-xl bg-white border border-gray-200 shadow-sm">
+      <div className="max-w-[1095px] sticky top-0 z-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-4 rounded-xl bg-white border border-gray-200 shadow-sm">
         <Input
           label={t("search")}
           placeholder={t("search_placeholder_deals")}
@@ -248,7 +248,7 @@ export default function DealsKanban() {
           size="sm"
           isClearable
           onClear={() => setSearch("")}
-          classNames={{ base: "max-w-[180px]" }}
+          classNames={{ base: "w-full" }}
         />
         <Select
           label={t("status_label")}
@@ -260,7 +260,7 @@ export default function DealsKanban() {
             setStatusFilter(k === "__all__" ? "" : k ?? "");
           }}
           size="sm"
-          classNames={{ base: "max-w-[180px]" }}
+          classNames={{ base: "w-full" }}
         >
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
         </Select>
@@ -273,7 +273,7 @@ export default function DealsKanban() {
             setProjectFilter(k ?? "");
           }}
           size="sm"
-          classNames={{ base: "max-w-[180px]" }}
+          classNames={{ base: "w-full" }}
           items={[{ key: "", label: t("project_placeholder") }, ...projectOptions.map((p) => ({ key: p, label: p }))]}
         >
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
@@ -288,7 +288,7 @@ export default function DealsKanban() {
             setPropertyTypeFilter(k === "__any__" ? "" : k ?? "");
           }}
           size="sm"
-          classNames={{ base: "max-w-[180px]" }}
+          classNames={{ base: "w-full" }}
         >
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
         </Select>
@@ -302,7 +302,7 @@ export default function DealsKanban() {
             setPaymentMethodFilter(k === "__any__" ? "" : k ?? "");
           }}
           size="sm"
-          classNames={{ base: "max-w-[180px]" }}
+          classNames={{ base: "w-full" }}
         >
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
         </Select>
@@ -316,7 +316,7 @@ export default function DealsKanban() {
             setKazreestrStatusFilter(k === "__any__" ? "" : k ?? "");
           }}
           size="sm"
-          classNames={{ base: "max-w-[180px]" }}
+          classNames={{ base: "w-full" }}
         >
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
         </Select>
@@ -326,7 +326,7 @@ export default function DealsKanban() {
           value={createdAtFrom}
           onValueChange={setCreatedAtFrom}
           size="sm"
-          classNames={{ base: "max-w-[180px]" }}
+          classNames={{ base: "w-full" }}
         />
         <Input
           type="date"
@@ -334,9 +334,9 @@ export default function DealsKanban() {
           value={createdAtTo}
           onValueChange={setCreatedAtTo}
           size="sm"
-          classNames={{ base: "max-w-[180px]" }}
+          classNames={{ base: "w-full" }}
         />
-        <div className="flex gap-2">
+        <div className="flex gap-2 sm:col-span-2 lg:col-span-1">
           <Button
             size="sm"
             variant={viewMode === "kanban" ? "solid" : "flat"}
@@ -354,7 +354,7 @@ export default function DealsKanban() {
             Список
           </Button>
         </div>
-        <div className="flex gap-2 ml-auto">
+        <div className="flex gap-2 sm:col-span-2 lg:col-span-2 xl:col-span-2 sm:justify-end">
           <Button size="sm" variant="flat" color="default" onPress={() => {
             setSearch("");
             setStatusFilter("");
@@ -407,7 +407,7 @@ export default function DealsKanban() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">На странице</span>
+              <span className="text-sm text-gray-600 hidden sm:inline">На странице</span>
               <Select
                 items={pageSizeItems}
                 selectedKeys={[String(listPageSize)]}
@@ -421,12 +421,14 @@ export default function DealsKanban() {
                 }}
                 size="sm"
                 classNames={{ base: "w-[86px]" }}
+                aria-label="Размер страницы"
               >
                 {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-[1.2fr_1.2fr_0.9fr_1.1fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 bg-gray-50 text-xs uppercase tracking-wide font-semibold text-gray-500 border-b border-gray-200">
+
+          <div className="hidden md:grid grid-cols-[1.2fr_1.2fr_0.9fr_1.1fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 bg-gray-50 text-xs uppercase tracking-wide font-semibold text-gray-500 border-b border-gray-200">
             <span>Клиент / Проект</span>
             <span>Статус</span>
             <span>№</span>
@@ -436,41 +438,93 @@ export default function DealsKanban() {
             <span>Оплата</span>
             <span>Создано</span>
           </div>
+
           <div className="divide-y divide-gray-100">
-            {paginatedDeals.map((deal) => (
-              <button
-                key={deal.documentId}
-                type="button"
-                className="w-full grid grid-cols-[1.2fr_1.2fr_0.9fr_1.1fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 text-left hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 transition"
-                onClick={() => {
-                  setSelectedDealId(deal.documentId);
-                  const next = new URLSearchParams(searchParams.toString());
-                  next.set("deal", deal.documentId);
-                  const qs = next.toString();
-                  router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-                }}
-              >
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-gray-800 truncate">{deal.customer?.displayName || "-"}</span>
-                  <span className="block text-xs text-gray-500 truncate">
-                    {deal.property?.projectName || "-"}
-                  </span>
+            {paginatedDeals.map((deal) => {
+              const onSelect = () => {
+                setSelectedDealId(deal.documentId);
+                const next = new URLSearchParams(searchParams.toString());
+                next.set("deal", deal.documentId);
+                const qs = next.toString();
+                router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+              };
+              const statusBadge = (
+                <span
+                  className={`inline-flex max-w-full items-center rounded-full px-2 py-1 text-xs font-medium truncate ${STATUS_BADGE_STYLES[deal.__status] ?? "bg-gray-100 text-gray-700"}`}
+                >
+                  {t(STATUS_TO_KEY[deal.__status] ?? deal.__status)}
                 </span>
-                <span className="min-w-0">
-                  <span
-                    className={`inline-flex max-w-full items-center rounded-full px-2 py-1 text-xs font-medium truncate ${STATUS_BADGE_STYLES[deal.__status] ?? "bg-gray-100 text-gray-700"}`}
+              );
+
+              return (
+                <React.Fragment key={deal.documentId}>
+                  <button
+                    type="button"
+                    className="hidden md:grid w-full grid-cols-[1.2fr_1.2fr_0.9fr_1.1fr_1.2fr_1fr_1fr_1fr] gap-3 px-4 py-3 text-left hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 transition"
+                    onClick={onSelect}
                   >
-                    {t(STATUS_TO_KEY[deal.__status] ?? deal.__status)}
-                  </span>
-                </span>
-                <span className="text-sm text-gray-700 truncate">{deal.property?.apartmentNumber || "-"}</span>
-                <span className="text-sm text-gray-700 truncate">{formatPropertyType(deal)}</span>
-                <span className="text-sm text-gray-700 truncate">{deal.manager?.displayName || "-"}</span>
-                <span className="text-sm text-gray-700 truncate">{formatCurrency(deal.dealPrice)}</span>
-                <span className="text-sm text-gray-600 truncate">{deal.paymentMethod || "-"}</span>
-                <span className="text-sm text-gray-500 truncate">{formatDate(deal.createdAt)}</span>
-              </button>
-            ))}
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-gray-800 truncate">{deal.customer?.displayName || "-"}</span>
+                      <span className="block text-xs text-gray-500 truncate">
+                        {deal.property?.projectName || "-"}
+                      </span>
+                    </span>
+                    <span className="min-w-0">{statusBadge}</span>
+                    <span className="text-sm text-gray-700 truncate">{deal.property?.apartmentNumber || "-"}</span>
+                    <span className="text-sm text-gray-700 truncate">{formatPropertyType(deal)}</span>
+                    <span className="text-sm text-gray-700 truncate">{deal.manager?.displayName || "-"}</span>
+                    <span className="text-sm text-gray-700 truncate">{formatCurrency(deal.dealPrice)}</span>
+                    <span className="text-sm text-gray-600 truncate">{deal.paymentMethod || "-"}</span>
+                    <span className="text-sm text-gray-500 truncate">{formatDate(deal.createdAt)}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="md:hidden w-full px-4 py-3 text-left hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 transition"
+                    onClick={onSelect}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {deal.customer?.displayName || "-"}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                          {deal.property?.projectName || "-"}
+                        </p>
+                      </div>
+                      <div className="shrink-0">{statusBadge}</div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Объект</p>
+                        <p className="text-sm text-gray-800 truncate">
+                          {formatPropertyType(deal)}
+                          {deal.property?.apartmentNumber ? ` · №${deal.property.apartmentNumber}` : ""}
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Стоимость</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {formatCurrency(deal.dealPrice)}
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Оплата</p>
+                        <p className="text-sm text-gray-700 truncate">{deal.paymentMethod || "-"}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Менеджер</p>
+                        <p className="text-sm text-gray-700 truncate">{deal.manager?.displayName || "-"}</p>
+                      </div>
+                      <div className="min-w-0 col-span-2">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Создано</p>
+                        <p className="text-sm text-gray-500">{formatDate(deal.createdAt)}</p>
+                      </div>
+                    </div>
+                  </button>
+                </React.Fragment>
+              );
+            })}
             {listDeals.length === 0 && (
               <div className="px-4 py-12 text-center">
                 <p className="text-sm font-medium text-gray-700">{t("no_data")}</p>
@@ -478,6 +532,7 @@ export default function DealsKanban() {
               </div>
             )}
           </div>
+
           {listDeals.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50">
               <span className="text-sm text-gray-600">

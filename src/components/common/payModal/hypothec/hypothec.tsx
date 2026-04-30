@@ -250,6 +250,7 @@ export default function Hypothec({ flatData, realEstateType = "property", onNext
             hypothecBank: selectedProgram?.bank,
             hypothecProgram: selectedProgram?.programName,
             paymentConditionDownPaymentRaw: selectedOption?.downPayment ?? undefined,
+            downPaymentAmount: Math.max(0, enteredDownAmount),
         });
     };
 

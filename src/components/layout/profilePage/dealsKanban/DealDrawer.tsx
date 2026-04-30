@@ -107,7 +107,9 @@ export default function DealDrawer({
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [agreementDownloadLoading, setAgreementDownloadLoading] = useState(false);
     const [agreementFiles, setAgreementFiles] = useState<DownloadAgreementItem[]>([]);
-    const [isMobile, setIsMobile] = useState(false);
+    const [isMobile, setIsMobile] = useState(
+        () => (typeof window !== "undefined" ? window.innerWidth < 1024 : false)
+    );
     type RenewalStep = "contacts" | "cost" | "sign";
     const [renewalStep, setRenewalStep] = useState<RenewalStep | null>(null);
     const [renewalNewCustomerDocumentId, setRenewalNewCustomerDocumentId] = useState<string | null>(null);
@@ -210,6 +212,7 @@ export default function DealDrawer({
     };
 
     const isReserve = data?.deal?.dealStatus === "Бронь";
+    const isAwaitingAgreement = data?.deal?.dealStatus === "Ожидания договора";
     const canRenewOrTerminate =
         data?.deal?.dealStatus === "Оплачено" || data?.deal?.dealStatus === "Договор подписан" || data?.deal?.dealStatus === "Просрочен" || data?.deal?.dealStatus === "Ожидания оплаты";
     const isRopApprovalStage = data?.deal?.dealStatus === "Согласование РОП";
@@ -351,11 +354,13 @@ export default function DealDrawer({
                 if (!open) { if (renewalStep) exitRenewal(); if (terminationActive) exitTermination(); onClose(); }
             }}
             placement={isMobile ? "bottom" : "right"}
-            classNames={{
-                base: "fixed flex w-full max-w-[600px] min-h-[75vh] bottom-0 h-full px-[16px] py-[24px] lg:px-[40px] lg:py-[64px] flex-col gap-[10px] rounded-t-[32px] bg-[#FFF]",
-            }}
+            size={isMobile ? "full" : "md"}
         >
-            <DrawerContent className="flex flex-col gap-[32px] h-full self-stretch">
+            <DrawerContent
+                className={`bg-[#FFF] flex flex-col gap-[32px] self-stretch px-[16px] py-[24px] lg:px-[40px] lg:py-[64px] ${
+                    isMobile ? "max-h-[92vh] min-h-[75vh] rounded-t-[32px]" : "h-full max-w-[600px]"
+                }`}
+            >
                 {renewalStep ? (
                     <>
                         <div className="self-stretch h-4 inline-flex justify-start items-center gap-6">
@@ -817,7 +822,7 @@ export default function DealDrawer({
                         <DrawerFooter className="flex flex-col p-2 bg-transparent">
                             <section className="flex flex-col gap-[16px] self-stretch">
                                 <div className="flex flex-col gap-[10px] self-stretch">
-                                    {!isReadOnlyRole && isReserve && (
+                                    {!isReadOnlyRole && isReserve || isAwaitingAgreement && (
                                         <Button
                                             variant="flat"
                                             className="w-full justify-center text-white bg-[#F04800]"

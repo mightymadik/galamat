@@ -55,7 +55,7 @@ export async function POST(
       return Response.json({ error: "forbidden" }, { status: 403 });
 
     const dealStatus = deal?.dealStatus ?? deal?.attributes?.dealStatus;
-    const doNotRelease = ["Договор подписан", "Ожидания договора", "Оплачено"].includes(dealStatus);
+    const doNotRelease = ["Договор подписан", "Оплачено"].includes(dealStatus);
     if (doNotRelease) {
       return Response.json({ ok: true, released: false, reason: "deal_in_progress_or_signed" });
     }

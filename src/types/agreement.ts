@@ -22,13 +22,13 @@ export interface AgreementPayload {
   usedGalaBonusAmount?: number;
   /** documentId квартиры (для привязки промокода к property при «Завершить») */
   propertyDocumentId?: string;
-  /**
-   * Для рассрочки: значение `downPayment` выбранного варианта (например «ПВ 50%»),
-   * чтобы бэкенд применил ту же надбавку и % ПВ, что и в интерфейсе.
-   */
-  installmentDownPaymentRaw?: string;
   /** Текст ПВ из выбранного варианта (отложенный платёж, ипотека и т.д.) */
   paymentConditionDownPaymentRaw?: string;
+  /**
+   * Фактическая сумма первого взноса в тенге, посчитанная во фронте.
+   * Бэкенд сохраняет её в `deal.downPayment` без дополнительной арифметики.
+   */
+  downPaymentAmount?: number;
   /** Условие ипотеки: банк (как в Strapi `banks`) */
   hypothecBank?: string;
   /** Условие ипотеки: программа (как в Strapi `hypothec`) */

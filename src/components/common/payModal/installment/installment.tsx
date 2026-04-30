@@ -135,7 +135,7 @@ export default function Installment({ flatData, realEstateType = "property", act
             setIsSendingBonusCode(false);
         }
     };
-    
+
     useEffect(() => {
         const code = formatPromoInput(promocodeInput);
         if (code.length < PROMO_LENGTH) {
@@ -300,7 +300,8 @@ export default function Installment({ flatData, realEstateType = "property", act
             agreementProjectDueDate: dueDateStr,
             usedPromocodeCode: promocodeResult?.valid ? promocodeResult.code : undefined,
             propertyDocumentId: flatData?.documentId,
-            installmentDownPaymentRaw: selectedOption?.downPayment ?? undefined,
+            paymentConditionDownPaymentRaw: selectedOption?.downPayment ?? undefined,
+            downPaymentAmount: Math.max(0, downAmount),
         };
         onNext(payload);
     };
