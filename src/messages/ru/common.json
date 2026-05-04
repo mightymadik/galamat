@@ -603,6 +603,7 @@
   "auth_spin_wheel": "Крутить колесо",
   "auth_login_success": "Вы успешно авторизовались",
   "auth_go_to_profile": "Перейти в личный кабинет",
+  "auth_submit_registration": "Зарегистрироваться",
   "no_available_flats": "Нет квартир в продаже",
   "expand_flats": "квартир",
   "in_sale": "в продаже",

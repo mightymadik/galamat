@@ -602,6 +602,7 @@
   "auth_spin_wheel": "Дөңгелекті айналдыру",
   "auth_login_success": "Сіз сәтті кірдіңіз",
   "auth_go_to_profile": "Жеке кабинетке өту",
+  "auth_submit_registration": "Тіркелу",
   "no_available_flats": "Пәтерлер жоқ",
   "expand_flats": "пәтерлер",
   "in_sale": "сатылымда",

@@ -404,7 +404,7 @@ export default function AuthModal() {
                                                     ? "bg-[#DB1D31] text-white"
                                                     : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"}`}
                                             >
-                                                {isRegistering ? t("saving") : t("finish")}
+                                                {isRegistering ? t("saving") : t("auth_submit_registration")}
                                             </Button>
                                         </div>
                                     )}
@@ -426,7 +426,7 @@ export default function AuthModal() {
                                                     ? "bg-[#DB1D31] text-white"
                                                     : "bg-[#F2F1F0] text-[#A3A3A3] cursor-not-allowed"}`}
                                             >
-                                                {isRegistering ? t("saving") : t("finish")}
+                                                {isRegistering ? t("saving") : t("auth_submit_registration")}
                                             </Button>
                                         </div>
                                     )}
